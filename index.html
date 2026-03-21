@@ -5,341 +5,642 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mandelbrot Set Explorer</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a1a;
-            color: #ffffff;
-            display: flex;
-            min-height: 100vh;
-            padding: 20px;
-        }
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1a1a1a;
+    color: #ffffff;
+    display: flex;
+    min-height: 100vh;
+    padding: 20px;
+}
 
-        .container {
-            display: flex;
-            align-items: flex-start;
-            gap: 20px;
-            width: 100%;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+.container {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+}
 
-        .control-panel {
-            width: 250px;
-            background: #2a2a2a;
-            border-radius: 8px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+.control-panel {
+    width: 220px;
+    background: #2a2a2a;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
 
-        .control-section {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+.tab-bar {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    padding: 10px 10px 0;
+    border-bottom: 1px solid #3a3a3a;
+}
 
-        .control-section h3 {
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #888;
-            margin-bottom: 5px;
-        }
+.tab-btn {
+    flex: 1;
+    padding: 8px 4px;
+    background: transparent;
+    color: #666;
+    border: none;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+}
 
-        select {
-            width: 100%;
-            padding: 10px;
-            background: #3a3a3a;
-            color: #ffffff;
-            border: 1px solid #4a4a4a;
-            border-radius: 4px;
-            font-size: 14px;
-            cursor: pointer;
-        }
+.tab-btn:hover {
+    background: #3a3a3a;
+    color: #ccc;
+}
 
-        select:hover {
-            border-color: #5a5a5a;
-        }
+.tab-btn.active {
+    background: #3a3a3a;
+    color: #ffffff;
+}
 
-        button {
-            padding: 10px 15px;
-            background: #4a7c59;
-            color: #ffffff;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+/* CSS tooltip */
+.tab-btn::after {
+    content: attr(data-label);
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111;
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+}
 
-        button:hover {
-            background: #5a8c69;
-        }
+.tab-btn:hover::after {
+    opacity: 1;
+}
 
-        button:active {
-            background: #3a6c49;
-        }
+.tab-content {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
 
-        button:disabled {
-            background: #3a3a3a;
-            color: #666;
-            cursor: not-allowed;
-        }
+.control-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 
-        .nav-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-        }
+.control-section h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 5px;
+}
 
-        .nav-grid button {
-            padding: 15px 10px;
-            font-size: 12px;
-        }
+select {
+    width: 100%;
+    padding: 10px;
+    background: #3a3a3a;
+    color: #ffffff;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+}
 
-        .nav-grid button:nth-child(2) {
-            grid-column: 2;
-        }
+select:hover {
+    border-color: #5a5a5a;
+}
 
-        .nav-grid button:nth-child(5) {
-            grid-column: 2;
-        }
+button {
+    padding: 10px 15px;
+    background: #4a7c59;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
 
-        .zoom-controls {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
+button:hover {
+    background: #5a8c69;
+}
 
-        .export-button {
-            background: #7c4a7c;
-            margin-top: 10px;
-        }
+button:active {
+    background: #3a6c49;
+}
 
-        .export-button:hover {
-            background: #8c5a8c;
-        }
+button:disabled {
+    background: #3a3a3a;
+    color: #666;
+    cursor: not-allowed;
+}
 
-        .canvas-container {
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+.nav-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
 
-        canvas {
-            border: 2px solid #3a3a3a;
-            border-radius: 4px;
-            background: #000000;
-            /* Display smaller than actual resolution for high-quality rendering */
-            width: 400px;
-            height: 400px;
-        }
+.nav-grid button {
+    padding: 15px 10px;
+    font-size: 12px;
+}
 
-        .loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            gap: 15px;
-            border-radius: 4px;
-        }
+.nav-grid button:nth-child(2) {
+    grid-column: 2;
+}
 
-        .loading-overlay.active {
-            display: flex;
-        }
+.nav-grid button:nth-child(5) {
+    grid-column: 2;
+}
 
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #3a3a3a;
-            border-top: 4px solid #ffffff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
+.zoom-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+.export-button {
+    background: #7c4a7c;
+    margin-top: 10px;
+}
 
-        .loading-text {
-            font-size: 16px;
-            color: #ffffff;
-        }
+.export-button:hover {
+    background: #8c5a8c;
+}
 
-        input[type="range"] {
-            width: 100%;
-            height: 6px;
-            background: #3a3a3a;
-            border-radius: 3px;
-            outline: none;
-            -webkit-appearance: none;
-            appearance: none;
-        }
+.canvas-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            background: #4a7c59;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+canvas {
+    border: 2px solid #3a3a3a;
+    border-radius: 4px;
+    background: #000000;
+    /* Display smaller than actual resolution for high-quality rendering */
+    width: 400px;
+    height: 400px;
+}
 
-        input[type="range"]::-webkit-slider-thumb:hover {
-            background: #5a8c69;
-        }
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 15px;
+    border-radius: 4px;
+}
 
-        input[type="range"]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            background: #4a7c59;
-            border-radius: 50%;
-            cursor: pointer;
-            border: none;
-            transition: background 0.2s;
-        }
+.loading-overlay.active {
+    display: flex;
+}
 
-        input[type="range"]::-moz-range-thumb:hover {
-            background: #5a8c69;
-        }
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #3a3a3a;
+    border-top: 4px solid #ffffff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
 
-        .iteration-value {
-            text-align: center;
-            font-size: 14px;
-            color: #aaa;
-            margin-top: 5px;
-        }
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 
-        .iteration-value span {
-            font-weight: bold;
-            color: #fff;
-        }
+.loading-text {
+    font-size: 16px;
+    color: #ffffff;
+}
 
-        .path-canvas-container {
-            display: none;
-        }
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: #3a3a3a;
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
 
-        .path-explorer-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            color: #ccc;
-            cursor: pointer;
-            user-select: none;
-        }
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #4a7c59;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s;
+}
 
-        .path-explorer-label input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            accent-color: #4a7c59;
-        }
+input[type="range"]::-webkit-slider-thumb:hover {
+    background: #5a8c69;
+}
 
-        .path-style-options {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            padding-left: 24px;
-            margin-top: 4px;
-        }
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #4a7c59;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
 
-        .path-style-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: #aaa;
-            cursor: pointer;
-            user-select: none;
-        }
+input[type="range"]::-moz-range-thumb:hover {
+    background: #5a8c69;
+}
 
-        .path-style-label input[type="radio"] {
-            cursor: pointer;
-            accent-color: #4a7c59;
-        }
+.iteration-value {
+    text-align: center;
+    font-size: 14px;
+    color: #aaa;
+    margin-top: 5px;
+}
+
+.iteration-value span {
+    font-weight: bold;
+    color: #fff;
+}
+
+.path-canvas-container {
+    display: none;
+}
+
+.path-style-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.path-style-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #aaa;
+    cursor: pointer;
+    user-select: none;
+}
+
+.path-style-label input[type="radio"] {
+    cursor: pointer;
+    accent-color: #4a7c59;
+}
+
+.rendering-option {
+    padding: 10px 12px;
+    background: #3a3a3a;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #aaa;
+}
+
+.rendering-option.active-option {
+    color: #fff;
+    border: 1px solid #4a7c59;
+}
+
+.option-check {
+    color: #4a7c59;
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.equation-display {
+    background: #1a1a1a;
+    border-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.equation-line {
+    font-size: 20px;
+    text-align: center;
+    color: #fff;
+    font-style: italic;
+    letter-spacing: 1px;
+}
+
+.equation-note {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.5;
+}
+
+.orbit-hint {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.5;
+}
+
+/* Gradient editor */
+.gradient-preview-bar {
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid #4a4a4a;
+    width: 100%;
+}
+
+.stop-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stop-swatch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    flex: 1;
+}
+
+.stop-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    border: 2px solid #555;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+
+.stop-swatch:hover {
+    border-color: #fff;
+}
+
+.stop-swatch input[type="color"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+}
+
+.reset-gradient-btn {
+    font-size: 11px;
+    padding: 5px 8px;
+    background: #5a3a3a;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.reset-gradient-btn:hover {
+    background: #6a4a4a;
+}
+
+/* Pulse controls */
+.pulse-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pulse-btn {
+    flex: 1;
+    background: #3a5a7c;
+}
+
+.pulse-btn:hover {
+    background: #4a6a8c;
+}
+
+.pulse-duration {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+#pulseDurationInput {
+    width: 44px;
+    padding: 6px 4px;
+    background: #3a3a3a;
+    color: #fff;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    font-size: 13px;
+    text-align: center;
+}
+
+.pulse-duration-label {
+    font-size: 12px;
+    color: #888;
+}
+
     </style>
 </head>
 <body>
     <div class="container">
         <div class="control-panel">
-            <div class="control-section">
-                <h3>Color Gradient</h3>
-                <select id="gradientSelect">
-                    <option value="0">Classic</option>
-                    <option value="1">Fire</option>
-                    <option value="2">Ocean</option>
-                    <option value="3">Purple Haze</option>
-                    <option value="4">Grayscale</option>
-                    <option value="5">Sunset</option>
-                    <option value="6">Electric</option>
-                    <option value="7">Forest</option>
-                    <option value="8">Cosmic</option>
-                    <option value="9">Rainbow</option>
-                </select>
+            <div class="tab-bar">
+                <!-- Navigation: 4-way arrow crosshair -->
+                <button class="tab-btn active" data-tab="navigation" data-label="Navigation">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="9" y1="1" x2="9" y2="17"/>
+                        <line x1="1" y1="9" x2="17" y2="9"/>
+                        <polyline points="6,4 9,1 12,4"/>
+                        <polyline points="6,14 9,17 12,14"/>
+                        <polyline points="4,6 1,9 4,12"/>
+                        <polyline points="14,6 17,9 14,12"/>
+                    </svg>
+                </button>
+                <!-- Colors: rainbow arcs -->
+                <button class="tab-btn" data-tab="colors" data-label="Colors">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-linecap="round">
+                        <path d="M2 15 A7 7 0 0 1 16 15" stroke-width="2"/>
+                        <path d="M4.5 15 A4.5 4.5 0 0 1 13.5 15" stroke-width="2"/>
+                        <path d="M7 15 A2 2 0 0 1 11 15" stroke-width="2"/>
+                    </svg>
+                </button>
+                <!-- Rendering: slider lines -->
+                <button class="tab-btn" data-tab="rendering" data-label="Rendering">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                        <line x1="2" y1="5" x2="16" y2="5"/>
+                        <line x1="2" y1="9" x2="16" y2="9"/>
+                        <line x1="2" y1="13" x2="16" y2="13"/>
+                        <circle cx="6" cy="5" r="2" fill="#2a2a2a"/>
+                        <circle cx="12" cy="9" r="2" fill="#2a2a2a"/>
+                        <circle cx="8" cy="13" r="2" fill="#2a2a2a"/>
+                    </svg>
+                </button>
+                <!-- Equation: sigma shape -->
+                <button class="tab-btn" data-tab="equation" data-label="Equation">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="13,2 5,2 10,9 5,16 13,16"/>
+                    </svg>
+                </button>
+                <!-- Orbit Explorer: tilted ellipse with dot -->
+                <button class="tab-btn" data-tab="orbit-explorer" data-label="Orbit Explorer">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <ellipse cx="9" cy="9" rx="7" ry="3.5" transform="rotate(-25 9 9)"/>
+                        <circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none"/>
+                        <circle cx="15" cy="7" r="1" fill="currentColor" stroke="none"/>
+                    </svg>
+                </button>
             </div>
 
-            <div class="control-section">
-                <h3>Zoom</h3>
-                <div class="zoom-controls">
-                    <button id="zoomInBtn">Zoom In</button>
-                    <button id="zoomOutBtn">Zoom Out</button>
-                    <button id="resetBtn">Reset View</button>
+            <div class="tab-content" id="tab-navigation">
+                <div class="control-section">
+                    <h3>Zoom</h3>
+                    <div class="zoom-controls">
+                        <button id="zoomInBtn">Zoom In</button>
+                        <button id="zoomOutBtn">Zoom Out</button>
+                        <button id="resetBtn">Reset View</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Navigate</h3>
+                    <div class="nav-grid">
+                        <div></div>
+                        <button id="upBtn">&#9650; Up</button>
+                        <div></div>
+                        <button id="leftBtn">&#9668; Left</button>
+                        <button id="downBtn">&#9660; Down</button>
+                        <button id="rightBtn">&#9658; Right</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <button id="exportBtn" class="export-button">Export PNG</button>
                 </div>
             </div>
 
-            <div class="control-section">
-                <h3>Navigate</h3>
-                <div class="nav-grid">
-                    <div></div>
-                    <button id="upBtn">▲ Up</button>
-                    <div></div>
-                    <button id="leftBtn">◄ Left</button>
-                    <button id="downBtn">▼ Down</button>
-                    <button id="rightBtn">► Right</button>
+            <div class="tab-content" id="tab-colors" style="display:none">
+                <div class="control-section">
+                    <h3>Color Gradient</h3>
+                    <select id="gradientSelect">
+                        <option value="0">Classic</option>
+                        <option value="1">Fire</option>
+                        <option value="2">Ocean</option>
+                        <option value="3">Purple Haze</option>
+                        <option value="4">Grayscale</option>
+                        <option value="5">Sunset</option>
+                        <option value="6">Electric</option>
+                        <option value="7">Forest</option>
+                        <option value="8">Cosmic</option>
+                        <option value="9">Rainbow</option>
+                    </select>
+                </div>
+
+                <div class="control-section">
+                    <h3>Color Stops</h3>
+                    <div id="gradientPreviewBar" class="gradient-preview-bar"></div>
+                    <div class="stop-editor-row">
+                        <div id="stopSwatchContainer" class="stop-swatch-row"></div>
+                        <button id="resetGradientBtn" class="reset-gradient-btn">Reset</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Repeat</h3>
+                    <input type="range" id="repeatSlider" min="1" max="100" step="1" value="1">
+                    <div class="iteration-value"><span id="repeatDisplay">1</span>×</div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Pulse</h3>
+                    <div class="pulse-row">
+                        <button id="pulseBtn" class="pulse-btn">&#9654; Pulse</button>
+                        <div class="pulse-duration">
+                            <input type="number" id="pulseDurationInput" min="0.5" max="60" step="0.5" value="5">
+                            <span class="pulse-duration-label">s</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="control-section">
-                <button id="exportBtn" class="export-button">Export PNG</button>
-            </div>
+            <div class="tab-content" id="tab-rendering" style="display:none">
+                <div class="control-section">
+                    <h3>Rendering Mode</h3>
+                    <div id="renderingModeOptions" class="path-style-options">
+                        <label class="path-style-label"><input type="radio" name="renderingMode" value="classic" checked> Classic</label>
+                        <label class="path-style-label"><input type="radio" name="renderingMode" value="buddhabrot"> Buddhabrot</label>
+                    </div>
+                </div>
 
-            <div class="control-section">
-                <h3>Max Iterations</h3>
-                <input type="range" id="iterationSlider"
-                       min="50" max="1000" step="10" value="128">
-                <div class="iteration-value">
-                    <span id="iterationDisplay">128</span>
+                <div class="control-section">
+                    <h3>Max Iterations</h3>
+                    <input type="range" id="iterationSlider"
+                           min="50" max="1000" step="10" value="128">
+                    <div class="iteration-value">
+                        <span id="iterationDisplay">128</span>
+                    </div>
+                </div>
+
+                <div class="control-section" id="buddhabrotSamplesSection" style="display:none">
+                    <h3>Samples</h3>
+                    <input type="range" id="samplesSlider" min="500000" max="10000000" step="500000" value="2000000">
+                    <div class="iteration-value"><span id="samplesDisplay">2M</span></div>
                 </div>
             </div>
 
-            <div class="control-section">
-                <h3>Explore</h3>
-                <label class="path-explorer-label">
-                    <input type="checkbox" id="pathExplorerToggle">
-                    Path Explorer Mode
-                </label>
-                <div id="pathStyleOptions" class="path-style-options" style="display:none;">
-                    <label class="path-style-label"><input type="radio" name="pathStyle" value="both" checked> Lines &amp; Dots</label>
-                    <label class="path-style-label"><input type="radio" name="pathStyle" value="lines"> Lines Only</label>
-                    <label class="path-style-label"><input type="radio" name="pathStyle" value="dots"> Dots Only</label>
+            <div class="tab-content" id="tab-equation" style="display:none">
+                <div class="control-section">
+                    <h3>Equation</h3>
+                    <div class="equation-display">
+                        <div class="equation-line">
+                            z<sub>n+1</sub> = z<sub>n</sub><sup>2</sup> + c
+                        </div>
+                        <div class="equation-note">
+                            Starting from z<sub>0</sub> = 0, a point c is in the
+                            Mandelbrot set if z remains bounded as n &rarr; &infin;.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-orbit-explorer" style="display:none">
+                <div class="control-section">
+                    <h3>Display Style</h3>
+                    <div id="pathStyleOptions" class="path-style-options">
+                        <label class="path-style-label"><input type="radio" name="pathStyle" value="both" checked> Lines &amp; Dots</label>
+                        <label class="path-style-label"><input type="radio" name="pathStyle" value="lines"> Lines Only</label>
+                        <label class="path-style-label"><input type="radio" name="pathStyle" value="dots"> Dots Only</label>
+                    </div>
+                </div>
+                <div class="control-section">
+                    <p class="orbit-hint">Hover or drag on the canvas to trace the orbit of any point.</p>
                 </div>
             </div>
         </div>
@@ -358,739 +659,979 @@
     </div>
 
     <script>
-        // Gradient definitions with multiple color stops
-        const gradients = [
-            // 0: Classic - Blue to white
-            [
-                { pos: 0, r: 0, g: 7, b: 100 },
-                { pos: 0.16, r: 32, g: 107, b: 203 },
-                { pos: 0.42, r: 237, g: 255, b: 255 },
-                { pos: 0.6425, r: 255, g: 170, b: 0 },
-                { pos: 0.8575, r: 0, g: 2, b: 0 },
-                { pos: 1, r: 0, g: 7, b: 100 }
-            ],
-            // 1: Fire - Red to orange to yellow
-            [
-                { pos: 0, r: 0, g: 0, b: 0 },
-                { pos: 0.25, r: 128, g: 0, b: 0 },
-                { pos: 0.5, r: 255, g: 0, b: 0 },
-                { pos: 0.75, r: 255, g: 128, b: 0 },
-                { pos: 1, r: 255, g: 255, b: 0 }
-            ],
-            // 2: Ocean - Deep blue to cyan to green
-            [
-                { pos: 0, r: 0, g: 0, b: 51 },
-                { pos: 0.33, r: 0, g: 51, b: 102 },
-                { pos: 0.66, r: 0, g: 204, b: 204 },
-                { pos: 1, r: 102, g: 255, b: 178 }
-            ],
-            // 3: Purple Haze
-            [
-                { pos: 0, r: 25, g: 0, b: 51 },
-                { pos: 0.33, r: 102, g: 0, b: 153 },
-                { pos: 0.66, r: 204, g: 51, b: 204 },
-                { pos: 1, r: 230, g: 179, b: 255 }
-            ],
-            // 4: Grayscale
-            [
-                { pos: 0, r: 0, g: 0, b: 0 },
-                { pos: 0.33, r: 85, g: 85, b: 85 },
-                { pos: 0.66, r: 170, g: 170, b: 170 },
-                { pos: 1, r: 255, g: 255, b: 255 }
-            ],
-            // 5: Sunset
-            [
-                { pos: 0, r: 51, g: 0, b: 0 },
-                { pos: 0.25, r: 153, g: 0, b: 0 },
-                { pos: 0.5, r: 255, g: 102, b: 0 },
-                { pos: 0.75, r: 255, g: 153, b: 153 },
-                { pos: 1, r: 255, g: 255, b: 102 }
-            ],
-            // 6: Electric
-            [
-                { pos: 0, r: 0, g: 0, b: 51 },
-                { pos: 0.33, r: 0, g: 102, b: 204 },
-                { pos: 0.66, r: 0, g: 255, b: 255 },
-                { pos: 1, r: 204, g: 255, b: 255 }
-            ],
-            // 7: Forest
-            [
-                { pos: 0, r: 0, g: 51, b: 0 },
-                { pos: 0.33, r: 0, g: 102, b: 0 },
-                { pos: 0.66, r: 102, g: 204, b: 0 },
-                { pos: 1, r: 204, g: 255, b: 102 }
-            ],
-            // 8: Cosmic
-            [
-                { pos: 0, r: 0, g: 0, b: 0 },
-                { pos: 0.2, r: 51, g: 0, b: 102 },
-                { pos: 0.4, r: 0, g: 51, b: 153 },
-                { pos: 0.6, r: 153, g: 0, b: 204 },
-                { pos: 0.8, r: 255, g: 51, b: 153 },
-                { pos: 1, r: 255, g: 153, b: 204 }
-            ],
-            // 9: Rainbow
-            [
-                { pos: 0, r: 255, g: 0, b: 0 },
-                { pos: 0.17, r: 255, g: 127, b: 0 },
-                { pos: 0.33, r: 255, g: 255, b: 0 },
-                { pos: 0.5, r: 0, g: 255, b: 0 },
-                { pos: 0.67, r: 0, g: 0, b: 255 },
-                { pos: 0.83, r: 75, g: 0, b: 130 },
-                { pos: 1, r: 148, g: 0, b: 211 }
-            ]
-        ];
+/* === js/gradients.js === */
+// Gradient definitions with multiple color stops
+const originalGradients = [
+    // 0: Classic - Blue to white
+    [
+        { pos: 0,      r: 0,   g: 7,   b: 100 },
+        { pos: 0.16,   r: 32,  g: 107, b: 203 },
+        { pos: 0.42,   r: 237, g: 255, b: 255 },
+        { pos: 0.6425, r: 255, g: 170, b: 0   },
+        { pos: 0.8575, r: 0,   g: 2,   b: 0   },
+        { pos: 1,      r: 0,   g: 7,   b: 100 }
+    ],
+    // 1: Fire - Red to orange to yellow
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 0   },
+        { pos: 0.25, r: 128, g: 0,   b: 0   },
+        { pos: 0.5,  r: 255, g: 0,   b: 0   },
+        { pos: 0.75, r: 255, g: 128, b: 0   },
+        { pos: 1,    r: 255, g: 255, b: 0   }
+    ],
+    // 2: Ocean - Deep blue to cyan to green
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 51  },
+        { pos: 0.33, r: 0,   g: 51,  b: 102 },
+        { pos: 0.66, r: 0,   g: 204, b: 204 },
+        { pos: 1,    r: 102, g: 255, b: 178 }
+    ],
+    // 3: Purple Haze
+    [
+        { pos: 0,    r: 25,  g: 0,   b: 51  },
+        { pos: 0.33, r: 102, g: 0,   b: 153 },
+        { pos: 0.66, r: 204, g: 51,  b: 204 },
+        { pos: 1,    r: 230, g: 179, b: 255 }
+    ],
+    // 4: Grayscale
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 0   },
+        { pos: 0.33, r: 85,  g: 85,  b: 85  },
+        { pos: 0.66, r: 170, g: 170, b: 170 },
+        { pos: 1,    r: 255, g: 255, b: 255 }
+    ],
+    // 5: Sunset
+    [
+        { pos: 0,    r: 51,  g: 0,   b: 0   },
+        { pos: 0.25, r: 153, g: 0,   b: 0   },
+        { pos: 0.5,  r: 255, g: 102, b: 0   },
+        { pos: 0.75, r: 255, g: 153, b: 153 },
+        { pos: 1,    r: 255, g: 255, b: 102 }
+    ],
+    // 6: Electric
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 51  },
+        { pos: 0.33, r: 0,   g: 102, b: 204 },
+        { pos: 0.66, r: 0,   g: 255, b: 255 },
+        { pos: 1,    r: 204, g: 255, b: 255 }
+    ],
+    // 7: Forest
+    [
+        { pos: 0,    r: 0,   g: 51,  b: 0   },
+        { pos: 0.33, r: 0,   g: 102, b: 0   },
+        { pos: 0.66, r: 102, g: 204, b: 0   },
+        { pos: 1,    r: 204, g: 255, b: 102 }
+    ],
+    // 8: Cosmic
+    [
+        { pos: 0,   r: 0,   g: 0,  b: 0   },
+        { pos: 0.2, r: 51,  g: 0,  b: 102 },
+        { pos: 0.4, r: 0,   g: 51, b: 153 },
+        { pos: 0.6, r: 153, g: 0,  b: 204 },
+        { pos: 0.8, r: 255, g: 51, b: 153 },
+        { pos: 1,   r: 255, g: 153,b: 204 }
+    ],
+    // 9: Rainbow
+    [
+        { pos: 0,    r: 255, g: 0,   b: 0   },
+        { pos: 0.17, r: 255, g: 127, b: 0   },
+        { pos: 0.33, r: 255, g: 255, b: 0   },
+        { pos: 0.5,  r: 0,   g: 255, b: 0   },
+        { pos: 0.67, r: 0,   g: 0,   b: 255 },
+        { pos: 0.83, r: 75,  g: 0,   b: 130 },
+        { pos: 1,    r: 148, g: 0,   b: 211 }
+    ]
+];
 
-        // Application state
-        const state = {
-            // Default view: standard Mandelbrot set view
-            minReal: -2.5,
-            maxReal: 1.0,
-            minImag: -1.25,
-            maxImag: 1.25,
-            currentGradient: 0,
-            maxIterations: 128, // V1.1: Now user-adjustable (50-1000), default 128 for fast initial render
-            isRendering: false,
-            zoomFactor: 0.5, // Zoom in by 50%
-            panFactor: 0.25, // Pan by 25%
-            hasShownIterationWarning: false, // V1.1: Track high iteration warning
-            pathExplorerMode: false, // V1.2: Path Explorer Mode toggle
-            pathStyle: 'both', // V1.2: 'both' | 'lines' | 'dots'
-            zoomBox: null // V1.3: active zoom box selection
-        };
+// Mutable working copy — edits applied here, originalGradients stays pristine
+let gradients = originalGradients.map(g => g.map(s => ({ ...s })));
 
-        // Store default view for reset
-        const defaultView = {
-            minReal: -2.5,
-            maxReal: 1.0,
-            minImag: -1.25,
-            maxImag: 1.25
-        };
+// Restore a gradient to its original colors
+function resetGradient(index) {
+    gradients[index] = originalGradients[index].map(s => ({ ...s }));
+}
 
-        // Maximum zoom level (when viewport becomes too small)
-        const MIN_VIEWPORT_SIZE = 1e-10;
-        const MAX_ZOOM_ITERATIONS = 50;
-        let zoomLevel = 0;
+// Color conversion helpers
+function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
 
-        // Get canvas and context
-        const canvas = document.getElementById('mandelbrotCanvas');
-        const ctx = canvas.getContext('2d');
-        const loadingOverlay = document.getElementById('loadingOverlay');
+function hexToRgb(hex) {
+    return {
+        r: parseInt(hex.slice(1, 3), 16),
+        g: parseInt(hex.slice(3, 5), 16),
+        b: parseInt(hex.slice(5, 7), 16)
+    };
+}
 
-        // Get controls
-        const gradientSelect = document.getElementById('gradientSelect');
-        const zoomInBtn = document.getElementById('zoomInBtn');
-        const zoomOutBtn = document.getElementById('zoomOutBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const upBtn = document.getElementById('upBtn');
-        const downBtn = document.getElementById('downBtn');
-        const leftBtn = document.getElementById('leftBtn');
-        const rightBtn = document.getElementById('rightBtn');
-        const exportBtn = document.getElementById('exportBtn');
-        const iterationSlider = document.getElementById('iterationSlider'); // V1.1
-        const iterationDisplay = document.getElementById('iterationDisplay'); // V1.1
-        const pathCanvas = document.getElementById('pathCanvas'); // V1.2
-        const pathCtx = pathCanvas.getContext('2d'); // V1.2
-        const pathExplorerToggle = document.getElementById('pathExplorerToggle'); // V1.2
-        const pathCanvasContainer = document.querySelector('.path-canvas-container'); // V1.2
-        const pathStyleOptions = document.getElementById('pathStyleOptions'); // V1.2
+// Interpolate color from gradient, applying repeat and offset from state
+function getColor(value, gradientIndex) {
+    const effective = ((value * state.gradientRepeats) + state.gradientOffset) % 1;
+    const gradient = gradients[gradientIndex];
 
-        // V1.2: Track mouse button state and cached background for path drawing
-        let isPathMouseDown = false;
-        let pathBackground = null;
+    let i = 0;
+    while (i < gradient.length - 1 && gradient[i + 1].pos < effective) {
+        i++;
+    }
 
-        // V1.3: Zoom box state
-        let zoomBoxAnchor = null;    // { x, y } in display (CSS) pixels
-        let zoomBoxSnapshot = null;  // ImageData snapshot taken at mousedown
+    if (i === gradient.length - 1) {
+        const c = gradient[i];
+        return { r: c.r, g: c.g, b: c.b };
+    }
 
-        // Interpolate color from gradient
-        function getColor(value, gradientIndex) {
-            const gradient = gradients[gradientIndex];
+    const c1 = gradient[i];
+    const c2 = gradient[i + 1];
+    const range = c2.pos - c1.pos;
+    const t = (effective - c1.pos) / range;
 
-            // Find the two color stops to interpolate between
-            let i = 0;
-            while (i < gradient.length - 1 && gradient[i + 1].pos < value) {
-                i++;
+    return {
+        r: Math.round(c1.r + (c2.r - c1.r) * t),
+        g: Math.round(c1.g + (c2.g - c1.g) * t),
+        b: Math.round(c1.b + (c2.b - c1.b) * t)
+    };
+}
+
+
+/* === js/state.js === */
+// Application state
+const state = {
+    minReal: -2.5,
+    maxReal: 1.0,
+    minImag: -1.25,
+    maxImag: 1.25,
+    currentGradient: 0,
+    gradientRepeats: 1,
+    gradientOffset: 0,
+    maxIterations: 128,
+    isRendering: false,
+    zoomFactor: 0.5,
+    panFactor: 0.25,
+    hasShownIterationWarning: false,
+    pathExplorerMode: false,
+    pathStyle: 'both',
+    renderingMode: 'classic',
+    buddhabrotSamples: 2000000,
+    zoomBox: null
+};
+
+// Default view for reset
+const defaultView = {
+    minReal: -2.5,
+    maxReal: 1.0,
+    minImag: -1.25,
+    maxImag: 1.25
+};
+
+const MIN_VIEWPORT_SIZE = 1e-10;
+const MAX_ZOOM_ITERATIONS = 50;
+let zoomLevel = 0;
+
+
+/* === js/renderer.js === */
+// DOM references for rendering
+const canvas = document.getElementById('mandelbrotCanvas');
+const ctx = canvas.getContext('2d');
+const loadingOverlay = document.getElementById('loadingOverlay');
+
+// Cached iteration data — populated by render(), consumed by recolor()
+let cachedNormalizedValues = null;
+let cachedSmoothedValues = null;
+let cachedImageData = null;
+
+// Calculate Mandelbrot iteration count for a point
+function mandelbrot(cr, ci, maxIter) {
+    let zr = 0, zi = 0;
+    let iter = 0;
+
+    while (iter < maxIter && zr * zr + zi * zi < 4) {
+        const temp = zr * zr - zi * zi + cr;
+        zi = 2 * zr * zi + ci;
+        zr = temp;
+        iter++;
+    }
+
+    return { iter, zr, zi };
+}
+
+// Fast recolor pass — uses cached iteration data, no Mandelbrot recomputation
+function recolor() {
+    if (!cachedNormalizedValues) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const totalPixels = width * height;
+
+    if (!cachedImageData) {
+        cachedImageData = ctx.createImageData(width, height);
+    }
+
+    const data = cachedImageData.data;
+    for (let i = 0; i < totalPixels; i++) {
+        let color;
+        if (cachedSmoothedValues[i] === -1) {
+            color = { r: 0, g: 0, b: 0 };
+        } else {
+            color = getColor(cachedNormalizedValues[i], state.currentGradient);
+        }
+        const offset = i * 4;
+        data[offset]     = color.r;
+        data[offset + 1] = color.g;
+        data[offset + 2] = color.b;
+        data[offset + 3] = 255;
+    }
+
+    ctx.putImageData(cachedImageData, 0, 0);
+}
+
+// Full render — dispatches to the active rendering mode
+function render() {
+    if (state.isRendering) return;
+
+    state.isRendering = true;
+    loadingOverlay.classList.add('active');
+
+    setTimeout(() => {
+        if (state.renderingMode === 'buddhabrot') {
+            renderBuddhabrot();
+        } else {
+            renderClassic();
+        }
+    }, 10);
+}
+
+// Classic Mandelbrot rendering: per-pixel escape time + histogram equalization
+function renderClassic() {
+    const width = canvas.width;
+    const height = canvas.height;
+    const totalPixels = width * height;
+
+    const realRange = state.maxReal - state.minReal;
+    const imagRange = state.maxImag - state.minImag;
+
+    // First pass: compute smoothed values, collect escaped pixel indices
+    const smoothedValues = new Float64Array(totalPixels);
+    const escapedIndices = [];
+
+    for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+            const cr = state.minReal + (px / width) * realRange;
+            const ci = state.minImag + (py / height) * imagRange;
+            const { iter, zr, zi } = mandelbrot(cr, ci, state.maxIterations);
+
+            const idx = py * width + px;
+            if (iter === state.maxIterations) {
+                smoothedValues[idx] = -1; // in-set marker
+            } else {
+                const zMagnitude = Math.sqrt(zr * zr + zi * zi);
+                smoothedValues[idx] = iter + 1 - Math.log(Math.log(zMagnitude)) / Math.log(2);
+                escapedIndices.push(idx);
+            }
+        }
+    }
+
+    // Histogram equalization
+    escapedIndices.sort((a, b) => smoothedValues[a] - smoothedValues[b]);
+    const n = escapedIndices.length;
+    const normalizedValues = new Float32Array(totalPixels);
+    for (let r = 0; r < n; r++) {
+        normalizedValues[escapedIndices[r]] = n > 1 ? r / (n - 1) : 0;
+    }
+
+    // Cache for fast recolor
+    cachedNormalizedValues = normalizedValues;
+    cachedSmoothedValues = smoothedValues;
+    cachedImageData = null;
+
+    recolor();
+
+    state.isRendering = false;
+    loadingOverlay.classList.remove('active');
+}
+
+// Buddhabrot rendering: accumulate orbit visit counts for escaping trajectories
+function renderBuddhabrot() {
+    const width = canvas.width;
+    const height = canvas.height;
+    const totalPixels = width * height;
+
+    const hitMap = new Float64Array(totalPixels);
+
+    // Always sample over the full Mandelbrot region so orbits are representative
+    const sampleMinReal = -2.5, sampleMaxReal = 1.0;
+    const sampleMinImag = -1.25, sampleMaxImag = 1.25;
+    const sampleRealRange = sampleMaxReal - sampleMinReal;
+    const sampleImagRange = sampleMaxImag - sampleMinImag;
+
+    const realRange = state.maxReal - state.minReal;
+    const imagRange = state.maxImag - state.minImag;
+    const maxIter = state.maxIterations;
+    const SAMPLES = state.buddhabrotSamples;
+
+    for (let s = 0; s < SAMPLES; s++) {
+        const cr = sampleMinReal + Math.random() * sampleRealRange;
+        const ci = sampleMinImag + Math.random() * sampleImagRange;
+
+        // Pass 1: check if the point escapes
+        let zr = 0, zi = 0;
+        let escaped = false;
+        for (let iter = 0; iter < maxIter; iter++) {
+            const temp = zr * zr - zi * zi + cr;
+            zi = 2 * zr * zi + ci;
+            zr = temp;
+            if (zr * zr + zi * zi > 4) { escaped = true; break; }
+        }
+        if (!escaped) continue;
+
+        // Pass 2: replay orbit and accumulate pixel hits
+        zr = 0; zi = 0;
+        for (let iter = 0; iter < maxIter; iter++) {
+            const temp = zr * zr - zi * zi + cr;
+            zi = 2 * zr * zi + ci;
+            zr = temp;
+
+            const px = Math.floor((zr - state.minReal) / realRange * width);
+            const py = Math.floor((zi - state.minImag) / imagRange * height);
+            if (px >= 0 && px < width && py >= 0 && py < height) {
+                hitMap[py * width + px]++;
             }
 
-            if (i === gradient.length - 1) {
-                const c = gradient[i];
-                return { r: c.r, g: c.g, b: c.b };
+            if (zr * zr + zi * zi > 4) break;
+        }
+    }
+
+    // Normalize: log scale to compress the wide dynamic range of hit counts
+    let maxHit = 0;
+    for (let i = 0; i < totalPixels; i++) {
+        if (hitMap[i] > maxHit) maxHit = hitMap[i];
+    }
+
+    const smoothedValues = new Float64Array(totalPixels);
+    const normalizedValues = new Float32Array(totalPixels);
+    const logMax = maxHit > 0 ? Math.log(maxHit + 1) : 1;
+
+    for (let i = 0; i < totalPixels; i++) {
+        if (hitMap[i] === 0) {
+            smoothedValues[i] = -1; // black pixel
+        } else {
+            smoothedValues[i] = 0;
+            normalizedValues[i] = Math.log(hitMap[i] + 1) / logMax;
+        }
+    }
+
+    cachedNormalizedValues = normalizedValues;
+    cachedSmoothedValues = smoothedValues;
+    cachedImageData = null;
+
+    recolor();
+
+    state.isRendering = false;
+    loadingOverlay.classList.remove('active');
+}
+
+
+/* === js/viewport.js === */
+// Check if at default view
+function isAtDefaultView() {
+    return state.minReal === defaultView.minReal &&
+           state.maxReal === defaultView.maxReal &&
+           state.minImag === defaultView.minImag &&
+           state.maxImag === defaultView.maxImag;
+}
+
+function zoomIn() {
+    if (zoomLevel >= MAX_ZOOM_ITERATIONS) {
+        alert('Maximum zoom level reached');
+        return;
+    }
+
+    const realRange = state.maxReal - state.minReal;
+    const imagRange = state.maxImag - state.minImag;
+
+    if (realRange * state.zoomFactor < MIN_VIEWPORT_SIZE) {
+        alert('Maximum zoom level reached');
+        return;
+    }
+
+    const realCenter = (state.minReal + state.maxReal) / 2;
+    const imagCenter = (state.minImag + state.maxImag) / 2;
+
+    const newRealRange = realRange * state.zoomFactor;
+    const newImagRange = imagRange * state.zoomFactor;
+
+    state.minReal = realCenter - newRealRange / 2;
+    state.maxReal = realCenter + newRealRange / 2;
+    state.minImag = imagCenter - newImagRange / 2;
+    state.maxImag = imagCenter + newImagRange / 2;
+
+    zoomLevel++;
+    render();
+}
+
+function zoomOut() {
+    if (isAtDefaultView()) return;
+
+    const realCenter = (state.minReal + state.maxReal) / 2;
+    const imagCenter = (state.minImag + state.maxImag) / 2;
+
+    const realRange = state.maxReal - state.minReal;
+    const imagRange = state.maxImag - state.minImag;
+
+    const newRealRange = realRange / state.zoomFactor;
+    const newImagRange = imagRange / state.zoomFactor;
+
+    state.minReal = realCenter - newRealRange / 2;
+    state.maxReal = realCenter + newRealRange / 2;
+    state.minImag = imagCenter - newImagRange / 2;
+    state.maxImag = imagCenter + newImagRange / 2;
+
+    if (state.minReal < defaultView.minReal ||
+        state.maxReal > defaultView.maxReal ||
+        state.minImag < defaultView.minImag ||
+        state.maxImag > defaultView.maxImag) {
+        Object.assign(state, defaultView);
+    }
+
+    zoomLevel = Math.max(0, zoomLevel - 1);
+    render();
+}
+
+function reset() {
+    Object.assign(state, defaultView);
+    zoomLevel = 0;
+    render();
+}
+
+function panUp() {
+    const shift = (state.maxImag - state.minImag) * state.panFactor;
+    state.minImag -= shift;
+    state.maxImag -= shift;
+    render();
+}
+
+function panDown() {
+    const shift = (state.maxImag - state.minImag) * state.panFactor;
+    state.minImag += shift;
+    state.maxImag += shift;
+    render();
+}
+
+function panLeft() {
+    const shift = (state.maxReal - state.minReal) * state.panFactor;
+    state.minReal -= shift;
+    state.maxReal -= shift;
+    render();
+}
+
+function panRight() {
+    const shift = (state.maxReal - state.minReal) * state.panFactor;
+    state.minReal += shift;
+    state.maxReal += shift;
+    render();
+}
+
+// Convert main canvas display pixel to complex plane coordinate
+function pixelToComplex(px, py) {
+    const rect = canvas.getBoundingClientRect();
+    const cr = state.minReal + (px / rect.width)  * (state.maxReal - state.minReal);
+    const ci = state.minImag + (py / rect.height) * (state.maxImag - state.minImag);
+    return { cr, ci };
+}
+
+
+/* === js/zoom-box.js === */
+// Zoom Box - draw-to-zoom selection on the main canvas
+let zoomBoxAnchor = null;
+let zoomBoxSnapshot = null;
+
+// Compute aspect-ratio-constrained zoom box dimensions in display pixels
+function getZoomBoxDimensions(anchorX, anchorY, currentX, currentY) {
+    const canvasAspect = canvas.width / canvas.height;
+    const dw = Math.abs(currentX - anchorX);
+    const dh = Math.abs(currentY - anchorY);
+
+    let boxW, boxH;
+    if (dh === 0 || dw / dh > canvasAspect) {
+        boxW = dw;
+        boxH = dw / canvasAspect;
+    } else {
+        boxH = dh;
+        boxW = dh * canvasAspect;
+    }
+
+    const signX = currentX >= anchorX ? 1 : -1;
+    const signY = currentY >= anchorY ? 1 : -1;
+
+    return {
+        x: signX >= 0 ? anchorX : anchorX - boxW,
+        y: signY >= 0 ? anchorY : anchorY - boxH,
+        w: boxW,
+        h: boxH
+    };
+}
+
+// Draw zoom box overlay on the fractal canvas
+function drawZoomBox(currentX, currentY) {
+    ctx.putImageData(zoomBoxSnapshot, 0, 0);
+
+    const { x, y, w, h } = getZoomBoxDimensions(zoomBoxAnchor.x, zoomBoxAnchor.y, currentX, currentY);
+    if (w < 1 || h < 1) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.08)';
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)';
+    ctx.lineWidth = Math.round(scaleX * 1.5);
+    ctx.fillRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
+    ctx.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
+    ctx.restore();
+}
+
+// Apply zoom to the selected box region
+function applyZoomBox(currentX, currentY) {
+    const { x, y, w, h } = getZoomBoxDimensions(zoomBoxAnchor.x, zoomBoxAnchor.y, currentX, currentY);
+
+    if (w < 5 || h < 5) {
+        ctx.putImageData(zoomBoxSnapshot, 0, 0);
+        return;
+    }
+
+    const topLeft     = pixelToComplex(x,     y);
+    const bottomRight = pixelToComplex(x + w, y + h);
+
+    state.minReal = topLeft.cr;
+    state.maxReal = bottomRight.cr;
+    state.minImag = topLeft.ci;
+    state.maxImag = bottomRight.ci;
+
+    zoomLevel++;
+    render();
+}
+
+
+/* === js/path-explorer.js === */
+// Orbit Explorer Mode
+const pathCanvas = document.getElementById('pathCanvas');
+const pathCtx = pathCanvas.getContext('2d');
+const pathCanvasContainer = document.querySelector('.path-canvas-container');
+
+let isPathMouseDown = false;
+let pathBackground = null;
+
+// Convert complex plane coordinate to path canvas pixel (always uses defaultView)
+function complexToPathPixel(cr, ci) {
+    const w = pathCanvas.width;
+    const h = pathCanvas.height;
+    const px = (cr - defaultView.minReal) / (defaultView.maxReal - defaultView.minReal) * w;
+    const py = (ci - defaultView.minImag) / (defaultView.maxImag - defaultView.minImag) * h;
+    return { px, py };
+}
+
+// Render the Mandelbrot set on the path canvas at the fixed default view
+function renderPathBackground() {
+    const w = pathCanvas.width;
+    const h = pathCanvas.height;
+    const imageData = pathCtx.createImageData(w, h);
+    const totalPixels = w * h;
+
+    const realRange = defaultView.maxReal - defaultView.minReal;
+    const imagRange = defaultView.maxImag - defaultView.minImag;
+
+    const smoothedValues = new Float64Array(totalPixels);
+    const escapedIndices = [];
+
+    for (let py = 0; py < h; py++) {
+        for (let px = 0; px < w; px++) {
+            const cr = defaultView.minReal + (px / w) * realRange;
+            const ci = defaultView.minImag + (py / h) * imagRange;
+            const { iter, zr, zi } = mandelbrot(cr, ci, state.maxIterations);
+            const idx = py * w + px;
+            if (iter === state.maxIterations) {
+                smoothedValues[idx] = -1;
+            } else {
+                const zMag = Math.sqrt(zr * zr + zi * zi);
+                smoothedValues[idx] = iter + 1 - Math.log(Math.log(zMag)) / Math.log(2);
+                escapedIndices.push(idx);
             }
-
-            const c1 = gradient[i];
-            const c2 = gradient[i + 1];
-
-            // Linear interpolation
-            const range = c2.pos - c1.pos;
-            const t = (value - c1.pos) / range;
-
-            return {
-                r: Math.round(c1.r + (c2.r - c1.r) * t),
-                g: Math.round(c1.g + (c2.g - c1.g) * t),
-                b: Math.round(c1.b + (c2.b - c1.b) * t)
-            };
         }
+    }
 
-        // Calculate Mandelbrot iteration count for a point
-        // Returns both iteration count and final z values for smooth coloring
-        function mandelbrot(cr, ci, maxIter) {
-            let zr = 0, zi = 0;
-            let iter = 0;
+    escapedIndices.sort((a, b) => smoothedValues[a] - smoothedValues[b]);
+    const n = escapedIndices.length;
+    const normalizedValues = new Float32Array(totalPixels);
+    for (let r = 0; r < n; r++) {
+        normalizedValues[escapedIndices[r]] = n > 1 ? r / (n - 1) : 0;
+    }
 
-            while (iter < maxIter && zr * zr + zi * zi < 4) {
-                const temp = zr * zr - zi * zi + cr;
-                zi = 2 * zr * zi + ci;
-                zr = temp;
-                iter++;
-            }
-
-            return { iter, zr, zi };
+    for (let i = 0; i < totalPixels; i++) {
+        let color;
+        if (smoothedValues[i] === -1) {
+            color = { r: 0, g: 0, b: 0 };
+        } else {
+            color = getColor(normalizedValues[i], state.currentGradient);
         }
+        const offset = i * 4;
+        imageData.data[offset]     = color.r;
+        imageData.data[offset + 1] = color.g;
+        imageData.data[offset + 2] = color.b;
+        imageData.data[offset + 3] = 255;
+    }
 
-        // Render the Mandelbrot set
-        function render() {
-            if (state.isRendering) return;
+    pathCtx.putImageData(imageData, 0, 0);
+    pathBackground = imageData;
+}
 
-            state.isRendering = true;
-            loadingOverlay.classList.add('active');
+// Compute iteration path for a given c value
+function computeIterationPath(cr, ci) {
+    const bailout = 2;
+    const path = [{ zr: 0, zi: 0 }];
+    let zr = 0, zi = 0;
+    let escaped = false;
 
-            // Use setTimeout to allow UI to update
-            setTimeout(() => {
-                const width = canvas.width;
-                const height = canvas.height;
-                const imageData = ctx.createImageData(width, height);
-
-                const realRange = state.maxReal - state.minReal;
-                const imagRange = state.maxImag - state.minImag;
-                const totalPixels = width * height;
-
-                // V1.2: First pass - compute smoothed values, collect escaped pixel indices
-                const smoothedValues = new Float64Array(totalPixels);
-                const escapedIndices = [];
-
-                for (let py = 0; py < height; py++) {
-                    for (let px = 0; px < width; px++) {
-                        const cr = state.minReal + (px / width) * realRange;
-                        const ci = state.minImag + (py / height) * imagRange;
-                        const { iter, zr, zi } = mandelbrot(cr, ci, state.maxIterations);
-
-                        const idx = py * width + px;
-                        if (iter === state.maxIterations) {
-                            smoothedValues[idx] = -1; // in-set marker
-                        } else {
-                            const zMagnitude = Math.sqrt(zr * zr + zi * zi);
-                            smoothedValues[idx] = iter + 1 - Math.log(Math.log(zMagnitude)) / Math.log(2);
-                            escapedIndices.push(idx);
-                        }
-                    }
-                }
-
-                // V1.2: Histogram equalization - rank escaped pixels by smoothed value
-                // so the full gradient is spread evenly across pixel count, not value range
-                escapedIndices.sort((a, b) => smoothedValues[a] - smoothedValues[b]);
-                const n = escapedIndices.length;
-                const normalizedValues = new Float32Array(totalPixels);
-                for (let r = 0; r < n; r++) {
-                    normalizedValues[escapedIndices[r]] = n > 1 ? r / (n - 1) : 0;
-                }
-
-                // Second pass - apply colors
-                for (let i = 0; i < totalPixels; i++) {
-                    let color;
-                    if (smoothedValues[i] === -1) {
-                        color = { r: 0, g: 0, b: 0 };
-                    } else {
-                        color = getColor(normalizedValues[i], state.currentGradient);
-                    }
-                    const offset = i * 4;
-                    imageData.data[offset] = color.r;
-                    imageData.data[offset + 1] = color.g;
-                    imageData.data[offset + 2] = color.b;
-                    imageData.data[offset + 3] = 255;
-                }
-
-                ctx.putImageData(imageData, 0, 0);
-
-                state.isRendering = false;
-                loadingOverlay.classList.remove('active');
-            }, 10);
+    for (let i = 0; i < state.maxIterations; i++) {
+        const zrNext = zr * zr - zi * zi + cr;
+        const ziNext = 2 * zr * zi + ci;
+        zr = zrNext;
+        zi = ziNext;
+        path.push({ zr, zi });
+        if (zr * zr + zi * zi > bailout * bailout) {
+            escaped = true;
+            break;
         }
+    }
 
-        // Check if at default view
-        function isAtDefaultView() {
-            return state.minReal === defaultView.minReal &&
-                   state.maxReal === defaultView.maxReal &&
-                   state.minImag === defaultView.minImag &&
-                   state.maxImag === defaultView.maxImag;
+    return { path, escaped };
+}
+
+// Draw iteration path on the path canvas
+function drawIterationPath(mouseX, mouseY) {
+    const { cr, ci } = pixelToComplex(mouseX, mouseY);
+    const { path, escaped } = computeIterationPath(cr, ci);
+
+    clearPath();
+    if (path.length < 2) return;
+
+    const color = escaped ? '#00ff00' : '#ff0000';
+    pathCtx.strokeStyle = color;
+    pathCtx.fillStyle = color;
+    pathCtx.lineWidth = 1.5;
+
+    if (state.pathStyle === 'both' || state.pathStyle === 'lines') {
+        pathCtx.beginPath();
+        const first = complexToPathPixel(path[0].zr, path[0].zi);
+        pathCtx.moveTo(first.px, first.py);
+        for (let i = 1; i < path.length; i++) {
+            const { px, py } = complexToPathPixel(path[i].zr, path[i].zi);
+            pathCtx.lineTo(px, py);
         }
+        pathCtx.stroke();
+    }
 
-        // Zoom in
-        function zoomIn() {
-            if (zoomLevel >= MAX_ZOOM_ITERATIONS) {
-                alert('Maximum zoom level reached');
-                return;
-            }
-
-            const realRange = state.maxReal - state.minReal;
-            const imagRange = state.maxImag - state.minImag;
-
-            // Check if viewport would be too small
-            if (realRange * state.zoomFactor < MIN_VIEWPORT_SIZE) {
-                alert('Maximum zoom level reached');
-                return;
-            }
-
-            // Calculate new bounds (zoom toward center)
-            const realCenter = (state.minReal + state.maxReal) / 2;
-            const imagCenter = (state.minImag + state.maxImag) / 2;
-
-            const newRealRange = realRange * state.zoomFactor;
-            const newImagRange = imagRange * state.zoomFactor;
-
-            state.minReal = realCenter - newRealRange / 2;
-            state.maxReal = realCenter + newRealRange / 2;
-            state.minImag = imagCenter - newImagRange / 2;
-            state.maxImag = imagCenter + newImagRange / 2;
-
-            zoomLevel++;
-            render();
+    if (state.pathStyle === 'both' || state.pathStyle === 'dots') {
+        for (let i = 0; i < path.length; i++) {
+            const { px, py } = complexToPathPixel(path[i].zr, path[i].zi);
+            pathCtx.beginPath();
+            pathCtx.arc(px, py, 3, 0, Math.PI * 2);
+            pathCtx.fill();
         }
+    }
+}
 
-        // Zoom out
-        function zoomOut() {
-            if (isAtDefaultView()) {
-                // Already at maximum extent, don't zoom out further
-                return;
-            }
+// Restore static background
+function clearPath() {
+    if (pathBackground) {
+        pathCtx.putImageData(pathBackground, 0, 0);
+    } else {
+        pathCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+    }
+}
 
-            // Calculate new bounds (zoom out from center)
-            const realCenter = (state.minReal + state.maxReal) / 2;
-            const imagCenter = (state.minImag + state.maxImag) / 2;
+// Toggle Orbit Explorer Mode
+function togglePathExplorerMode(enabled) {
+    // Cancel any active zoom box drag before switching modes
+    if (zoomBoxAnchor && zoomBoxSnapshot) {
+        ctx.putImageData(zoomBoxSnapshot, 0, 0);
+        zoomBoxAnchor = null;
+        zoomBoxSnapshot = null;
+    }
 
-            const realRange = state.maxReal - state.minReal;
-            const imagRange = state.maxImag - state.minImag;
+    state.pathExplorerMode = enabled;
+    if (enabled) {
+        pathCanvasContainer.style.display = 'block';
+        renderPathBackground();
+    } else {
+        pathCanvasContainer.style.display = 'none';
+        pathBackground = null;
+        isPathMouseDown = false;
+    }
+}
 
-            const newRealRange = realRange / state.zoomFactor;
-            const newImagRange = imagRange / state.zoomFactor;
 
-            state.minReal = realCenter - newRealRange / 2;
-            state.maxReal = realCenter + newRealRange / 2;
-            state.minImag = imagCenter - newImagRange / 2;
-            state.maxImag = imagCenter + newImagRange / 2;
+/* === js/pulse.js === */
+// Pulse animation — cycles gradient phase offset 0 → 1 → 0
+let pulseQueue = 0;
+let pulseAnimating = false;
+let pulseStartTime = null;
 
-            // Clamp to default view if we exceed it
-            if (state.minReal < defaultView.minReal ||
-                state.maxReal > defaultView.maxReal ||
-                state.minImag < defaultView.minImag ||
-                state.maxImag > defaultView.maxImag) {
-                state.minReal = defaultView.minReal;
-                state.maxReal = defaultView.maxReal;
-                state.minImag = defaultView.minImag;
-                state.maxImag = defaultView.maxImag;
-            }
+function getPulseDuration() {
+    const input = document.getElementById('pulseDurationInput');
+    return (parseFloat(input.value) || 5) * 1000;
+}
 
-            zoomLevel = Math.max(0, zoomLevel - 1);
-            render();
+function pulseTick(timestamp) {
+    if (pulseStartTime === null) pulseStartTime = timestamp;
+
+    const elapsed = timestamp - pulseStartTime;
+    const progress = Math.min(elapsed / getPulseDuration(), 1);
+
+    // Triangle wave: 0 → 1 → 0
+    state.gradientOffset = progress < 0.5 ? progress * 2 : 2 - progress * 2;
+    recolor();
+
+    if (progress < 1) {
+        requestAnimationFrame(pulseTick);
+    } else {
+        pulseQueue--;
+        pulseStartTime = null;
+        if (pulseQueue > 0) {
+            requestAnimationFrame(pulseTick);
+        } else {
+            pulseAnimating = false;
+            state.gradientOffset = 0;
+            recolor();
         }
+    }
+}
 
-        // Reset to default view
-        function reset() {
-            state.minReal = defaultView.minReal;
-            state.maxReal = defaultView.maxReal;
-            state.minImag = defaultView.minImag;
-            state.maxImag = defaultView.maxImag;
-            zoomLevel = 0;
-            render();
-        }
+function enqueuePulse() {
+    pulseQueue++;
+    if (!pulseAnimating) {
+        pulseAnimating = true;
+        pulseStartTime = null;
+        requestAnimationFrame(pulseTick);
+    }
+}
 
-        // Pan functions
-        function panUp() {
-            const imagRange = state.maxImag - state.minImag;
-            const shift = imagRange * state.panFactor;
-            state.minImag -= shift;
-            state.maxImag -= shift;
-            render();
-        }
 
-        function panDown() {
-            const imagRange = state.maxImag - state.minImag;
-            const shift = imagRange * state.panFactor;
-            state.minImag += shift;
-            state.maxImag += shift;
-            render();
-        }
+/* === js/ui.js === */
+// UI controls and event listeners
+const gradientSelect = document.getElementById('gradientSelect');
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const resetBtn = document.getElementById('resetBtn');
+const upBtn = document.getElementById('upBtn');
+const downBtn = document.getElementById('downBtn');
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+const exportBtn = document.getElementById('exportBtn');
+const iterationSlider = document.getElementById('iterationSlider');
+const iterationDisplay = document.getElementById('iterationDisplay');
+const repeatSlider = document.getElementById('repeatSlider');
+const repeatDisplay = document.getElementById('repeatDisplay');
+const pulseBtn = document.getElementById('pulseBtn');
+const resetGradientBtn = document.getElementById('resetGradientBtn');
+const gradientPreviewBar = document.getElementById('gradientPreviewBar');
+const stopSwatchContainer = document.getElementById('stopSwatchContainer');
 
-        function panLeft() {
-            const realRange = state.maxReal - state.minReal;
-            const shift = realRange * state.panFactor;
-            state.minReal -= shift;
-            state.maxReal -= shift;
-            render();
-        }
+function buildGradientPreview() {
+    const stops = gradients[state.currentGradient];
+    const parts = stops.map(s => `rgb(${s.r},${s.g},${s.b}) ${Math.round(s.pos * 100)}%`);
+    gradientPreviewBar.style.background = `linear-gradient(to right, ${parts.join(', ')})`;
+}
 
-        function panRight() {
-            const realRange = state.maxReal - state.minReal;
-            const shift = realRange * state.panFactor;
-            state.minReal += shift;
-            state.maxReal += shift;
-            render();
-        }
+function buildStopEditor() {
+    stopSwatchContainer.innerHTML = '';
+    const stops = gradients[state.currentGradient];
+    stops.forEach((stop, i) => {
+        const swatch = document.createElement('div');
+        swatch.className = 'stop-swatch';
+        swatch.style.backgroundColor = rgbToHex(stop.r, stop.g, stop.b);
 
-        // Change gradient
-        function changeGradient() {
-            state.currentGradient = parseInt(gradientSelect.value);
-            render();
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.value = rgbToHex(stop.r, stop.g, stop.b);
+
+        input.addEventListener('input', () => {
+            const rgb = hexToRgb(input.value);
+            gradients[state.currentGradient][i].r = rgb.r;
+            gradients[state.currentGradient][i].g = rgb.g;
+            gradients[state.currentGradient][i].b = rgb.b;
+            swatch.style.backgroundColor = input.value;
+            buildGradientPreview();
+            recolor();
             if (state.pathExplorerMode) renderPathBackground();
-        }
-
-        // Export as PNG
-        function exportImage() {
-            const link = document.createElement('a');
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            link.download = `mandelbrot-${timestamp}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }
-
-        // V1.1: Update iteration count
-        function updateIterations() {
-            const newValue = parseInt(iterationSlider.value);
-
-            // Show warning once if exceeding 500 iterations
-            if (newValue > 500 && !state.hasShownIterationWarning) {
-                alert('Higher iterations provide more detail but slower rendering');
-                state.hasShownIterationWarning = true;
-            }
-
-            state.maxIterations = newValue;
-            iterationDisplay.textContent = newValue;
-        }
-
-        // V1.1: Update display as slider moves
-        function updateIterationDisplay() {
-            iterationDisplay.textContent = iterationSlider.value;
-        }
-
-        // V1.2: Convert main canvas display pixel (offsetX/Y) to complex plane coordinate
-        // Uses current viewport (state) so clicking a zoomed-in region gives the right c value
-        function pixelToComplex(px, py) {
-            const rect = canvas.getBoundingClientRect();
-            const cr = state.minReal + (px / rect.width) * (state.maxReal - state.minReal);
-            const ci = state.minImag + (py / rect.height) * (state.maxImag - state.minImag);
-            return { cr, ci };
-        }
-
-        // V1.2: Convert complex plane coordinate to path canvas pixel
-        // Always uses defaultView so the path canvas is viewport-independent
-        function complexToPathPixel(cr, ci) {
-            const w = pathCanvas.width;
-            const h = pathCanvas.height;
-            const px = (cr - defaultView.minReal) / (defaultView.maxReal - defaultView.minReal) * w;
-            const py = (ci - defaultView.minImag) / (defaultView.maxImag - defaultView.minImag) * h;
-            return { px, py };
-        }
-
-        // V1.2: Render the Mandelbrot set on the path canvas at the fixed default view
-        function renderPathBackground() {
-            const w = pathCanvas.width;
-            const h = pathCanvas.height;
-            const imageData = pathCtx.createImageData(w, h);
-            const totalPixels = w * h;
-            const realRange = defaultView.maxReal - defaultView.minReal;
-            const imagRange = defaultView.maxImag - defaultView.minImag;
-
-            const smoothedValues = new Float64Array(totalPixels);
-            const escapedIndices = [];
-
-            for (let py = 0; py < h; py++) {
-                for (let px = 0; px < w; px++) {
-                    const cr = defaultView.minReal + (px / w) * realRange;
-                    const ci = defaultView.minImag + (py / h) * imagRange;
-                    const { iter, zr, zi } = mandelbrot(cr, ci, state.maxIterations);
-                    const idx = py * w + px;
-                    if (iter === state.maxIterations) {
-                        smoothedValues[idx] = -1;
-                    } else {
-                        const zMag = Math.sqrt(zr * zr + zi * zi);
-                        smoothedValues[idx] = iter + 1 - Math.log(Math.log(zMag)) / Math.log(2);
-                        escapedIndices.push(idx);
-                    }
-                }
-            }
-
-            escapedIndices.sort((a, b) => smoothedValues[a] - smoothedValues[b]);
-            const n = escapedIndices.length;
-            const normalizedValues = new Float32Array(totalPixels);
-            for (let r = 0; r < n; r++) {
-                normalizedValues[escapedIndices[r]] = n > 1 ? r / (n - 1) : 0;
-            }
-
-            for (let i = 0; i < totalPixels; i++) {
-                let color;
-                if (smoothedValues[i] === -1) {
-                    color = { r: 0, g: 0, b: 0 };
-                } else {
-                    color = getColor(normalizedValues[i], state.currentGradient);
-                }
-                const offset = i * 4;
-                imageData.data[offset]     = color.r;
-                imageData.data[offset + 1] = color.g;
-                imageData.data[offset + 2] = color.b;
-                imageData.data[offset + 3] = 255;
-            }
-
-            pathCtx.putImageData(imageData, 0, 0);
-            pathBackground = imageData;
-        }
-
-        // V1.2: Compute iteration path for a given c value
-        // Returns array of {zr, zi} points and whether the path escaped
-        function computeIterationPath(cr, ci) {
-            const bailout = 2;
-            const path = [{ zr: 0, zi: 0 }]; // z0 = 0
-            let zr = 0, zi = 0;
-            let escaped = false;
-
-            for (let i = 0; i < state.maxIterations; i++) {
-                const zrNext = zr * zr - zi * zi + cr;
-                const ziNext = 2 * zr * zi + ci;
-                zr = zrNext;
-                zi = ziNext;
-                path.push({ zr, zi });
-                if (zr * zr + zi * zi > bailout * bailout) {
-                    escaped = true;
-                    break;
-                }
-            }
-
-            return { path, escaped };
-        }
-
-        // V1.2: Draw iteration path on the path canvas
-        function drawIterationPath(mouseX, mouseY) {
-            const { cr, ci } = pixelToComplex(mouseX, mouseY);
-            const { path, escaped } = computeIterationPath(cr, ci);
-
-            // Restore static background before drawing
-            clearPath();
-
-            if (path.length < 2) return;
-
-            const color = escaped ? '#00ff00' : '#ff0000';
-            pathCtx.strokeStyle = color;
-            pathCtx.fillStyle = color;
-            pathCtx.lineWidth = 1.5;
-
-            // Draw line segments (if style includes lines)
-            if (state.pathStyle === 'both' || state.pathStyle === 'lines') {
-                pathCtx.beginPath();
-                const first = complexToPathPixel(path[0].zr, path[0].zi);
-                pathCtx.moveTo(first.px, first.py);
-                for (let i = 1; i < path.length; i++) {
-                    const { px, py } = complexToPathPixel(path[i].zr, path[i].zi);
-                    pathCtx.lineTo(px, py);
-                }
-                pathCtx.stroke();
-            }
-
-            // Draw dots at each point (if style includes dots)
-            if (state.pathStyle === 'both' || state.pathStyle === 'dots') {
-                for (let i = 0; i < path.length; i++) {
-                    const { px, py } = complexToPathPixel(path[i].zr, path[i].zi);
-                    pathCtx.beginPath();
-                    pathCtx.arc(px, py, 3, 0, Math.PI * 2);
-                    pathCtx.fill();
-                }
-            }
-        }
-
-        // V1.2: Restore static background (clears any drawn path)
-        function clearPath() {
-            if (pathBackground) {
-                pathCtx.putImageData(pathBackground, 0, 0);
-            } else {
-                pathCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
-            }
-        }
-
-        // V1.2: Toggle Path Explorer Mode
-        function togglePathExplorerMode() {
-            // V1.3: Cancel any active zoom box drag before switching modes
-            if (zoomBoxAnchor && zoomBoxSnapshot) {
-                ctx.putImageData(zoomBoxSnapshot, 0, 0);
-                zoomBoxAnchor = null;
-                zoomBoxSnapshot = null;
-            }
-
-            state.pathExplorerMode = pathExplorerToggle.checked;
-            if (state.pathExplorerMode) {
-                pathStyleOptions.style.display = 'flex';
-                pathCanvasContainer.style.display = 'block';
-                renderPathBackground();
-            } else {
-                pathStyleOptions.style.display = 'none';
-                pathCanvasContainer.style.display = 'none';
-                pathBackground = null;
-                isPathMouseDown = false;
-            }
-        }
-
-        // V1.3: Compute aspect-ratio-constrained zoom box dimensions in display pixels
-        function getZoomBoxDimensions(anchorX, anchorY, currentX, currentY) {
-            const canvasAspect = canvas.width / canvas.height;
-            const dw = Math.abs(currentX - anchorX);
-            const dh = Math.abs(currentY - anchorY);
-
-            let boxW, boxH;
-            if (dh === 0 || dw / dh > canvasAspect) {
-                boxW = dw;
-                boxH = dw / canvasAspect;
-            } else {
-                boxH = dh;
-                boxW = dh * canvasAspect;
-            }
-
-            const signX = currentX >= anchorX ? 1 : -1;
-            const signY = currentY >= anchorY ? 1 : -1;
-
-            return {
-                x: signX >= 0 ? anchorX : anchorX - boxW,
-                y: signY >= 0 ? anchorY : anchorY - boxH,
-                w: boxW,
-                h: boxH
-            };
-        }
-
-        // V1.3: Draw zoom box overlay on the fractal canvas
-        function drawZoomBox(currentX, currentY) {
-            ctx.putImageData(zoomBoxSnapshot, 0, 0);
-
-            const { x, y, w, h } = getZoomBoxDimensions(zoomBoxAnchor.x, zoomBoxAnchor.y, currentX, currentY);
-            if (w < 1 || h < 1) return;
-
-            // Scale display (CSS) coords to canvas pixel coords
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-
-            ctx.save();
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.08)';
-            ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)';
-            ctx.lineWidth = Math.round(scaleX * 1.5);
-            ctx.fillRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
-            ctx.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
-            ctx.restore();
-        }
-
-        // V1.3: Apply zoom to the selected box region
-        function applyZoomBox(currentX, currentY) {
-            const { x, y, w, h } = getZoomBoxDimensions(zoomBoxAnchor.x, zoomBoxAnchor.y, currentX, currentY);
-
-            if (w < 5 || h < 5) {
-                // Below threshold — treat as click, restore canvas
-                ctx.putImageData(zoomBoxSnapshot, 0, 0);
-                return;
-            }
-
-            const topLeft     = pixelToComplex(x,     y);
-            const bottomRight = pixelToComplex(x + w, y + h);
-
-            state.minReal = topLeft.cr;
-            state.maxReal = bottomRight.cr;
-            state.minImag = topLeft.ci;
-            state.maxImag = bottomRight.ci;
-
-            zoomLevel++;
-            render();
-        }
-
-        // Event listeners
-        gradientSelect.addEventListener('change', changeGradient);
-        zoomInBtn.addEventListener('click', zoomIn);
-        zoomOutBtn.addEventListener('click', zoomOut);
-        resetBtn.addEventListener('click', reset);
-        upBtn.addEventListener('click', panUp);
-        downBtn.addEventListener('click', panDown);
-        leftBtn.addEventListener('click', panLeft);
-        rightBtn.addEventListener('click', panRight);
-        exportBtn.addEventListener('click', exportImage);
-
-        // V1.1: Iteration control event listeners
-        iterationSlider.addEventListener('input', updateIterationDisplay);
-        iterationSlider.addEventListener('change', () => {
-            updateIterations();
-            render();
-            if (state.pathExplorerMode) renderPathBackground();
         });
 
-        // V1.2: Path Explorer Mode toggle
-        pathExplorerToggle.addEventListener('change', togglePathExplorerMode);
+        swatch.appendChild(input);
+        stopSwatchContainer.appendChild(swatch);
+    });
+}
 
-        // V1.2: Path style radio buttons
-        document.querySelectorAll('input[name="pathStyle"]').forEach(radio => {
-            radio.addEventListener('change', () => {
-                state.pathStyle = radio.value;
-            });
-        });
+function changeGradient() {
+    state.currentGradient = parseInt(gradientSelect.value);
+    buildGradientPreview();
+    buildStopEditor();
+    recolor();
+    if (state.pathExplorerMode) renderPathBackground();
+}
 
-        // V1.2/V1.3: Canvas mouse events — Path Explorer Mode or Default Mode (zoom box)
-        canvas.addEventListener('mousedown', (e) => {
-            if (state.pathExplorerMode) {
-                isPathMouseDown = true;
-                drawIterationPath(e.offsetX, e.offsetY);
-            } else {
-                // V1.3: Start zoom box
-                zoomBoxAnchor = { x: e.offsetX, y: e.offsetY };
-                zoomBoxSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            }
-        });
+function exportImage() {
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    link.download = `mandelbrot-${timestamp}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (state.pathExplorerMode) {
-                if (!isPathMouseDown) return;
-                drawIterationPath(e.offsetX, e.offsetY);
-            } else {
-                if (!zoomBoxAnchor) return;
-                drawZoomBox(e.offsetX, e.offsetY);
-            }
-        });
+function updateIterations() {
+    const newValue = parseInt(iterationSlider.value);
+    if (newValue > 500 && !state.hasShownIterationWarning) {
+        alert('Higher iterations provide more detail but slower rendering');
+        state.hasShownIterationWarning = true;
+    }
+    state.maxIterations = newValue;
+    iterationDisplay.textContent = newValue;
+}
 
-        canvas.addEventListener('mouseup', (e) => {
-            if (state.pathExplorerMode) {
-                isPathMouseDown = false;
-                clearPath();
-            } else {
-                if (!zoomBoxAnchor) return;
-                applyZoomBox(e.offsetX, e.offsetY);
-                zoomBoxAnchor = null;
-                zoomBoxSnapshot = null;
-            }
-        });
+function updateIterationDisplay() {
+    iterationDisplay.textContent = iterationSlider.value;
+}
 
-        canvas.addEventListener('mouseleave', () => {
-            if (state.pathExplorerMode) {
-                isPathMouseDown = false;
-                clearPath();
-            } else {
-                if (!zoomBoxAnchor) return;
-                // Cancel drag — restore fractal without zooming
-                ctx.putImageData(zoomBoxSnapshot, 0, 0);
-                zoomBoxAnchor = null;
-                zoomBoxSnapshot = null;
-            }
-        });
+// Wire up controls
+gradientSelect.addEventListener('change', changeGradient);
+zoomInBtn.addEventListener('click', zoomIn);
+zoomOutBtn.addEventListener('click', zoomOut);
+resetBtn.addEventListener('click', reset);
+upBtn.addEventListener('click', panUp);
+downBtn.addEventListener('click', panDown);
+leftBtn.addEventListener('click', panLeft);
+rightBtn.addEventListener('click', panRight);
+exportBtn.addEventListener('click', exportImage);
 
-        // Keyboard support for gradient selector
-        gradientSelect.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                // Let default behavior handle arrow keys
-                setTimeout(changeGradient, 0);
-            }
-        });
+iterationSlider.addEventListener('input', updateIterationDisplay);
+iterationSlider.addEventListener('change', () => {
+    updateIterations();
+    render();
+    if (state.pathExplorerMode) renderPathBackground();
+});
 
-        // Initial render
+repeatSlider.addEventListener('input', () => {
+    state.gradientRepeats = parseInt(repeatSlider.value);
+    repeatDisplay.textContent = repeatSlider.value;
+    recolor();
+    if (state.pathExplorerMode) renderPathBackground();
+});
+
+resetGradientBtn.addEventListener('click', () => {
+    resetGradient(state.currentGradient);
+    buildGradientPreview();
+    buildStopEditor();
+    recolor();
+    if (state.pathExplorerMode) renderPathBackground();
+});
+
+pulseBtn.addEventListener('click', enqueuePulse);
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).style.display = 'flex';
+        togglePathExplorerMode(btn.dataset.tab === 'orbit-explorer');
+    });
+});
+
+document.querySelectorAll('input[name="pathStyle"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        state.pathStyle = radio.value;
+    });
+});
+
+const buddhabrotSamplesSection = document.getElementById('buddhabrotSamplesSection');
+const samplesSlider = document.getElementById('samplesSlider');
+const samplesDisplay = document.getElementById('samplesDisplay');
+
+function formatSamples(n) {
+    return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+}
+
+document.querySelectorAll('input[name="renderingMode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        state.renderingMode = radio.value;
+        buddhabrotSamplesSection.style.display = radio.value === 'buddhabrot' ? '' : 'none';
         render();
+    });
+});
+
+samplesSlider.addEventListener('input', () => {
+    state.buddhabrotSamples = parseInt(samplesSlider.value);
+    samplesDisplay.textContent = formatSamples(state.buddhabrotSamples);
+});
+
+samplesSlider.addEventListener('change', () => {
+    if (state.renderingMode === 'buddhabrot') render();
+});
+
+// Canvas mouse events — Path Explorer Mode or Default Mode (zoom box)
+canvas.addEventListener('mousedown', (e) => {
+    if (state.pathExplorerMode) {
+        isPathMouseDown = true;
+        drawIterationPath(e.offsetX, e.offsetY);
+    } else {
+        zoomBoxAnchor = { x: e.offsetX, y: e.offsetY };
+        zoomBoxSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (state.pathExplorerMode) {
+        if (!isPathMouseDown) return;
+        drawIterationPath(e.offsetX, e.offsetY);
+    } else {
+        if (!zoomBoxAnchor) return;
+        drawZoomBox(e.offsetX, e.offsetY);
+    }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+    if (state.pathExplorerMode) {
+        isPathMouseDown = false;
+        clearPath();
+    } else {
+        if (!zoomBoxAnchor) return;
+        applyZoomBox(e.offsetX, e.offsetY);
+        zoomBoxAnchor = null;
+        zoomBoxSnapshot = null;
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    if (state.pathExplorerMode) {
+        isPathMouseDown = false;
+        clearPath();
+    } else {
+        if (!zoomBoxAnchor) return;
+        ctx.putImageData(zoomBoxSnapshot, 0, 0);
+        zoomBoxAnchor = null;
+        zoomBoxSnapshot = null;
+    }
+});
+
+gradientSelect.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        setTimeout(changeGradient, 0);
+    }
+});
+
+// Initial render
+render();
+buildGradientPreview();
+buildStopEditor();
+
     </script>
 </body>
 </html>
