@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mandelbrot Set Explorer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Phractalysis</title>
     <style>
 * {
     margin: 0;
@@ -467,13 +467,184 @@ input[type="range"]::-moz-range-thumb:hover {
     color: #888;
 }
 
+
+/* Mobile layout — appended after styles.css in the mobile build */
+
+body {
+    padding: 0;
+    overflow: hidden;
+    height: 100dvh;
+    position: fixed;
+    width: 100%;
+}
+
+/* Canvas fills the full screen */
+.mobile-canvas-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+canvas#mandelbrotCanvas {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    touch-action: none;
+    display: block;
+}
+
+/* Hamburger button */
+.hamburger-btn {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 300;
+    background: rgba(42, 42, 42, 0.85);
+    border: 1px solid #4a4a4a;
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    padding: 8px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+}
+
+.hamburger-btn:hover {
+    background: rgba(58, 58, 58, 0.95);
+}
+
+/* Backdrop */
+.drawer-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 150;
+}
+
+.drawer-overlay.open {
+    display: block;
+}
+
+/* Drawer panel */
+.drawer {
+    position: fixed;
+    top: 0;
+    left: -300px;
+    width: 280px;
+    height: 100%;
+    background: #2a2a2a;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    transition: left 0.25s ease;
+    overflow: hidden;
+}
+
+.drawer.open {
+    left: 0;
+}
+
+.drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid #3a3a3a;
+    flex-shrink: 0;
+}
+
+.drawer-title {
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff;
+    letter-spacing: 1px;
+}
+
+.drawer-close-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 18px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.drawer-close-btn:hover {
+    background: #3a3a3a;
+    color: #fff;
+}
+
+/* Scrollable drawer body */
+.drawer-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Tab bar inside drawer */
+.drawer-body .tab-bar {
+    padding: 10px 10px 0;
+    border-bottom: 1px solid #3a3a3a;
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.drawer-body .tab-bar::-webkit-scrollbar {
+    display: none;
+}
+
+/* Tab content scrollable */
+.drawer-body .tab-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+}
+
+/* Path canvas — floating overlay bottom-right when orbit explorer active */
+.path-canvas-container {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 100;
+    border: 2px solid #4a4a4a;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.path-canvas-container canvas {
+    width: 180px;
+    height: 180px;
+    border: none;
+    border-radius: 0;
+    display: block;
+}
+
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="control-panel">
+    <!-- Hamburger button -->
+    <button class="hamburger-btn" id="hamburgerBtn" aria-label="Open menu">&#9776;</button>
+
+    <!-- Drawer backdrop -->
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+
+    <!-- Slide-in drawer -->
+    <div class="drawer" id="drawer">
+        <div class="drawer-header">
+            <span class="drawer-title">Phractalysis</span>
+            <button class="drawer-close-btn" id="drawerCloseBtn" aria-label="Close menu">&#10005;</button>
+        </div>
+
+        <div class="drawer-body">
             <div class="tab-bar">
-                <!-- Navigation: 4-way arrow crosshair -->
                 <button class="tab-btn active" data-tab="navigation" data-label="Navigation">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="9" y1="1" x2="9" y2="17"/>
@@ -484,7 +655,6 @@ input[type="range"]::-moz-range-thumb:hover {
                         <polyline points="14,6 17,9 14,12"/>
                     </svg>
                 </button>
-                <!-- Colors: rainbow arcs -->
                 <button class="tab-btn" data-tab="colors" data-label="Colors">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-linecap="round">
                         <path d="M2 15 A7 7 0 0 1 16 15" stroke-width="2"/>
@@ -492,7 +662,6 @@ input[type="range"]::-moz-range-thumb:hover {
                         <path d="M7 15 A2 2 0 0 1 11 15" stroke-width="2"/>
                     </svg>
                 </button>
-                <!-- Rendering: slider lines -->
                 <button class="tab-btn" data-tab="rendering" data-label="Rendering">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
                         <line x1="2" y1="5" x2="16" y2="5"/>
@@ -503,13 +672,11 @@ input[type="range"]::-moz-range-thumb:hover {
                         <circle cx="8" cy="13" r="2" fill="#2a2a2a"/>
                     </svg>
                 </button>
-                <!-- Equation: sigma shape -->
                 <button class="tab-btn" data-tab="equation" data-label="Equation">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="13,2 5,2 10,9 5,16 13,16"/>
                     </svg>
                 </button>
-                <!-- Orbit Explorer: tilted ellipse with dot -->
                 <button class="tab-btn" data-tab="orbit-explorer" data-label="Orbit Explorer">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
                         <ellipse cx="9" cy="9" rx="7" ry="3.5" transform="rotate(-25 9 9)"/>
@@ -601,21 +768,6 @@ input[type="range"]::-moz-range-thumb:hover {
                     </div>
                 </div>
 
-                <div class="control-section" id="orbitTrapShapeSection" style="display:none">
-                    <h3>Trap Shape</h3>
-                    <select id="trapShapeSelect">
-                        <option value="point">Point</option>
-                        <option value="circle">Circle</option>
-                        <option value="cross">Cross</option>
-                        <option value="square">Square</option>
-                        <option value="triangle">Triangle</option>
-                        <option value="pentagon">Pentagon</option>
-                        <option value="hexagon">Hexagon</option>
-                        <option value="star">Star</option>
-                        <option value="trapezoid">Trapezoid</option>
-                    </select>
-                </div>
-
                 <div class="control-section">
                     <h3>Max Iterations</h3>
                     <input type="range" id="iterationSlider"
@@ -629,6 +781,21 @@ input[type="range"]::-moz-range-thumb:hover {
                     <h3>Samples</h3>
                     <input type="range" id="samplesSlider" min="500000" max="10000000" step="500000" value="2000000">
                     <div class="iteration-value"><span id="samplesDisplay">2M</span></div>
+                </div>
+
+                <div class="control-section" id="orbitTrapShapeSection" style="display:none">
+                    <h3>Trap Shape</h3>
+                    <select id="trapShapeSelect">
+                        <option value="point">Point</option>
+                        <option value="circle">Circle</option>
+                        <option value="cross">Cross</option>
+                        <option value="square">Square</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="pentagon">Pentagon</option>
+                        <option value="hexagon">Hexagon</option>
+                        <option value="star">Star</option>
+                        <option value="trapezoid">Trapezoid</option>
+                    </select>
                 </div>
             </div>
 
@@ -657,22 +824,24 @@ input[type="range"]::-moz-range-thumb:hover {
                     </div>
                 </div>
                 <div class="control-section">
-                    <p class="orbit-hint">Hover or drag on the canvas to trace the orbit of any point.</p>
+                    <p class="orbit-hint">Touch and drag on the canvas to trace the orbit of any point.</p>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="canvas-container">
-            <canvas id="mandelbrotCanvas" width="2048" height="2048"></canvas>
-            <div id="loadingOverlay" class="loading-overlay">
-                <div class="spinner"></div>
-                <div class="loading-text">Rendering...</div>
-            </div>
+    <!-- Full-screen canvas -->
+    <div class="canvas-container mobile-canvas-container">
+        <canvas id="mandelbrotCanvas" width="2048" height="2048"></canvas>
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <div class="loading-text">Rendering...</div>
         </div>
+    </div>
 
-        <div class="path-canvas-container">
-            <canvas id="pathCanvas" width="400" height="400"></canvas>
-        </div>
+    <!-- Path canvas — floating overlay (shown by orbit explorer) -->
+    <div class="path-canvas-container">
+        <canvas id="pathCanvas" width="400" height="400"></canvas>
     </div>
 
     <script>
@@ -1893,6 +2062,150 @@ gradientSelect.addEventListener('keydown', (e) => {
 render();
 buildGradientPreview();
 buildStopEditor();
+
+
+/* === js/touch.js === */
+// Mobile touch handlers — pan, pinch-zoom, orbit explorer touch
+// Registered only in the mobile build; replaces canvas mouse interactions.
+
+(function () {
+    const mobileCanvas = document.getElementById('mandelbrotCanvas');
+
+    let touchMode = null;      // 'pan' | 'pinch'
+    let panStartX = 0, panStartY = 0;
+    let panDeltaX = 0, panDeltaY = 0;
+    let pinchStartDist = 0;
+    let pinchLastDist = 0;
+    let pinchCenterClientX = 0, pinchCenterClientY = 0;
+
+    function clientToCanvasOffset(clientX, clientY) {
+        const rect = mobileCanvas.getBoundingClientRect();
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function touchDist(t1, t2) {
+        const dx = t1.clientX - t2.clientX;
+        const dy = t1.clientY - t2.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    mobileCanvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+
+        if (state.pathExplorerMode) {
+            if (e.touches.length === 1) {
+                isPathMouseDown = true;
+                const { x, y } = clientToCanvasOffset(e.touches[0].clientX, e.touches[0].clientY);
+                drawIterationPath(x, y);
+            }
+            return;
+        }
+
+        if (e.touches.length === 1) {
+            touchMode = 'pan';
+            panStartX = e.touches[0].clientX;
+            panStartY = e.touches[0].clientY;
+            panDeltaX = 0;
+            panDeltaY = 0;
+        } else if (e.touches.length === 2) {
+            touchMode = 'pinch';
+            mobileCanvas.style.transform = '';
+            pinchStartDist = touchDist(e.touches[0], e.touches[1]);
+            pinchLastDist = pinchStartDist;
+            pinchCenterClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            pinchCenterClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        }
+    }, { passive: false });
+
+    mobileCanvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+
+        if (state.pathExplorerMode) {
+            if (e.touches.length === 1 && isPathMouseDown) {
+                const { x, y } = clientToCanvasOffset(e.touches[0].clientX, e.touches[0].clientY);
+                drawIterationPath(x, y);
+            }
+            return;
+        }
+
+        if (e.touches.length === 1 && touchMode === 'pan') {
+            panDeltaX = e.touches[0].clientX - panStartX;
+            panDeltaY = e.touches[0].clientY - panStartY;
+            mobileCanvas.style.transform = `translate(${panDeltaX}px, ${panDeltaY}px)`;
+        } else if (e.touches.length === 2 && touchMode === 'pinch') {
+            pinchLastDist = touchDist(e.touches[0], e.touches[1]);
+        }
+    }, { passive: false });
+
+    mobileCanvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+
+        if (state.pathExplorerMode) {
+            if (e.touches.length === 0) {
+                isPathMouseDown = false;
+                clearPath();
+            }
+            return;
+        }
+
+        // Still fingers on screen — wait for full release
+        if (e.touches.length > 0) return;
+
+        mobileCanvas.style.transform = '';
+
+        if (touchMode === 'pan' && (Math.abs(panDeltaX) > 2 || Math.abs(panDeltaY) > 2)) {
+            const rect = mobileCanvas.getBoundingClientRect();
+            const realRange = state.maxReal - state.minReal;
+            const imagRange = state.maxImag - state.minImag;
+            state.minReal -= (panDeltaX / rect.width)  * realRange;
+            state.maxReal -= (panDeltaX / rect.width)  * realRange;
+            state.minImag -= (panDeltaY / rect.height) * imagRange;
+            state.maxImag -= (panDeltaY / rect.height) * imagRange;
+            render();
+
+        } else if (touchMode === 'pinch' && pinchStartDist > 0) {
+            const scale = pinchStartDist / pinchLastDist; // >1 = zoom in (fingers spread)
+            const rect = mobileCanvas.getBoundingClientRect();
+            const fracX = (pinchCenterClientX - rect.left) / rect.width;
+            const fracY = (pinchCenterClientY - rect.top)  / rect.height;
+            const realRange = state.maxReal - state.minReal;
+            const imagRange = state.maxImag - state.minImag;
+            const centerReal = state.minReal + fracX * realRange;
+            const centerImag = state.minImag + fracY * imagRange;
+            const newRealRange = realRange * scale;
+            const newImagRange = imagRange * scale;
+            state.minReal = centerReal - fracX * newRealRange;
+            state.maxReal = state.minReal + newRealRange;
+            state.minImag = centerImag - fracY * newImagRange;
+            state.maxImag = state.minImag + newImagRange;
+            render();
+        }
+
+        touchMode = null;
+        panDeltaX = 0;
+        panDeltaY = 0;
+    }, { passive: false });
+
+    // Hamburger / drawer toggle
+    const hamburgerBtn  = document.getElementById('hamburgerBtn');
+    const drawer        = document.getElementById('drawer');
+    const drawerOverlay = document.getElementById('drawerOverlay');
+    const drawerCloseBtn = document.getElementById('drawerCloseBtn');
+
+    function openDrawer() {
+        drawer.classList.add('open');
+        drawerOverlay.classList.add('open');
+    }
+
+    function closeDrawer() {
+        drawer.classList.remove('open');
+        drawerOverlay.classList.remove('open');
+    }
+
+    hamburgerBtn.addEventListener('click', openDrawer);
+    drawerCloseBtn.addEventListener('click', closeDrawer);
+    drawerOverlay.addEventListener('click', closeDrawer);
+})();
 
     </script>
 </body>
