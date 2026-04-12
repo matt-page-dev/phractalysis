@@ -297,6 +297,18 @@ input[type="range"]::-moz-range-thumb:hover {
 
 .path-canvas-container {
     display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.path-canvas-container.active {
+    display: flex;
+}
+
+#ratioGraphCanvas {
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
 }
 
 .path-style-options {
@@ -518,6 +530,104 @@ input[type="range"]::-moz-range-thumb:hover {
     text-align: center;
 }
 
+/* Segment cards */
+#segmentList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.segment-card {
+    background: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.segment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: #2e2e2e;
+    border-bottom: 1px solid #3a3a3a;
+    cursor: pointer;
+    user-select: none;
+}
+
+.segment-header:hover {
+    background: #333;
+}
+
+.seg-chevron {
+    font-size: 9px;
+    color: #666;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+.segment-title {
+    font-size: 12px;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.seg-summary {
+    font-size: 11px;
+    color: #555;
+    flex: 1;
+    margin-left: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.segment-ctrl-btns {
+    display: flex;
+    gap: 4px;
+}
+
+.seg-btn {
+    padding: 2px 6px;
+    font-size: 10px;
+    background: #3a3a3a;
+    color: #aaa;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.seg-btn:hover {
+    background: #4a4a4a;
+    color: #fff;
+}
+
+.segment-body {
+    padding: 10px;
+}
+
+.anim-effects {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.anim-add-segment-btn {
+    margin-top: 6px;
+    width: 100%;
+    background: #2a4a3a;
+    font-size: 13px;
+    padding: 8px;
+}
+
+.anim-add-segment-btn:hover {
+    background: #3a5a4a;
+}
+
     </style>
 </head>
 <body>
@@ -662,6 +772,16 @@ input[type="range"]::-moz-range-thumb:hover {
                         <label class="path-style-label"><input type="radio" name="renderingMode" value="buddhabrot"> Buddhabrot</label>
                         <label class="path-style-label"><input type="radio" name="renderingMode" value="periodicity"> Orbit Periodicity</label>
                         <label class="path-style-label"><input type="radio" name="renderingMode" value="orbit-trap"> Orbit Trap</label>
+                        <label class="path-style-label"><input type="radio" name="renderingMode" value="orbit-ratio-convergence"> Orbit Ratio Convergence</label>
+                        <label class="path-style-label"><input type="radio" name="renderingMode" value="orbit-ratio-convergence-to-value"> Orbit Ratio → Target</label>
+                    </div>
+                </div>
+
+                <div class="control-section" id="ratioTargetSection" style="display:none">
+                    <h3>Target Ratio Value</h3>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="number" id="ratioTargetInput" value="1.0" step="0.01" min="0.01" max="10" style="width: 80px; padding: 4px; background: #1a1a1a; color: #aaa; border: 1px solid #3a3a3a; border-radius: 3px;">
+                        <span style="font-size: 12px; color: #666;">Distance from converged ratio to target</span>
                     </div>
                 </div>
 
@@ -728,46 +848,14 @@ input[type="range"]::-moz-range-thumb:hover {
 
             <div class="tab-content" id="tab-animation" style="display:none">
                 <div class="control-section">
-                    <h3>Timing</h3>
-                    <div class="anim-timing-row">
-                        <label class="anim-label">BPM</label>
-                        <input type="number" id="animBpmInput" class="anim-number" min="40" max="300" step="1" value="120">
-                    </div>
-                    <div class="anim-timing-row">
-                        <label class="anim-label">Measures</label>
-                        <input type="number" id="animMeasuresInput" class="anim-number" min="1" max="32" step="1" value="4">
-                    </div>
+                    <label class="path-style-label">
+                        <input type="checkbox" id="animBoomerang"> Boomerang
+                    </label>
                 </div>
                 <div class="control-section">
-                    <h3>Effects</h3>
-                    <div class="anim-effects">
-                        <label class="path-style-label"><input type="checkbox" id="animColorPulse"> Color Pulse</label>
-                        <label class="path-style-label"><input type="checkbox" id="animZoom"> Zoom In &amp; Out</label>
-                        <label class="path-style-label" id="animOrbitRotateLabel" style="display:none"><input type="checkbox" id="animOrbitRotate"> Rotate Orbit Trap</label>
-                        <label class="path-style-label" id="animTrapPulseLabel" style="display:none">
-                            <input type="checkbox" id="animTrapPulse"> Contract &amp; Expand Trap
-                        </label>
-                        <div id="animTrapPulseRangeRow" style="display:none">
-                            <div class="anim-timing-row" style="margin-top:4px">
-                                <label class="anim-label">Min scale</label>
-                                <input type="number" id="animTrapPulseMin" class="anim-number" min="0.1" max="10" step="0.1" value="0.3">
-                            </div>
-                            <div class="anim-timing-row">
-                                <label class="anim-label">Max scale</label>
-                                <input type="number" id="animTrapPulseMax" class="anim-number" min="0.1" max="10" step="0.1" value="2.0">
-                            </div>
-                        </div>
-                        <label class="path-style-label" id="animTrapIterLabel" style="display:none">
-                            <input type="checkbox" id="animTrapIter"> Cycle Orbit Iteration
-                        </label>
-                        <div id="animTrapIterMaxRow" style="display:none">
-                            <div class="anim-timing-row" style="margin-top:4px">
-                                <label class="anim-label">Max step</label>
-                                <input type="number" id="animTrapIterMax" class="anim-number" min="1" max="1000" step="1" value="32">
-                            </div>
-                        </div>
-                        <label class="path-style-label"><input type="checkbox" id="animGradientFade"> Fade Between Gradients</label>
-                    </div>
+                    <h3>Segments</h3>
+                    <div id="segmentList"></div>
+                    <button id="addSegmentBtn" class="anim-add-segment-btn">+ Add Segment</button>
                 </div>
                 <div class="control-section">
                     <button id="exportGifBtn" class="export-button">Export GIF</button>
@@ -811,6 +899,7 @@ input[type="range"]::-moz-range-thumb:hover {
 
         <div class="path-canvas-container">
             <canvas id="pathCanvas" width="400" height="400"></canvas>
+            <canvas id="ratioGraphCanvas" width="400" height="200"></canvas>
         </div>
     </div>
 
@@ -997,6 +1086,7 @@ const state = {
     trapRotation: 0,
     trapScale: 1,
     showTrapShape: true,
+    ratioTargetValue: 1.0,
     zoomBox: null
 };
 
@@ -1083,6 +1173,10 @@ function render() {
             renderPeriodicity();
         } else if (state.renderingMode === 'orbit-trap') {
             renderOrbitTrap();
+        } else if (state.renderingMode === 'orbit-ratio-convergence') {
+            renderRatioConvergence();
+        } else if (state.renderingMode === 'orbit-ratio-convergence-to-value') {
+            renderRatioConvergenceToValue();
         } else {
             renderClassic();
         }
@@ -1221,10 +1315,44 @@ function renderBuddhabrot() {
 
 /* === js/renderer-periodicity.js === */
 // Orbit Periodicity rendering mode
-// Colors pixels by the period of their orbit; escaping points are black.
+// Colors pixels by the period and stability of their orbit; escaping points are black.
+// Stability measures how tightly the orbit cycles — strong color for stable cycles, weak for loose/chaotic.
 
 const MAX_PERIOD = 64;
 const PERIOD_EPSILON = 1e-10;
+const STABILITY_SCALE = 2.0; // Higher = emphasize stable orbits more
+
+// Calculate stability metric: how tightly the periodic orbit clusters
+// Returns value in [0, 1] where 1 = perfectly tight, 0 = poorly constrained
+function calculateOrbitStability(orbitR, orbitI, period, startIter) {
+    if (period <= 0) return 0;
+    
+    // Find center of mass of periodic cycle
+    let centerR = 0, centerI = 0;
+    for (let i = 0; i < period; i++) {
+        const slot = (startIter - period + 1 + i) % MAX_PERIOD;
+        centerR += orbitR[slot];
+        centerI += orbitI[slot];
+    }
+    centerR /= period;
+    centerI /= period;
+    
+    // Measure average distance from center
+    let sumDist = 0;
+    for (let i = 0; i < period; i++) {
+        const slot = (startIter - period + 1 + i) % MAX_PERIOD;
+        const dr = orbitR[slot] - centerR;
+        const di = orbitI[slot] - centerI;
+        sumDist += Math.sqrt(dr * dr + di * di);
+    }
+    const avgDist = sumDist / period;
+    
+    // Stability inversely proportional to average distance from center
+    // Very tight cycles (avgDist ~0) → stability ~1
+    // Loose cycles (avgDist ~ 1) → stability near 0
+    // Use exponential decay for smooth weighting
+    return Math.exp(-STABILITY_SCALE * avgDist);
+}
 
 function renderPeriodicity() {
     const width = canvas.width;
@@ -1249,6 +1377,7 @@ function renderPeriodicity() {
 
             let zr = 0, zi = 0;
             let detectedPeriod = -1;
+            let detectionIter = -1;
             let escaped = false;
 
             for (let iter = 0; iter < state.maxIterations; iter++) {
@@ -1276,6 +1405,7 @@ function renderPeriodicity() {
                     const di = zi - orbitI[prevSlot];
                     if (dr * dr + di * di < PERIOD_EPSILON) {
                         detectedPeriod = p;
+                        detectionIter = iter;
                         break;
                     }
                 }
@@ -1290,7 +1420,11 @@ function renderPeriodicity() {
                 smoothedValues[idx] = -1;
             } else {
                 smoothedValues[idx] = 0;
-                normalizedValues[idx] = Math.log2(detectedPeriod) / logMaxPeriod;
+                // Combine period and stability into final color
+                const periodNorm = Math.log2(detectedPeriod) / logMaxPeriod; // [0, 1]
+                const stability = calculateOrbitStability(orbitR, orbitI, detectedPeriod, detectionIter);
+                // Weight period by stability: stable orbits get full period color, unstable get diluted
+                normalizedValues[idx] = periodNorm * stability;
             }
         }
     }
@@ -1562,6 +1696,9 @@ function renderOrbitTrap() {
                 if (iter === targetIter) atIterDist = d;
                 iterCount++;
 
+                // When in "at iteration" mode, stop after reaching target iteration
+                if (agg === 'iteration' && iter >= targetIter) break;
+
                 const zr2 = zr * zr;
                 const zi2 = zi * zi;
                 if (zr2 + zi2 > 4) break;
@@ -1583,6 +1720,258 @@ function renderOrbitTrap() {
         }
     }
 
+    cachedNormalizedValues = normalizedValues;
+    cachedSmoothedValues = smoothedValues;
+    cachedImageData = null;
+
+    recolor();
+
+    state.isRendering = false;
+    loadingOverlay.classList.remove('active');
+}
+
+
+/* === js/renderer-ratio-convergence.js === */
+// Orbit Ratio Convergence rendering mode
+// Colors pixels by how much their orbit path length ratios converge on a specific value.
+// Tightly converging ratios (low variance) → bright, chaotic ratios → dark
+
+// Calculate distances between consecutive orbit points
+function calculateDistances(path) {
+    if (path.length < 2) return [];
+    
+    const distances = [];
+    for (let i = 1; i < path.length; i++) {
+        const dx = path[i].zr - path[i - 1].zr;
+        const dy = path[i].zi - path[i - 1].zi;
+        distances.push(Math.sqrt(dx * dx + dy * dy));
+    }
+    return distances;
+}
+
+// Calculate ratios between consecutive distances
+function calculateRatios(distances) {
+    if (distances.length < 2) return [];
+    
+    const ratios = [];
+    for (let i = 1; i < distances.length; i++) {
+        const prevDist = distances[i - 1];
+        const currDist = distances[i];
+        ratios.push(prevDist > 1e-10 ? currDist / prevDist : 1);
+    }
+    return ratios;
+}
+
+// Measure convergence speed: how quickly do ratios stabilize to a target value?
+// Returns value in [0, 1] where 1 = converged immediately, 0 = never converged
+function measureRatioConvergence(ratios) {
+    if (ratios.length < 3) return 0; // Not enough data
+    
+    // Calculate mean ratio (the "target" value they converge to)
+    let sum = 0;
+    for (let i = 0; i < ratios.length; i++) {
+        sum += ratios[i];
+    }
+    const meanRatio = sum / ratios.length;
+    
+    // Calculate deviations from mean
+    const deviations = [];
+    let maxDeviation = 0;
+    for (let i = 0; i < ratios.length; i++) {
+        const deviation = Math.abs(ratios[i] - meanRatio);
+        deviations.push(deviation);
+        maxDeviation = Math.max(maxDeviation, deviation);
+    }
+    
+    if (maxDeviation < 1e-10) return 1; // Already converged perfectly
+    
+    // Find where convergence "settles" - deviation stays below 30% of max
+    const settleThreshold = maxDeviation * 0.3;
+    let settlationIter = -1;
+    let consecutiveSettled = 0;
+    const requiredConsecutive = 3; // Need 3 consecutive settled points
+    
+    for (let i = 0; i < deviations.length; i++) {
+        if (deviations[i] < settleThreshold) {
+            consecutiveSettled++;
+            if (consecutiveSettled === requiredConsecutive && settlationIter === -1) {
+                // Back up to the first of the 3 consecutive settled points
+                settlationIter = i - requiredConsecutive + 1;
+                break;
+            }
+        } else {
+            consecutiveSettled = 0;
+        }
+    }
+    
+    if (settlationIter === -1) {
+        // Never fully settled, but measure overall trend
+        settlationIter = ratios.length - 1;
+    }
+    
+    // Convergence speed: how early did it settle?
+    // Early settlement = high score
+    const convergenceSpeed = 1 - (settlationIter / ratios.length);
+    return Math.max(0, convergenceSpeed);
+}
+
+// Compute orbit path for a point
+function computeOrbitPath(cr, ci, maxIter) {
+    const bailout = 2;
+    const path = [{ zr: 0, zi: 0 }];
+    let zr = 0, zi = 0;
+    let escaped = false;
+
+    for (let i = 0; i < maxIter; i++) {
+        const zrNext = zr * zr - zi * zi + cr;
+        const ziNext = 2 * zr * zi + ci;
+        zr = zrNext;
+        zi = ziNext;
+        path.push({ zr, zi });
+        
+        if (zr * zr + zi * zi > bailout * bailout) {
+            escaped = true;
+            break;
+        }
+    }
+
+    return { path, escaped };
+}
+
+// Orbit Ratio Convergence rendering
+function renderRatioConvergence() {
+    const width = canvas.width;
+    const height = canvas.height;
+    const totalPixels = width * height;
+
+    const realRange = state.maxReal - state.minReal;
+    const imagRange = state.maxImag - state.minImag;
+
+    // Per-pixel convergence values
+    const smoothedValues = new Float64Array(totalPixels);
+    const convergenceValues = new Float64Array(totalPixels);
+    const pixelIndices = [];
+
+    for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+            const cr = state.minReal + (px / width) * realRange;
+            const ci = state.minImag + (py / height) * imagRange;
+
+            const { path, escaped } = computeOrbitPath(cr, ci, state.maxIterations);
+
+            const idx = py * width + px;
+
+            if (path.length < 3) {
+                // Path too short to calculate convergence
+                smoothedValues[idx] = -1;
+                convergenceValues[idx] = 0;
+            } else {
+                // Calculate convergence for all points (both escaping and non-escaping)
+                const distances = calculateDistances(path);
+                const ratios = calculateRatios(distances);
+                const convergence = measureRatioConvergence(ratios);
+
+                smoothedValues[idx] = convergence;
+                convergenceValues[idx] = convergence;
+                pixelIndices.push(idx);
+            }
+        }
+    }
+
+    // Histogram equalization for better color distribution
+    pixelIndices.sort((a, b) => convergenceValues[a] - convergenceValues[b]);
+    const n = pixelIndices.length;
+    const normalizedValues = new Float32Array(totalPixels);
+    
+    for (let r = 0; r < n; r++) {
+        normalizedValues[pixelIndices[r]] = n > 1 ? r / (n - 1) : 0;
+    }
+
+    // Cache for fast recolor
+    cachedNormalizedValues = normalizedValues;
+    cachedSmoothedValues = smoothedValues;
+    cachedImageData = null;
+
+    recolor();
+
+    state.isRendering = false;
+    loadingOverlay.classList.remove('active');
+}
+
+// Calculate proximity to a target ratio value
+// Returns value in [0, 1] where 1 = converged ratio equals target, 0 = far away
+function measureProximityToTarget(ratios, targetValue) {
+    if (ratios.length < 1) return 0;
+    
+    // Calculate mean ratio (the converged value)
+    let sum = 0;
+    for (let i = 0; i < ratios.length; i++) {
+        sum += ratios[i];
+    }
+    const convergedRatio = sum / ratios.length;
+    
+    // Calculate distance from converged ratio to target
+    const distance = Math.abs(convergedRatio - targetValue);
+    
+    // Convert distance to proximity score: 1/(1 + distance)
+    // distance = 0 → proximity = 1
+    // distance large → proximity near 0
+    const proximity = 1.0 / (1.0 + distance);
+    
+    return proximity;
+}
+
+// Orbit Ratio Convergence to Target Value rendering
+// Colors pixels by how close their orbit's converged ratio is to a user-specified target
+function renderRatioConvergenceToValue() {
+    const width = canvas.width;
+    const height = canvas.height;
+    const totalPixels = width * height;
+
+    const realRange = state.maxReal - state.minReal;
+    const imagRange = state.maxImag - state.minImag;
+
+    // Per-pixel proximity values
+    const smoothedValues = new Float64Array(totalPixels);
+    const proximityValues = new Float64Array(totalPixels);
+    const pixelIndices = [];
+
+    for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+            const cr = state.minReal + (px / width) * realRange;
+            const ci = state.minImag + (py / height) * imagRange;
+
+            const { path, escaped } = computeOrbitPath(cr, ci, state.maxIterations);
+
+            const idx = py * width + px;
+
+            if (path.length < 3) {
+                // Path too short to calculate
+                smoothedValues[idx] = -1;
+                proximityValues[idx] = 0;
+            } else {
+                // Calculate proximity to target for all points (both escaping and non-escaping)
+                const distances = calculateDistances(path);
+                const ratios = calculateRatios(distances);
+                const proximity = measureProximityToTarget(ratios, state.ratioTargetValue);
+
+                smoothedValues[idx] = proximity;
+                proximityValues[idx] = proximity;
+                pixelIndices.push(idx);
+            }
+        }
+    }
+
+    // Histogram equalization for better color distribution
+    pixelIndices.sort((a, b) => proximityValues[a] - proximityValues[b]);
+    const n = pixelIndices.length;
+    const normalizedValues = new Float32Array(totalPixels);
+    
+    for (let r = 0; r < n; r++) {
+        normalizedValues[pixelIndices[r]] = n > 1 ? r / (n - 1) : 0;
+    }
+
+    // Cache for fast recolor
     cachedNormalizedValues = normalizedValues;
     cachedSmoothedValues = smoothedValues;
     cachedImageData = null;
@@ -1780,6 +2169,8 @@ function applyZoomBox(currentX, currentY) {
 // Orbit Explorer Mode
 const pathCanvas = document.getElementById('pathCanvas');
 const pathCtx = pathCanvas.getContext('2d');
+const ratioGraphCanvas = document.getElementById('ratioGraphCanvas');
+const ratioCtx = ratioGraphCanvas.getContext('2d');
 const pathCanvasContainer = document.querySelector('.path-canvas-container');
 
 let isPathMouseDown = false;
@@ -1971,6 +2362,153 @@ function drawIterationPath(mouseX, mouseY) {
             pathCtx.fill();
         }
     }
+
+    // Calculate and draw ratio graph
+    const ratios = calculateStepRatios(path);
+    if (ratios.length > 0) {
+        drawRatioGraph(ratios, escaped);
+    }
+}
+
+// Calculate step-to-step distance ratios (distance[i] / distance[i-1])
+function calculateStepRatios(path) {
+    if (path.length < 3) return []; // Need at least 3 points to get a ratio
+
+    const distances = [];
+    for (let i = 1; i < path.length; i++) {
+        const dx = path[i].zr - path[i - 1].zr;
+        const dy = path[i].zi - path[i - 1].zi;
+        distances.push(Math.sqrt(dx * dx + dy * dy));
+    }
+
+    const ratios = [];
+    for (let i = 1; i < distances.length; i++) {
+        const prevDist = distances[i - 1];
+        const currDist = distances[i];
+        ratios.push(prevDist > 1e-10 ? currDist / prevDist : 0);
+    }
+
+    return ratios;
+}
+
+// Draw ratio graph on the ratio canvas
+function drawRatioGraph(ratios, escaped) {
+    const w = ratioGraphCanvas.width;
+    const h = ratioGraphCanvas.height;
+    const padding = 30;
+
+    // Clear canvas
+    ratioCtx.fillStyle = '#1a1a1a';
+    ratioCtx.fillRect(0, 0, w, h);
+
+    if (ratios.length === 0) {
+        ratioCtx.fillStyle = '#666';
+        ratioCtx.font = '12px sans-serif';
+        ratioCtx.textAlign = 'center';
+        ratioCtx.fillText('Insufficient iterations', w / 2, h / 2);
+        return;
+    }
+
+    // Find min/max ratios
+    let minRatio = Math.min(...ratios);
+    let maxRatio = Math.max(...ratios);
+
+    // Add 10% padding to the range
+    const range = maxRatio - minRatio;
+    const padAmount = Math.max(range * 0.1, 0.01);
+    minRatio -= padAmount;
+    maxRatio += padAmount;
+
+    // Draw axes
+    ratioCtx.strokeStyle = '#3a3a3a';
+    ratioCtx.lineWidth = 1;
+    ratioCtx.beginPath();
+    ratioCtx.moveTo(padding, padding);
+    ratioCtx.lineTo(padding, h - padding);
+    ratioCtx.lineTo(w - padding, h - padding);
+    ratioCtx.stroke();
+
+    // Draw grid lines
+    ratioCtx.strokeStyle = '#2a2a2a';
+    ratioCtx.lineWidth = 0.5;
+    const gridLines = 4;
+    for (let i = 1; i < gridLines; i++) {
+        const y = padding + (i / gridLines) * (h - 2 * padding);
+        ratioCtx.beginPath();
+        ratioCtx.moveTo(padding, y);
+        ratioCtx.lineTo(w - padding, y);
+        ratioCtx.stroke();
+    }
+
+    // Draw axis labels
+    ratioCtx.fillStyle = '#666';
+    ratioCtx.font = '10px sans-serif';
+    ratioCtx.textAlign = 'right';
+    ratioCtx.textBaseline = 'middle';
+
+    // Y-axis labels
+    for (let i = 0; i <= gridLines; i++) {
+        const ratio = minRatio + (i / gridLines) * (maxRatio - minRatio);
+        const y = h - padding - (i / gridLines) * (h - 2 * padding);
+        ratioCtx.fillText(ratio.toFixed(2), padding - 5, y);
+    }
+
+    // X-axis label
+    ratioCtx.textAlign = 'center';
+    ratioCtx.textBaseline = 'top';
+    ratioCtx.fillText('Iteration', w / 2, h - 5);
+
+    // Plot the line
+    const plotWidth = w - 2 * padding;
+    const plotHeight = h - 2 * padding;
+    const color = escaped ? '#00ff00' : '#ff0000';
+
+    ratioCtx.strokeStyle = color;
+    ratioCtx.lineWidth = 2;
+    ratioCtx.beginPath();
+
+    for (let i = 0; i < ratios.length; i++) {
+        const x = padding + (i / (ratios.length - 1 || 1)) * plotWidth;
+        const normalizedRatio = (ratios[i] - minRatio) / (maxRatio - minRatio);
+        const y = h - padding - normalizedRatio * plotHeight;
+
+        if (i === 0) {
+            ratioCtx.moveTo(x, y);
+        } else {
+            ratioCtx.lineTo(x, y);
+        }
+    }
+    ratioCtx.stroke();
+
+    // Plot dots
+    ratioCtx.fillStyle = color;
+    for (let i = 0; i < ratios.length; i++) {
+        const x = padding + (i / (ratios.length - 1 || 1)) * plotWidth;
+        const normalizedRatio = (ratios[i] - minRatio) / (maxRatio - minRatio);
+        const y = h - padding - normalizedRatio * plotHeight;
+
+        ratioCtx.beginPath();
+        ratioCtx.arc(x, y, 2, 0, Math.PI * 2);
+        ratioCtx.fill();
+    }
+
+    // Draw target value line if target value is reasonably close to visible range
+    const targetValue = state.ratioTargetValue;
+    const rangeBuffer = (maxRatio - minRatio) * 0.2; // 20% buffer beyond visible range
+    
+    if (targetValue >= minRatio - rangeBuffer && targetValue <= maxRatio + rangeBuffer) {
+        const normalizedTarget = (targetValue - minRatio) / (maxRatio - minRatio);
+        const targetY = h - padding - normalizedTarget * plotHeight;
+        
+        ratioCtx.strokeStyle = '#a855f7';
+        ratioCtx.lineWidth = 2;
+        ratioCtx.setLineDash([4, 3]);
+        ratioCtx.beginPath();
+        ratioCtx.moveTo(padding, targetY);
+        ratioCtx.lineTo(w - padding, targetY);
+        ratioCtx.stroke();
+        ratioCtx.setLineDash([]);
+    }
 }
 
 // Restore static background
@@ -1981,6 +2519,10 @@ function clearPath() {
         pathCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
     }
     drawTrapShapeOverlay();
+
+    // Clear ratio graph
+    ratioCtx.fillStyle = '#1a1a1a';
+    ratioCtx.fillRect(0, 0, ratioGraphCanvas.width, ratioGraphCanvas.height);
 }
 
 // Draw the current orbit trap shape as an outline on the path canvas
@@ -2045,9 +2587,11 @@ function togglePathExplorerMode(enabled) {
     state.pathExplorerMode = enabled;
     trapShapeOverlaySection.style.display = (enabled && state.renderingMode === 'orbit-trap') ? '' : 'none';
     if (enabled) {
-        pathCanvasContainer.style.display = 'block';
+        pathCanvasContainer.classList.add('active');
+        pathCanvasContainer.style.display = 'flex';
         renderPathBackground();
     } else {
+        pathCanvasContainer.classList.remove('active');
         pathCanvasContainer.style.display = 'none';
         pathBackground = null;
         isPathMouseDown = false;
@@ -2106,19 +2650,16 @@ function enqueuePulse() {
 // Animation system — defines and applies animation frames
 
 const animationDef = {
-    bpm: 120,
-    measures: 4,
+    boomerang: false,
     fps: 15,
-    modifications: []  // populated from checkboxes in ui.js
+    segments: [
+        { bpm: 120, measures: 4, modifications: [] }
+    ]
 };
 
-function getAnimationDuration() {
-    // (measures × 4 beats) / (bpm / 60)
-    return (animationDef.measures * 4) / (animationDef.bpm / 60);
-}
-
-function getFrameCount() {
-    return Math.round(getAnimationDuration() * animationDef.fps);
+function getSegmentFrameCount(seg) {
+    const duration = (seg.measures * 4) / (seg.bpm / 60);
+    return Math.round(duration * animationDef.fps);
 }
 
 function saveAnimationState() {
@@ -2185,20 +2726,30 @@ function renderSync() {
     }
 }
 
-// Apply all active modifications for a given progress [0, 1] and update canvas
-function applyAnimationFrame(progress, saved) {
+// Cubic bezier interpolation between four 2D points
+function cubicBezier(p0, p1, p2, p3, t) {
+    const mt = 1 - t;
+    return {
+        x: mt*mt*mt*p0.x + 3*mt*mt*t*p1.x + 3*mt*t*t*p2.x + t*t*t*p3.x,
+        y: mt*mt*mt*p0.y + 3*mt*mt*t*p1.y + 3*mt*t*t*p2.y + t*t*t*p3.y
+    };
+}
+
+// Apply all active modifications for a given linear progress [0, 1].
+// saved = start state of this segment.
+// modifications = resolved mod list (random values already substituted).
+// Boomerang mirroring is handled at the GIF capture level.
+function applyAnimationFrame(progress, saved, modifications) {
     let needsRender = false;
     let gradientBlend = null;
+    const ease = progress * progress * (3 - 2 * progress); // smoothstep
 
-    for (const mod of animationDef.modifications) {
+    for (const mod of modifications) {
         if (mod.type === 'colorPulse') {
-            const t = progress < 0.5 ? progress * 2 : 2 - progress * 2;
-            state.gradientOffset = t;
+            state.gradientOffset = progress;
 
-        } else if (mod.type === 'zoom') {
-            const t = progress < 0.5 ? progress * 2 : 2 - progress * 2;
-            const eased = t * t * (3 - 2 * t); // smoothstep
-            const factor = 1 - 0.75 * eased; // zoom to 25% of original size at peak
+        } else if (mod.type === 'zoomIn') {
+            const factor = 1 - 0.75 * ease; // 1.0 → 0.25
             const cx = (saved.minReal + saved.maxReal) / 2;
             const cy = (saved.minImag + saved.maxImag) / 2;
             const hw = (saved.maxReal - saved.minReal) / 2 * factor;
@@ -2207,30 +2758,79 @@ function applyAnimationFrame(progress, saved) {
             state.minImag = cy - hh; state.maxImag = cy + hh;
             needsRender = true;
 
+        } else if (mod.type === 'zoomOut') {
+            const factor = 0.25 + 0.75 * ease; // 0.25 → 1.0
+            const cx = (saved.minReal + saved.maxReal) / 2;
+            const cy = (saved.minImag + saved.maxImag) / 2;
+            const hw = (saved.maxReal - saved.minReal) / 2 * factor;
+            const hh = (saved.maxImag - saved.minImag) / 2 * factor;
+            state.minReal = cx - hw; state.maxReal = cx + hw;
+            state.minImag = cy - hh; state.maxImag = cy + hh;
+            needsRender = true;
+
+        } else if (mod.type === 'pan') {
+            const angleRad = (mod.resolvedAngle ?? 0) * Math.PI / 180;
+            const dx = Math.cos(angleRad);
+            const dy = -Math.sin(angleRad); // y-flipped: 90° = up = −imag
+            const viewWidth = saved.maxReal - saved.minReal;
+            const totalShift = viewWidth * (mod.distance ?? 0.5);
+            const startCx = (saved.minReal + saved.maxReal) / 2;
+            const startCy = (saved.minImag + saved.maxImag) / 2;
+
+            let cx, cy;
+            if (mod.curve === 'sporadic') {
+                // Cubic bezier: curves perpendicular to the travel direction
+                const seed = mod.resolvedSeed ?? 0.5;
+                const perpX = -dy;
+                const perpY = dx;
+                const perpOffset = totalShift * 0.8 * (seed * 2 - 1); // signed deviation
+                const p0 = { x: startCx, y: startCy };
+                const p3 = { x: startCx + dx * totalShift, y: startCy + dy * totalShift };
+                const p1 = {
+                    x: startCx + dx * totalShift * 0.33 + perpX * perpOffset,
+                    y: startCy + dy * totalShift * 0.33 + perpY * perpOffset
+                };
+                const p2 = {
+                    x: startCx + dx * totalShift * 0.67 - perpX * perpOffset * 0.5,
+                    y: startCy + dy * totalShift * 0.67 - perpY * perpOffset * 0.5
+                };
+                const pos = cubicBezier(p0, p1, p2, p3, ease);
+                cx = pos.x;
+                cy = pos.y;
+            } else {
+                cx = startCx + dx * totalShift * ease;
+                cy = startCy + dy * totalShift * ease;
+            }
+
+            const hw = (saved.maxReal - saved.minReal) / 2;
+            const hh = (saved.maxImag - saved.minImag) / 2;
+            state.minReal = cx - hw; state.maxReal = cx + hw;
+            state.minImag = cy - hh; state.maxImag = cy + hh;
+            needsRender = true;
+
         } else if (mod.type === 'orbitTrapRotation') {
             state.trapRotation = progress * Math.PI * 2;
             needsRender = true;
 
-        } else if (mod.type === 'trapPulse') {
-            const t = progress < 0.5 ? progress * 2 : 2 - progress * 2;
-            const eased = t * t * (3 - 2 * t);
-            state.trapScale = mod.minScale + (mod.maxScale - mod.minScale) * eased;
+        } else if (mod.type === 'trapExpand') {
+            state.trapScale = 1.0 + (mod.maxScale - 1.0) * ease;
+            needsRender = true;
+
+        } else if (mod.type === 'trapContract') {
+            state.trapScale = 1.0 - (1.0 - mod.minScale) * ease;
             needsRender = true;
 
         } else if (mod.type === 'trapIteration') {
-            const t = progress < 0.5 ? progress * 2 : 2 - progress * 2;
-            state.trapIteration = Math.max(1, Math.round(t * mod.maxIteration));
+            state.trapIteration = Math.max(1, Math.round(progress * mod.maxIteration));
             needsRender = true;
 
         } else if (mod.type === 'gradientFade') {
-            const t = progress < 0.5 ? progress * 2 : 2 - progress * 2;
-            gradientBlend = { fromIdx: state.currentGradient, toIdx: saved.toGradientIdx, t };
+            gradientBlend = { fromIdx: state.currentGradient, toIdx: saved.toGradientIdx, t: progress };
         }
     }
 
     if (needsRender) {
         renderSync();
-        // After a full render, apply gradient blend on top if needed
         if (gradientBlend) {
             recolorBlended(gradientBlend.fromIdx, gradientBlend.toIdx, gradientBlend.t);
         }
@@ -2245,7 +2845,28 @@ function applyAnimationFrame(progress, saved) {
 /* === js/gif-capture.js === */
 // GIF capture and export
 
+// Resolve any deferred values in a segment's mod list before rendering.
+// Replaces angle:'random' with a concrete angle, and generates resolvedSeed
+// for sporadic pan paths. Returns a new array — does not mutate the original.
+function resolveSegmentMods(mods) {
+    return mods.map(mod => {
+        if (mod.type !== 'pan') return mod;
+        const resolved = { ...mod };
+        resolved.resolvedAngle = (mod.angle === 'random')
+            ? Math.floor(Math.random() * 360)
+            : (mod.angle ?? 0);
+        resolved.resolvedSeed = Math.random();
+        return resolved;
+    });
+}
+
 function captureGif() {
+    const hasEffects = animationDef.segments.some(s => s.modifications.length > 0);
+    if (!hasEffects) {
+        alert('Add at least one effect to a segment before exporting.');
+        return;
+    }
+
     const btn = document.getElementById('exportGifBtn');
     const progressContainer = document.getElementById('gifProgressContainer');
     const progressBar = document.getElementById('gifProgressBar');
@@ -2256,14 +2877,11 @@ function captureGif() {
         progressBar.style.width = (pct * 100).toFixed(1) + '%';
     }
 
-    if (animationDef.modifications.length === 0) return;
-
     btn.textContent = 'Rendering…';
     btn.disabled = true;
     progressContainer.style.display = '';
     setProgress('Rendering frames… 0%', 0);
 
-    const frameCount = getFrameCount();
     const frameDelay = Math.round(1000 / animationDef.fps);
     const outputSize = 400;
 
@@ -2283,12 +2901,33 @@ function captureGif() {
         workerScript: workerUrl
     });
 
-    const saved = saveAnimationState();
+    const globalSaved = saveAnimationState();
 
-    // Render frames one at a time, yielding to the browser between each
-    function renderFrame(f) {
-        if (f >= frameCount) {
-            restoreAnimationState(saved);
+    // Total forward frames across all segments
+    const totalForwardFrames = animationDef.segments.reduce(
+        (sum, seg) => sum + getSegmentFrameCount(seg), 0
+    );
+
+    // For boomerang: buffer ImageData of each forward frame for reverse playback
+    const frameBuffers = animationDef.boomerang ? [] : null;
+
+    let segmentIndex = 0;
+    let frameInSegment = 0;
+    let segmentSaved = null;
+    let resolvedMods = null;
+    let framesRendered = 0;
+
+    function renderFrame() {
+        if (segmentIndex >= animationDef.segments.length) {
+            // All forward frames done — add reverse frames for boomerang
+            if (frameBuffers && frameBuffers.length > 1) {
+                // Full GIF = [0..N-1, N-2..0] — frame 0 at start and end for clean loop
+                for (let i = frameBuffers.length - 2; i >= 0; i--) {
+                    gif.addFrame(frameBuffers[i], { copy: true, delay: frameDelay });
+                }
+            }
+
+            restoreAnimationState(globalSaved);
 
             gif.on('progress', (ratio) => {
                 setProgress(`Encoding… ${Math.round(ratio * 100)}%`, ratio);
@@ -2312,16 +2951,41 @@ function captureGif() {
             return;
         }
 
-        applyAnimationFrame(f / frameCount, saved);
-        offCtx.drawImage(canvas, 0, 0, outputSize, outputSize);
-        gif.addFrame(offCanvas, { copy: true, delay: frameDelay });
-        setProgress(`Rendering frames… ${Math.round((f + 1) / frameCount * 100)}%`, (f + 1) / frameCount);
+        const seg = animationDef.segments[segmentIndex];
+        const segFrameCount = getSegmentFrameCount(seg);
 
-        setTimeout(() => renderFrame(f + 1), 0);
+        // At the start of each segment: capture chained state and resolve random values
+        if (frameInSegment === 0) {
+            segmentSaved = saveAnimationState();
+            resolvedMods = resolveSegmentMods(seg.modifications);
+        }
+
+        const progress = frameInSegment / Math.max(segFrameCount - 1, 1);
+        applyAnimationFrame(progress, segmentSaved, resolvedMods);
+
+        offCtx.drawImage(canvas, 0, 0, outputSize, outputSize);
+        const imageData = offCtx.getImageData(0, 0, outputSize, outputSize);
+        gif.addFrame(imageData, { copy: true, delay: frameDelay });
+        if (frameBuffers) frameBuffers.push(imageData);
+
+        framesRendered++;
+        setProgress(
+            `Rendering frames… ${Math.round(framesRendered / totalForwardFrames * 100)}%`,
+            framesRendered / totalForwardFrames
+        );
+
+        frameInSegment++;
+        if (frameInSegment >= segFrameCount) {
+            // Advance to next segment — do NOT restore state so segments chain
+            segmentIndex++;
+            frameInSegment = 0;
+        }
+
+        setTimeout(renderFrame, 0);
     }
 
     // Defer first frame to let initial progress bar render
-    setTimeout(() => renderFrame(0), 50);
+    setTimeout(renderFrame, 50);
 }
 
 
@@ -2638,11 +3302,29 @@ document.querySelectorAll('input[name="renderingMode"]').forEach(radio => {
         buddhabrotSamplesSection.style.display = radio.value === 'buddhabrot' ? '' : 'none';
         orbitTrapShapeSection.style.display = radio.value === 'orbit-trap' ? '' : 'none';
         trapShapeOverlaySection.style.display = (radio.value === 'orbit-trap' && state.pathExplorerMode) ? '' : 'none';
+        const ratioTargetSection = document.getElementById('ratioTargetSection');
+        ratioTargetSection.style.display = radio.value === 'orbit-ratio-convergence-to-value' ? '' : 'none';
         render();
         if (state.pathExplorerMode) renderPathBackground();
         updateOrbitRotateVisibility();
     });
 });
+
+const ratioTargetInput = document.getElementById('ratioTargetInput');
+if (ratioTargetInput) {
+    ratioTargetInput.addEventListener('input', () => {
+        const value = parseFloat(ratioTargetInput.value);
+        if (!isNaN(value) && value > 0) {
+            state.ratioTargetValue = value;
+        }
+    });
+    
+    ratioTargetInput.addEventListener('change', () => {
+        if (state.renderingMode === 'orbit-ratio-convergence-to-value') {
+            render();
+        }
+    });
+}
 
 trapShapeSelect.addEventListener('change', () => {
     state.trapShape = trapShapeSelect.value;
@@ -2768,78 +3450,282 @@ function populateTrapShapePNGOptions() {
     });
 }
 
-// Animation tab controls
-document.getElementById('animBpmInput').addEventListener('change', (e) => {
-    animationDef.bpm = Math.max(40, Math.min(300, parseInt(e.target.value) || 120));
-    e.target.value = animationDef.bpm;
-});
-document.getElementById('animMeasuresInput').addEventListener('change', (e) => {
-    animationDef.measures = Math.max(1, Math.min(32, parseInt(e.target.value) || 4));
-    e.target.value = animationDef.measures;
+// Animation tab — segment management
+
+document.getElementById('animBoomerang').addEventListener('change', (e) => {
+    animationDef.boomerang = e.target.checked;
 });
 
-const animEffectMap = [
-    { id: 'animColorPulse',   type: 'colorPulse' },
-    { id: 'animZoom',         type: 'zoom' },
-    { id: 'animOrbitRotate',  type: 'orbitTrapRotation' },
-    { id: 'animTrapPulse',    type: 'trapPulse' },
-    { id: 'animTrapIter',     type: 'trapIteration' },
-    { id: 'animGradientFade', type: 'gradientFade' },
-];
-
-function syncAnimModifications() {
-    animationDef.modifications = animEffectMap
-        .filter(e => document.getElementById(e.id).checked)
-        .map(e => {
-            const mod = { type: e.type };
-            if (e.type === 'trapIteration') {
-                mod.maxIteration = parseInt(document.getElementById('animTrapIterMax').value) || 32;
-            } else if (e.type === 'trapPulse') {
-                mod.minScale = parseFloat(document.getElementById('animTrapPulseMin').value) || 0.3;
-                mod.maxScale = parseFloat(document.getElementById('animTrapPulseMax').value) || 2.0;
-            }
-            return mod;
-        });
+function syncSegmentModifications(segIdx) {
+    const seg = animationDef.segments[segIdx];
+    const card = document.querySelector(`.segment-card[data-seg-idx="${segIdx}"]`);
+    if (!card) return;
+    seg.modifications = [];
+    card.querySelectorAll('.seg-effect:checked').forEach(cb => {
+        const type = cb.dataset.type;
+        const mod = { type };
+        if (type === 'trapIteration') {
+            mod.maxIteration = parseInt(card.querySelector('.seg-trapIterMax').value) || 32;
+        } else if (type === 'trapExpand') {
+            mod.maxScale = parseFloat(card.querySelector('.seg-trapExpandMax').value) || 2.0;
+        } else if (type === 'trapContract') {
+            mod.minScale = parseFloat(card.querySelector('.seg-trapContractMin').value) || 0.3;
+        } else if (type === 'pan') {
+            const isRandom = card.querySelector('.seg-panRandom').checked;
+            mod.angle = isRandom ? 'random' : (parseFloat(card.querySelector('.seg-panAngle').value) || 0);
+            mod.distance = parseFloat(card.querySelector('.seg-panDistance').value) || 0.5;
+            const curveRadio = card.querySelector(`input[name="seg-${segIdx}-panCurve"]:checked`);
+            mod.curve = curveRadio ? curveRadio.value : 'straight';
+        }
+        seg.modifications.push(mod);
+    });
 }
 
-animEffectMap.forEach(({ id }) => {
-    document.getElementById(id).addEventListener('change', syncAnimModifications);
-});
+function buildSegmentCard(segIdx) {
+    const seg = animationDef.segments[segIdx];
+    const isOrbitTrap = state.renderingMode === 'orbit-trap';
+    const isIterAgg = state.trapAggregation === 'iteration';
 
-document.getElementById('animTrapIterMax').addEventListener('change', syncAnimModifications);
+    const hasMod = (type) => seg.modifications.some(m => m.type === type);
+    const getMod = (type) => seg.modifications.find(m => m.type === type);
 
-document.getElementById('animTrapIter').addEventListener('change', (e) => {
-    document.getElementById('animTrapIterMaxRow').style.display = e.target.checked ? '' : 'none';
-});
+    const panMod = getMod('pan');
+    const panAngle = (panMod && panMod.angle !== 'random') ? panMod.angle : 0;
+    const panRandom = !!(panMod && panMod.angle === 'random');
+    const panDistance = panMod?.distance ?? 0.5;
+    const panCurve = panMod?.curve ?? 'straight';
 
-document.getElementById('animTrapPulse').addEventListener('change', (e) => {
-    document.getElementById('animTrapPulseRangeRow').style.display = e.target.checked ? '' : 'none';
-});
+    const card = document.createElement('div');
+    card.className = 'segment-card';
+    card.dataset.segIdx = segIdx;
 
-['animTrapPulseMin', 'animTrapPulseMax'].forEach(id => {
-    document.getElementById(id).addEventListener('change', syncAnimModifications);
-});
+    card.innerHTML = `
+        <div class="segment-header">
+            <span class="seg-chevron">&#9660;</span>
+            <span class="segment-title">Segment ${segIdx + 1}</span>
+            <span class="seg-summary"></span>
+            <div class="segment-ctrl-btns">
+                <button class="seg-btn seg-up" title="Move up">&#9650;</button>
+                <button class="seg-btn seg-dn" title="Move down">&#9660;</button>
+                <button class="seg-btn seg-del" title="Delete">&#10005;</button>
+            </div>
+        </div>
+        <div class="segment-body">
+            <div class="anim-timing-row">
+                <label class="anim-label">BPM</label>
+                <input type="number" class="anim-number seg-bpm" min="40" max="300" step="1" value="${seg.bpm}">
+            </div>
+            <div class="anim-timing-row">
+                <label class="anim-label">Measures</label>
+                <input type="number" class="anim-number seg-measures" min="1" max="32" step="1" value="${seg.measures}">
+            </div>
+            <div class="anim-effects">
+                <label class="path-style-label">
+                    <input type="checkbox" class="seg-effect" data-type="colorPulse" ${hasMod('colorPulse') ? 'checked' : ''}> Color Pulse
+                </label>
+                <label class="path-style-label">
+                    <input type="checkbox" class="seg-effect" data-type="zoomIn" ${hasMod('zoomIn') ? 'checked' : ''}> Zoom In
+                </label>
+                <label class="path-style-label">
+                    <input type="checkbox" class="seg-effect" data-type="zoomOut" ${hasMod('zoomOut') ? 'checked' : ''}> Zoom Out
+                </label>
+                <label class="path-style-label">
+                    <input type="checkbox" class="seg-effect seg-pan-check" data-type="pan" ${hasMod('pan') ? 'checked' : ''}> Pan
+                </label>
+                <div class="seg-pan-options" style="${hasMod('pan') ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Angle °</label>
+                        <input type="number" class="anim-number seg-panAngle" min="0" max="359" step="1" value="${panAngle}" ${panRandom ? 'disabled' : ''}>
+                    </div>
+                    <label class="path-style-label" style="margin-top:2px">
+                        <input type="checkbox" class="seg-panRandom" ${panRandom ? 'checked' : ''}> Random direction
+                    </label>
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Distance</label>
+                        <input type="number" class="anim-number seg-panDistance" min="0.1" max="5" step="0.1" value="${panDistance}">
+                        <span class="anim-label" style="margin-left:4px">&#215; view</span>
+                    </div>
+                    <label class="path-style-label" style="margin-top:2px">
+                        <input type="radio" name="seg-${segIdx}-panCurve" class="seg-panCurve" value="straight" ${panCurve === 'straight' ? 'checked' : ''}> Straight
+                    </label>
+                    <label class="path-style-label">
+                        <input type="radio" name="seg-${segIdx}-panCurve" class="seg-panCurve" value="sporadic" ${panCurve === 'sporadic' ? 'checked' : ''}> Sporadic Curve
+                    </label>
+                </div>
+                <label class="path-style-label seg-orbitRotate-label" style="${isOrbitTrap ? '' : 'display:none'}">
+                    <input type="checkbox" class="seg-effect" data-type="orbitTrapRotation" ${hasMod('orbitTrapRotation') ? 'checked' : ''}> Rotate Orbit Trap
+                </label>
+                <label class="path-style-label seg-trapExpand-label" style="${isOrbitTrap ? '' : 'display:none'}">
+                    <input type="checkbox" class="seg-effect seg-trapExpand-check" data-type="trapExpand" ${hasMod('trapExpand') ? 'checked' : ''}> Expand Trap
+                </label>
+                <div class="seg-trapExpand-range" style="${(isOrbitTrap && hasMod('trapExpand')) ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Max scale</label>
+                        <input type="number" class="anim-number seg-trapExpandMax" min="0.1" max="10" step="0.1" value="${getMod('trapExpand')?.maxScale ?? 2.0}">
+                    </div>
+                </div>
+                <label class="path-style-label seg-trapContract-label" style="${isOrbitTrap ? '' : 'display:none'}">
+                    <input type="checkbox" class="seg-effect seg-trapContract-check" data-type="trapContract" ${hasMod('trapContract') ? 'checked' : ''}> Contract Trap
+                </label>
+                <div class="seg-trapContract-range" style="${(isOrbitTrap && hasMod('trapContract')) ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Min scale</label>
+                        <input type="number" class="anim-number seg-trapContractMin" min="0.01" max="10" step="0.1" value="${getMod('trapContract')?.minScale ?? 0.3}">
+                    </div>
+                </div>
+                <label class="path-style-label seg-trapIter-label" style="${(isOrbitTrap && isIterAgg) ? '' : 'display:none'}">
+                    <input type="checkbox" class="seg-effect seg-trapIter-check" data-type="trapIteration" ${hasMod('trapIteration') ? 'checked' : ''}> Cycle Orbit Iteration
+                </label>
+                <div class="seg-trapIter-max" style="${(isOrbitTrap && isIterAgg && hasMod('trapIteration')) ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Max step</label>
+                        <input type="number" class="anim-number seg-trapIterMax" min="1" max="1000" step="1" value="${getMod('trapIteration')?.maxIteration ?? 32}">
+                    </div>
+                </div>
+                <label class="path-style-label">
+                    <input type="checkbox" class="seg-effect" data-type="gradientFade" ${hasMod('gradientFade') ? 'checked' : ''}> Fade Between Gradients
+                </label>
+            </div>
+        </div>
+    `;
 
-// Show/hide orbit trap rotation checkbox based on rendering mode
+    // --- Collapse behavior ---
+    let collapsed = false;
+    const effectLabels = {
+        colorPulse: 'Color Pulse', zoomIn: 'Zoom In', zoomOut: 'Zoom Out',
+        pan: 'Pan', orbitTrapRotation: 'Rotate Trap',
+        trapExpand: 'Expand Trap', trapContract: 'Contract Trap',
+        trapIteration: 'Cycle Iteration', gradientFade: 'Fade Gradient'
+    };
+    function buildSummary() {
+        const names = seg.modifications.map(m => effectLabels[m.type] || m.type).join(', ');
+        return `${seg.bpm} BPM \u00b7 ${seg.measures} bars${names ? ' \u00b7 ' + names : ''}`;
+    }
+    function toggleCollapse() {
+        collapsed = !collapsed;
+        card.querySelector('.seg-chevron').innerHTML = collapsed ? '&#9658;' : '&#9660;';
+        card.querySelector('.segment-body').style.display = collapsed ? 'none' : '';
+        card.querySelector('.seg-summary').textContent = collapsed ? buildSummary() : '';
+    }
+    card.querySelector('.segment-header').addEventListener('click', toggleCollapse);
+
+    // --- Control buttons (stop propagation so they don't trigger collapse) ---
+    card.querySelector('.seg-up').addEventListener('click', (e) => { e.stopPropagation(); moveSegment(segIdx, -1); });
+    card.querySelector('.seg-dn').addEventListener('click', (e) => { e.stopPropagation(); moveSegment(segIdx, 1); });
+    card.querySelector('.seg-del').addEventListener('click', (e) => { e.stopPropagation(); deleteSegment(segIdx); });
+
+    // --- Timing inputs ---
+    card.querySelector('.seg-bpm').addEventListener('change', (e) => {
+        seg.bpm = Math.max(40, Math.min(300, parseInt(e.target.value) || 120));
+        e.target.value = seg.bpm;
+        if (collapsed) card.querySelector('.seg-summary').textContent = buildSummary();
+    });
+    card.querySelector('.seg-measures').addEventListener('change', (e) => {
+        seg.measures = Math.max(1, Math.min(32, parseInt(e.target.value) || 4));
+        e.target.value = seg.measures;
+        if (collapsed) card.querySelector('.seg-summary').textContent = buildSummary();
+    });
+
+    // --- Effect checkboxes (sync + refresh summary) ---
+    card.querySelectorAll('.seg-effect').forEach(cb => {
+        cb.addEventListener('change', () => {
+            syncSegmentModifications(segIdx);
+            if (collapsed) card.querySelector('.seg-summary').textContent = buildSummary();
+        });
+    });
+
+    // --- Pan sub-option visibility ---
+    card.querySelector('.seg-pan-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-pan-options').style.display = e.target.checked ? '' : 'none';
+    });
+    card.querySelector('.seg-panRandom').addEventListener('change', (e) => {
+        card.querySelector('.seg-panAngle').disabled = e.target.checked;
+        syncSegmentModifications(segIdx);
+    });
+    card.querySelector('.seg-panAngle').addEventListener('change', () => syncSegmentModifications(segIdx));
+    card.querySelector('.seg-panDistance').addEventListener('change', () => syncSegmentModifications(segIdx));
+    card.querySelectorAll('.seg-panCurve').forEach(r => r.addEventListener('change', () => syncSegmentModifications(segIdx)));
+
+    // --- Trap expand/contract sub-option visibility ---
+    card.querySelector('.seg-trapExpand-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-trapExpand-range').style.display =
+            (e.target.checked && state.renderingMode === 'orbit-trap') ? '' : 'none';
+    });
+    card.querySelector('.seg-trapContract-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-trapContract-range').style.display =
+            (e.target.checked && state.renderingMode === 'orbit-trap') ? '' : 'none';
+    });
+    card.querySelector('.seg-trapExpandMax').addEventListener('change', () => syncSegmentModifications(segIdx));
+    card.querySelector('.seg-trapContractMin').addEventListener('change', () => syncSegmentModifications(segIdx));
+
+    // --- Trap iteration sub-option visibility ---
+    card.querySelector('.seg-trapIter-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-trapIter-max').style.display =
+            (e.target.checked && state.renderingMode === 'orbit-trap' && state.trapAggregation === 'iteration') ? '' : 'none';
+    });
+    card.querySelector('.seg-trapIterMax').addEventListener('change', () => syncSegmentModifications(segIdx));
+
+    return card;
+}
+
+function buildSegmentList() {
+    const list = document.getElementById('segmentList');
+    list.innerHTML = '';
+    animationDef.segments.forEach((_, i) => list.appendChild(buildSegmentCard(i)));
+}
+
+function addSegment() {
+    animationDef.segments.push({ bpm: 120, measures: 4, modifications: [] });
+    buildSegmentList();
+}
+
+function deleteSegment(i) {
+    if (animationDef.segments.length <= 1) return; // always keep at least one
+    animationDef.segments.splice(i, 1);
+    buildSegmentList();
+}
+
+function moveSegment(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= animationDef.segments.length) return;
+    [animationDef.segments[i], animationDef.segments[j]] =
+        [animationDef.segments[j], animationDef.segments[i]];
+    buildSegmentList();
+}
+
+// Show/hide orbit-trap-specific effect rows across all segment cards
 function updateOrbitRotateVisibility() {
     const isOrbitTrap = state.renderingMode === 'orbit-trap';
-    document.getElementById('animOrbitRotateLabel').style.display = isOrbitTrap ? '' : 'none';
-    document.getElementById('animTrapPulseLabel').style.display = isOrbitTrap ? '' : 'none';
-    const showTrapIter = isOrbitTrap && state.trapAggregation === 'iteration';
-    document.getElementById('animTrapIterLabel').style.display = showTrapIter ? '' : 'none';
-    if (!isOrbitTrap) {
-        document.getElementById('animOrbitRotate').checked = false;
-        document.getElementById('animTrapPulse').checked = false;
-        document.getElementById('animTrapPulseRangeRow').style.display = 'none';
-    }
-    if (!showTrapIter) {
-        document.getElementById('animTrapIter').checked = false;
-        document.getElementById('animTrapIterMaxRow').style.display = 'none';
-    }
-    syncAnimModifications();
+    const isIterAgg = state.trapAggregation === 'iteration';
+
+    document.querySelectorAll('.segment-card').forEach((card) => {
+        const segIdx = parseInt(card.dataset.segIdx);
+
+        card.querySelector('.seg-orbitRotate-label').style.display = isOrbitTrap ? '' : 'none';
+        card.querySelector('.seg-trapExpand-label').style.display = isOrbitTrap ? '' : 'none';
+        card.querySelector('.seg-trapContract-label').style.display = isOrbitTrap ? '' : 'none';
+        card.querySelector('.seg-trapIter-label').style.display = (isOrbitTrap && isIterAgg) ? '' : 'none';
+
+        if (!isOrbitTrap) {
+            card.querySelectorAll(
+                '.seg-effect[data-type="orbitTrapRotation"], .seg-effect[data-type="trapExpand"], ' +
+                '.seg-effect[data-type="trapContract"], .seg-effect[data-type="trapIteration"]'
+            ).forEach(cb => { cb.checked = false; });
+            card.querySelector('.seg-trapExpand-range').style.display = 'none';
+            card.querySelector('.seg-trapContract-range').style.display = 'none';
+            card.querySelector('.seg-trapIter-max').style.display = 'none';
+        }
+        if (!isIterAgg) {
+            card.querySelector('.seg-effect[data-type="trapIteration"]').checked = false;
+            card.querySelector('.seg-trapIter-max').style.display = 'none';
+        }
+
+        syncSegmentModifications(segIdx);
+    });
 }
 
 document.getElementById('exportGifBtn').addEventListener('click', captureGif);
+document.getElementById('addSegmentBtn').addEventListener('click', addSegment);
 
 document.getElementById('autoExploreBtn').addEventListener('click', () => {
     autoExploreActive ? stopAutoExplore() : startAutoExplore();
@@ -2851,6 +3737,7 @@ populateTrapShapePNGOptions();
 render();
 buildGradientPreview();
 buildStopEditor();
+buildSegmentList();
 
     </script>
 </body>
