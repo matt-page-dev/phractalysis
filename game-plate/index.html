@@ -16,8 +16,7 @@
       position: fixed; inset: 0; z-index: 99999;
       background: #111;
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 24px;
-      cursor: pointer;
+      align-items: center; justify-content: center; gap: 32px;
       transition: opacity 0.4s ease;
     }
     #splash.hidden { opacity: 0; pointer-events: none; }
@@ -27,17 +26,34 @@
       color: #fff;
       letter-spacing: 0.04em;
     }
-    #splash p {
+    #splash-choice {
+      display: flex; gap: 16px;
+    }
+    .splash-btn {
+      padding: 16px 32px;
+      font: 600 18px/1 sans-serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #fff;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .splash-btn:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.45); }
+    #splash-hint {
       margin: 0;
       font: 18px/1 sans-serif;
       color: rgba(255,255,255,0.4);
       letter-spacing: 0.1em;
       text-transform: uppercase;
+      cursor: pointer;
+      animation: pulse 2s ease-in-out infinite;
     }
     @keyframes pulse {
       0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; }
     }
-    #splash p { animation: pulse 2s ease-in-out infinite; }
   </style>
 </head>
 <body>
@@ -45,25 +61,25 @@
   <div id="debug"></div>
   <div id="splash">
     <h1>game-plate</h1>
-    <p>click / tap to start</p>
+    <div id="splash-choice">
+      <button class="splash-btn" id="btn-controller">Controller</button>
+      <button class="splash-btn" id="btn-tilt">Tilt</button>
+    </div>
+    <p id="splash-hint">click to start</p>
   </div>
 
   <script src="game-plate.js"></script>
   <script>
-    GamePlate.init({ orientation: 'landscape', controller: 'auto', fullscreen: false });
+    var splash     = document.getElementById('splash');
+    var choice     = document.getElementById('splash-choice');
+    var hint       = document.getElementById('splash-hint');
+    var canvas     = document.getElementById('game');
+    var ctx        = canvas.getContext('2d');
+    var debug      = document.getElementById('debug');
 
-    var splash = document.getElementById('splash');
-    splash.addEventListener('click', function () {
-      if (document.fullscreenEnabled) {
-        document.documentElement.requestFullscreen().catch(function () {});
-      }
-      splash.classList.add('hidden');
-      splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
-    });
-
-    var canvas = document.getElementById('game');
-    var ctx    = canvas.getContext('2d');
-    var debug  = document.getElementById('debug');
+    var hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (hasTouch) { hint.style.display = 'none'; }
+    else          { choice.style.display = 'none'; }
 
     var x, y;
     var SPEED  = 5;
@@ -80,6 +96,23 @@
     window.addEventListener('resize', resize);
     resize();
 
+    function dismissSplash() {
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
+      if (document.fullscreenEnabled) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+    }
+
+    function start(controller) {
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: false });
+      dismissSplash();
+    }
+
+    document.getElementById('btn-controller').addEventListener('click', function () { start('nes'); });
+    document.getElementById('btn-tilt').addEventListener('click',       function () { start('tilt'); });
+    hint.addEventListener('click',                                       function () { start('auto'); });
+
     function loop() {
       var inp = GamePlate.input;
 
@@ -91,7 +124,7 @@
       var radius = RADIUS;
       var color  = '#29aaff';
 
-      if (inp.a) { color = '#ff4444'; radius = RADIUS * 1.5; }
+      if (inp.a)      { color = '#ff4444'; radius = RADIUS * 1.5; }
       else if (inp.b) { color = '#44ff88'; radius = RADIUS * 0.6; }
 
       x = Math.max(radius, Math.min(canvas.width  - radius, x));
@@ -109,9 +142,9 @@
       ctx.shadowBlur = 0;
 
       debug.textContent =
-        'up:'    + +inp.up    + '  down:'  + +inp.down  + '\n' +
-        'left:'  + +inp.left  + '  right:' + +inp.right + '\n' +
-        'a:'     + +inp.a     + '  b:'     + +inp.b;
+        'up:'   + +inp.up    + '  down:'  + +inp.down  + '\n' +
+        'left:' + +inp.left  + '  right:' + +inp.right + '\n' +
+        'a:'    + +inp.a     + '  b:'     + +inp.b;
 
       requestAnimationFrame(loop);
     }
