@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>game-plate demo</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #111; }
+    canvas { display: block; }
+    #debug {
+      position: fixed; top: 12px; left: 12px;
+      font: 13px/1.6 monospace; color: rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+    #splash {
+      position: fixed; inset: 0; z-index: 99999;
+      background: #111;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 24px;
+      cursor: pointer;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash h1 {
+      margin: 0;
+      font: 700 48px/1 sans-serif;
+      color: #fff;
+      letter-spacing: 0.04em;
+    }
+    #splash p {
+      margin: 0;
+      font: 18px/1 sans-serif;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; }
+    }
+    #splash p { animation: pulse 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="debug"></div>
+  <div id="splash">
+    <h1>game-plate</h1>
+    <p>click / tap to start</p>
+  </div>
+
+  <script src="game-plate.js"></script>
+  <script>
+    GamePlate.init({ orientation: 'landscape', controller: 'auto', fullscreen: false });
+
+    var splash = document.getElementById('splash');
+    splash.addEventListener('click', function () {
+      if (document.fullscreenEnabled) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
+    });
+
+    var canvas = document.getElementById('game');
+    var ctx    = canvas.getContext('2d');
+    var debug  = document.getElementById('debug');
+
+    var x, y;
+    var SPEED  = 5;
+    var RADIUS = 32;
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      if (x === undefined) {
+        x = canvas.width  / 2;
+        y = canvas.height / 2 - 60;
+      }
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function loop() {
+      var inp = GamePlate.input;
+
+      if (inp.left)  x -= SPEED;
+      if (inp.right) x += SPEED;
+      if (inp.up)    y -= SPEED;
+      if (inp.down)  y += SPEED;
+
+      var radius = RADIUS;
+      var color  = '#29aaff';
+
+      if (inp.a) { color = '#ff4444'; radius = RADIUS * 1.5; }
+      else if (inp.b) { color = '#44ff88'; radius = RADIUS * 0.6; }
+
+      x = Math.max(radius, Math.min(canvas.width  - radius, x));
+      y = Math.max(radius, Math.min(canvas.height - radius, y));
+
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur  = 24;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      debug.textContent =
+        'up:'    + +inp.up    + '  down:'  + +inp.down  + '\n' +
+        'left:'  + +inp.left  + '  right:' + +inp.right + '\n' +
+        'a:'     + +inp.a     + '  b:'     + +inp.b;
+
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
