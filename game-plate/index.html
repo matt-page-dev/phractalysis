@@ -77,8 +77,8 @@
     var ctx        = canvas.getContext('2d');
     var debug      = document.getElementById('debug');
 
-    var hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-    if (hasTouch) { hint.style.display = 'none'; }
+    var isMobile = /Mobi|Android/i.test(navigator.userAgent);
+    if (isMobile) { hint.style.display = 'none'; }
     else          { choice.style.display = 'none'; }
 
     var x, y;
@@ -114,7 +114,7 @@
 
     document.getElementById('btn-controller').addEventListener('click', function () { start('nes'); });
     document.getElementById('btn-tilt').addEventListener('click',       function () { start('tilt'); });
-    hint.addEventListener('click',                                       function () { start('auto'); });
+    hint.addEventListener('click',                                       function () { start('keyboard'); });
 
     function loop() {
       var inp = GamePlate.input;
