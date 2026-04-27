@@ -312,8 +312,9 @@
     function getButtonsAtTouch(t) {
       var result = new Set();
       var MIN_CONTACT = 20;
-      var eRX = Math.max(t.radiusX || 0, MIN_CONTACT);
-      var eRY = Math.max(t.radiusY || 0, MIN_CONTACT);
+      var landscape = window.innerWidth > window.innerHeight;
+      var eRX = Math.max(landscape ? (t.radiusY || 0) : (t.radiusX || 0), MIN_CONTACT);
+      var eRY = Math.max(landscape ? (t.radiusX || 0) : (t.radiusY || 0), MIN_CONTACT);
       var cx  = t.clientX;
       var cy  = t.clientY;
       for (var name in btnEls) {

@@ -133,8 +133,9 @@
       var radius = RADIUS;
       var color  = '#29aaff';
 
-      if (inp.a)      { color = '#ff4444'; radius = RADIUS * 1.5; }
-      else if (inp.b) { color = '#44ff88'; radius = RADIUS * 0.6; }
+      if (inp.a && inp.b) { color = '#aa44ff'; radius = RADIUS * 1.2; }
+      else if (inp.a)    { color = '#ff4444'; radius = RADIUS * 1.5; }
+      else if (inp.b)    { color = '#44ff88'; radius = RADIUS * 0.6; }
 
       x = Math.max(radius, Math.min(canvas.width  - radius, x));
       y = Math.max(radius, Math.min(canvas.height - radius, y));
@@ -180,9 +181,9 @@
         if (!rightTouches.length) return;
 
         var t   = rightTouches[0];
-        var rX  = t.radiusX || 0;
-        var rY  = t.radiusY || 0;
-        var r   = Math.max(rX, rY, 15); // mirrors game-plate.js logic
+        var landscape = window.innerWidth > window.innerHeight;
+        var rX  = landscape ? (t.radiusY || 0) : (t.radiusX || 0);
+        var rY  = landscape ? (t.radiusX || 0) : (t.radiusY || 0);
 
         var SCALE  = 60;
         var drawRX = Math.max(rX * SCALE, 15);
