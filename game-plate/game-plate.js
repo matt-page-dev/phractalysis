@@ -311,18 +311,17 @@
 
     function getButtonsAtTouch(t) {
       var result = new Set();
-      var r = Math.max(t.radiusX || 0, t.radiusY || 0, 15);
-      var n = getButtonAtPoint(t.clientX, t.clientY);
-      if (n) result.add(n);
-      var pts = [
-        [t.clientX - r, t.clientY],
-        [t.clientX + r, t.clientY],
-        [t.clientX, t.clientY - r * 0.5],
-        [t.clientX, t.clientY + r * 0.5]
-      ];
-      for (var i = 0; i < pts.length; i++) {
-        n = getButtonAtPoint(pts[i][0], pts[i][1]);
-        if (n) result.add(n);
+      var MIN_CONTACT = 20;
+      var eRX = Math.max(t.radiusX || 0, MIN_CONTACT);
+      var eRY = Math.max(t.radiusY || 0, MIN_CONTACT);
+      var cx  = t.clientX;
+      var cy  = t.clientY;
+      for (var name in btnEls) {
+        var rect = btnEls[name].getBoundingClientRect();
+        if (cx - eRX < rect.right  && cx + eRX > rect.left &&
+            cy - eRY < rect.bottom && cy + eRY > rect.top) {
+          result.add(name);
+        }
       }
       return result;
     }
