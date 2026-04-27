@@ -233,24 +233,31 @@
 
     // ── D-pad ──
     var dpad = overlay.querySelector('#gp-dpad');
-    var activeDpadTouches = new Map(); // identifier → direction | null
+    var activeDpadTouches = new Map(); // identifier → string[]
 
-    function dpadDir(clientX, clientY) {
+    function dpadDirs(clientX, clientY) {
       var rect = dpad.getBoundingClientRect();
       var dx = clientX - (rect.left + rect.width  / 2);
       var dy = clientY - (rect.top  + rect.height / 2);
       var dead = rect.width * 0.1;
-      if (Math.abs(dx) < dead && Math.abs(dy) < dead) return null;
-      return Math.abs(dx) >= Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down'  : 'up');
+      if (Math.abs(dx) < dead && Math.abs(dy) < dead) return [];
+      var a = Math.atan2(dy, dx) * 180 / Math.PI; // right=0, down=90, left=±180, up=-90
+      if (a > -22.5  && a <=  22.5) return ['right'];
+      if (a >  22.5  && a <=  67.5) return ['right', 'down'];
+      if (a >  67.5  && a <= 112.5) return ['down'];
+      if (a > 112.5  && a <= 157.5) return ['left', 'down'];
+      if (a >  157.5 || a <= -157.5) return ['left'];
+      if (a > -157.5 && a <= -112.5) return ['left', 'up'];
+      if (a > -112.5 && a <=  -67.5) return ['up'];
+      return ['right', 'up'];
     }
 
     function flushDpad() {
       sources.touch.up = sources.touch.down = sources.touch.left = sources.touch.right = false;
-      activeDpadTouches.forEach(function (dir) { if (dir) sources.touch[dir] = true; });
+      activeDpadTouches.forEach(function (dirs) {
+        dirs.forEach(function (d) { sources.touch[d] = true; });
+      });
       merge();
-      // Visual
       ['up','down','left','right'].forEach(function (d) {
         var el = overlay.querySelector('#gp-arr-' + d);
         if (el) el.classList.toggle('lit', !!sources.touch[d]);
@@ -261,7 +268,7 @@
       e.preventDefault();
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        activeDpadTouches.set(t.identifier, dpadDir(t.clientX, t.clientY));
+        activeDpadTouches.set(t.identifier, dpadDirs(t.clientX, t.clientY));
       }
       flushDpad();
     }, { passive: false });
@@ -271,7 +278,7 @@
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
         if (activeDpadTouches.has(t.identifier)) {
-          activeDpadTouches.set(t.identifier, dpadDir(t.clientX, t.clientY));
+          activeDpadTouches.set(t.identifier, dpadDirs(t.clientX, t.clientY));
         }
       }
       flushDpad();
@@ -288,32 +295,66 @@
     dpad.addEventListener('touchcancel', dpadEnd, { passive: false });
 
     // ── A / B buttons ──
-    ['a', 'b'].forEach(function (btnName) {
-      var el = overlay.querySelector('#gp-btn-' + btnName);
-      var activeTouches = new Set();
+    var btnEls = {
+      a: overlay.querySelector('#gp-btn-a'),
+      b: overlay.querySelector('#gp-btn-b')
+    };
+    var activeBtnTouches = new Map(); // identifier → Set<'a'|'b'>
 
-      el.addEventListener('touchstart', function (e) {
-        e.preventDefault();
-        for (var i = 0; i < e.changedTouches.length; i++) {
-          activeTouches.add(e.changedTouches[i].identifier);
-        }
-        sources.touch[btnName] = activeTouches.size > 0;
-        el.classList.toggle('lit', sources.touch[btnName]);
-        merge();
-      }, { passive: false });
-
-      function btnEnd(e) {
-        e.preventDefault();
-        for (var i = 0; i < e.changedTouches.length; i++) {
-          activeTouches.delete(e.changedTouches[i].identifier);
-        }
-        sources.touch[btnName] = activeTouches.size > 0;
-        el.classList.toggle('lit', sources.touch[btnName]);
-        merge();
+    function getButtonAtPoint(x, y) {
+      for (var name in btnEls) {
+        var r = btnEls[name].getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return name;
       }
-      el.addEventListener('touchend',    btnEnd, { passive: false });
-      el.addEventListener('touchcancel', btnEnd, { passive: false });
-    });
+      return null;
+    }
+
+    function flushButtons() {
+      var pressed = { a: false, b: false };
+      activeBtnTouches.forEach(function (names) {
+        names.forEach(function (n) { pressed[n] = true; });
+      });
+      for (var name in btnEls) {
+        sources.touch[name] = pressed[name];
+        btnEls[name].classList.toggle('lit', pressed[name]);
+      }
+      merge();
+    }
+
+    var btnsContainer = overlay.querySelector('#gp-buttons');
+
+    btnsContainer.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        var s = new Set();
+        var n = getButtonAtPoint(t.clientX, t.clientY);
+        if (n) s.add(n);
+        activeBtnTouches.set(t.identifier, s);
+      }
+      flushButtons();
+    }, { passive: false });
+
+    btnsContainer.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (!activeBtnTouches.has(t.identifier)) continue;
+        var n = getButtonAtPoint(t.clientX, t.clientY);
+        if (n) activeBtnTouches.get(t.identifier).add(n);
+      }
+      flushButtons();
+    }, { passive: false });
+
+    function btnsEnd(e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        activeBtnTouches.delete(e.changedTouches[i].identifier);
+      }
+      flushButtons();
+    }
+    btnsContainer.addEventListener('touchend',    btnsEnd, { passive: false });
+    btnsContainer.addEventListener('touchcancel', btnsEnd, { passive: false });
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────────
