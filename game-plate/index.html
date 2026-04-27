@@ -189,8 +189,18 @@
         var drawRX = Math.max(rX * SCALE, MIN_DR);
         var drawRY = Math.max(rY * SCALE, MIN_DR);
 
-        var cx = dbg.width  / 2;
-        var cy = Math.min(160, dbg.height * 0.35);
+        var btnA = document.getElementById('gp-btn-a');
+        var btnB = document.getElementById('gp-btn-b');
+        var rA   = btnA ? btnA.getBoundingClientRect() : null;
+        var rB   = btnB ? btnB.getBoundingClientRect() : null;
+        var cx, cy;
+        if (rA && rB) {
+          cx = (rA.left + rA.right + rB.left + rB.right) / 4;
+          cy = Math.min(rA.top, rB.top) - drawRY - 16;
+        } else {
+          cx = dbg.width  / 2;
+          cy = Math.min(160, dbg.height * 0.35);
+        }
 
         // Oval
         dctx.beginPath();
