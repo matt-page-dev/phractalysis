@@ -309,6 +309,26 @@
       return null;
     }
 
+    function getButtonsAtTouch(t) {
+      var result = new Set();
+      var r = Math.max(t.radiusX || 0, t.radiusY || 0);
+      var n = getButtonAtPoint(t.clientX, t.clientY);
+      if (n) result.add(n);
+      if (r >= 1) {
+        var pts = [
+          [t.clientX - r, t.clientY],
+          [t.clientX + r, t.clientY],
+          [t.clientX, t.clientY - r * 0.5],
+          [t.clientX, t.clientY + r * 0.5]
+        ];
+        for (var i = 0; i < pts.length; i++) {
+          n = getButtonAtPoint(pts[i][0], pts[i][1]);
+          if (n) result.add(n);
+        }
+      }
+      return result;
+    }
+
     function flushButtons() {
       var pressed = { a: false, b: false };
       activeBtnTouches.forEach(function (names) {
@@ -327,10 +347,7 @@
       e.preventDefault();
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        var s = new Set();
-        var n = getButtonAtPoint(t.clientX, t.clientY);
-        if (n) s.add(n);
-        activeBtnTouches.set(t.identifier, s);
+        activeBtnTouches.set(t.identifier, getButtonsAtTouch(t));
       }
       flushButtons();
     }, { passive: false });
@@ -340,10 +357,7 @@
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
         if (!activeBtnTouches.has(t.identifier)) continue;
-        var n = getButtonAtPoint(t.clientX, t.clientY);
-        var s = new Set();
-        if (n) s.add(n);
-        activeBtnTouches.set(t.identifier, s);
+        activeBtnTouches.set(t.identifier, getButtonsAtTouch(t));
       }
       flushButtons();
     }, { passive: false });
