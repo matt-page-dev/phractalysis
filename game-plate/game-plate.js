@@ -119,13 +119,13 @@
         if (type === 'landscape-primary') {
           s.left  = e.beta  < -THRESHOLD;
           s.right = e.beta  >  THRESHOLD;
-          s.up    = e.gamma < -THRESHOLD;
-          s.down  = e.gamma >  THRESHOLD;
+          s.up    = e.gamma >  THRESHOLD;
+          s.down  = e.gamma < -THRESHOLD;
         } else if (type === 'landscape-secondary') {
           s.left  = e.beta  >  THRESHOLD;
           s.right = e.beta  < -THRESHOLD;
-          s.up    = e.gamma >  THRESHOLD;
-          s.down  = e.gamma < -THRESHOLD;
+          s.up    = e.gamma < -THRESHOLD;
+          s.down  = e.gamma >  THRESHOLD;
         } else {
           s.left  = e.gamma < -THRESHOLD;
           s.right = e.gamma >  THRESHOLD;
