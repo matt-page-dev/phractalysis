@@ -54,10 +54,16 @@
     @keyframes pulse {
       0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; }
     }
+    #touch-dbg {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+    }
   </style>
 </head>
 <body>
   <canvas id="game"></canvas>
+  <canvas id="touch-dbg"></canvas>
   <div id="debug"></div>
   <div id="splash">
     <h1>game-plate</h1>
@@ -152,6 +158,91 @@
       requestAnimationFrame(loop);
     }
     loop();
+  </script>
+
+  <script>
+    // Touch contact-area debug visualizer
+    (function () {
+      var dbg  = document.getElementById('touch-dbg');
+      var dctx = dbg.getContext('2d');
+      var active = new Map(); // identifier → Touch snapshot
+
+      function resize() { dbg.width = window.innerWidth; dbg.height = window.innerHeight; draw(); }
+      window.addEventListener('resize', resize);
+      resize();
+
+      function draw() {
+        dctx.clearRect(0, 0, dbg.width, dbg.height);
+
+        // Collect touches in the right half (button zone)
+        var rightTouches = [];
+        active.forEach(function (t) { if (t.clientX > window.innerWidth / 2) rightTouches.push(t); });
+        if (!rightTouches.length) return;
+
+        var t   = rightTouches[0];
+        var rX  = t.radiusX || 0;
+        var rY  = t.radiusY || 0;
+        var r   = Math.max(rX, rY, 15); // mirrors game-plate.js logic
+
+        var SCALE  = 8;
+        var MIN_DR = 40; // minimum display radius so oval is always visible
+        var drawRX = Math.max(rX * SCALE, MIN_DR);
+        var drawRY = Math.max(rY * SCALE, MIN_DR);
+
+        var cx = dbg.width  / 2;
+        var cy = Math.min(160, dbg.height * 0.35);
+
+        // Oval
+        dctx.beginPath();
+        dctx.ellipse(cx, cy, drawRX, drawRY, 0, 0, Math.PI * 2);
+        dctx.strokeStyle = 'rgba(255,220,50,0.9)';
+        dctx.lineWidth   = 2;
+        dctx.stroke();
+        dctx.fillStyle   = 'rgba(255,220,50,0.12)';
+        dctx.fill();
+
+        // Probe dots — same offsets getButtonsAtTouch uses, scaled by SCALE
+        var probes = [
+          [0,        0       ],
+          [-r,       0       ],
+          [+r,       0       ],
+          [0,       -r * 0.5 ],
+          [0,       +r * 0.5 ]
+        ];
+        probes.forEach(function (pt, i) {
+          dctx.beginPath();
+          dctx.arc(cx + pt[0] * SCALE, cy + pt[1] * SCALE, i === 0 ? 6 : 4, 0, Math.PI * 2);
+          dctx.fillStyle = i === 0 ? '#ffffff' : '#ff6644';
+          dctx.fill();
+        });
+
+        // Labels
+        dctx.font      = '13px monospace';
+        dctx.fillStyle = 'rgba(255,255,255,0.75)';
+        dctx.textAlign = 'center';
+        dctx.fillText(
+          'rX:' + rX.toFixed(1) + '  rY:' + rY.toFixed(1) + '  r:' + r.toFixed(1),
+          cx, cy + drawRY + 18
+        );
+      }
+
+      function onMove(e) {
+        for (var i = 0; i < e.changedTouches.length; i++) {
+          var t = e.changedTouches[i];
+          active.set(t.identifier, { clientX: t.clientX, clientY: t.clientY, radiusX: t.radiusX, radiusY: t.radiusY });
+        }
+        draw();
+      }
+      function onEnd(e) {
+        for (var i = 0; i < e.changedTouches.length; i++) active.delete(e.changedTouches[i].identifier);
+        draw();
+      }
+
+      document.addEventListener('touchstart',  onMove, { passive: true });
+      document.addEventListener('touchmove',   onMove, { passive: true });
+      document.addEventListener('touchend',    onEnd,  { passive: true });
+      document.addEventListener('touchcancel', onEnd,  { passive: true });
+    })();
   </script>
 </body>
 </html>
