@@ -99,13 +99,16 @@
     function dismissSplash() {
       splash.classList.add('hidden');
       splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
-      if (document.fullscreenEnabled) {
-        document.documentElement.requestFullscreen().catch(function () {});
-      }
     }
 
     function start(controller) {
-      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: false });
+      // Request fullscreen and orientation lock while the tap gesture is active
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+      try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {}
+
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
       dismissSplash();
     }
 

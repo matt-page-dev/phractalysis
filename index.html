@@ -175,6 +175,35 @@ button:disabled {
     grid-column: 2;
 }
 
+.rotation-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.compass-container {
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.rotation-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.rotation-hint {
+    font-size: 11px;
+    color: #666;
+}
+
+.rotation-deg {
+    font-size: 13px;
+    color: #aaa;
+    font-variant-numeric: tabular-nums;
+}
+
 .zoom-controls {
     display: flex;
     flex-direction: column;
@@ -307,6 +336,16 @@ input[type="range"]::-moz-range-thumb:hover {
 
 #ratioGraphCanvas {
     background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+}
+
+.auto-explore-canvas-container {
+    flex-direction: column;
+    gap: 8px;
+}
+
+#autoExploreCanvas {
     border: 1px solid #3a3a3a;
     border-radius: 4px;
 }
@@ -624,6 +663,119 @@ input[type="range"]::-moz-range-thumb:hover {
     padding: 8px;
 }
 
+/* Snapshot modal */
+.snapshot-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.snapshot-modal {
+    background: #2a2a2a;
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    padding: 24px;
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.snapshot-modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #eee;
+    margin-bottom: 4px;
+}
+
+.snapshot-modal-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.snapshot-modal-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.snapshot-modal-label {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.snapshot-modal-input {
+    width: 100%;
+    padding: 8px 10px;
+    background: #1a1a1a;
+    color: #eee;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.snapshot-modal-input:focus {
+    outline: none;
+    border-color: #5a5a5a;
+}
+
+.snapshot-modal-btn {
+    width: 100%;
+    background: #4a7c59;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 9px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.snapshot-modal-btn:hover {
+    background: #5a8c69;
+}
+
+.snapshot-modal-filelabel {
+    display: block;
+    cursor: pointer;
+}
+
+.snapshot-modal-cancel {
+    width: 100%;
+    background: transparent;
+    color: #666;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    padding: 7px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.snapshot-modal-cancel:hover {
+    background: #3a3a3a;
+    color: #aaa;
+}
+
+.snapshot-modal-or {
+    text-align: center;
+    color: #555;
+    font-size: 12px;
+}
+
+.snapshot-copied-msg {
+    font-size: 12px;
+    color: #4a7c59;
+    text-align: center;
+}
+
 .anim-add-segment-btn:hover {
     background: #3a5a4a;
 }
@@ -678,6 +830,13 @@ input[type="range"]::-moz-range-thumb:hover {
                         <circle cx="15" cy="7" r="1" fill="currentColor" stroke="none"/>
                     </svg>
                 </button>
+                <!-- Auto-Explorer: winding path with arrow -->
+                <button class="tab-btn" data-tab="auto-explorer" data-label="Auto-Explorer">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 14 C4 8, 7 12, 10 7 S14 3, 16 5"/>
+                        <polyline points="13,3 16,5 14,8"/>
+                    </svg>
+                </button>
                 <!-- Animation: film strip -->
                 <button class="tab-btn" data-tab="animation" data-label="Animation">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -700,6 +859,11 @@ input[type="range"]::-moz-range-thumb:hover {
                         <button id="zoomOutBtn">Zoom Out</button>
                         <button id="resetBtn">Reset View</button>
                     </div>
+                    <div class="zoom-factor-row" style="margin-top:6px">
+                        <label style="font-size:12px; color:#aaa">Step (×)</label>
+                        <input type="number" id="zoomStepInput" min="1.1" max="20" step="0.1" value="2"
+                               style="width:60px; margin-left:6px">
+                    </div>
                 </div>
 
                 <div class="control-section">
@@ -715,8 +879,34 @@ input[type="range"]::-moz-range-thumb:hover {
                 </div>
 
                 <div class="control-section">
+                    <h3>Rotation</h3>
+                    <div class="rotation-row">
+                        <div class="compass-container" title="N marks original Im+ (mathematical north)">
+                            <svg id="compassRose" width="64" height="64" viewBox="-1.2 -1.2 2.4 2.4">
+                                <circle cx="0" cy="0" r="1.1" fill="none" stroke="#444" stroke-width="0.06"/>
+                                <g id="compassNeedle">
+                                    <polygon points="0,-0.85 -0.18,-0.25 0.18,-0.25" fill="#e0e0e0"/>
+                                    <polygon points="0,0.85 -0.18,0.25 0.18,0.25" fill="#555"/>
+                                    <circle cx="0" cy="0" r="0.1" fill="#888"/>
+                                </g>
+                                <text x="0" y="-0.92" text-anchor="middle" font-size="0.32" fill="#aaa" font-family="sans-serif">N</text>
+                            </svg>
+                        </div>
+                        <div class="rotation-info">
+                            <span class="rotation-hint">Shift+&#9668;&#9658; to rotate</span>
+                            <span id="rotationDisplay" class="rotation-deg">0°</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-section">
                     <button id="exportBtn" class="export-button">Export PNG</button>
-                    <button id="autoExploreBtn" style="margin-top:6px">Auto-Explore</button>
+                </div>
+
+                <div class="control-section">
+                    <h3>Snapshot</h3>
+                    <button id="snapshotExportBtn">Export View</button>
+                    <button id="snapshotLoadBtn" style="margin-top:6px">Load View</button>
                 </div>
             </div>
 
@@ -734,6 +924,19 @@ input[type="range"]::-moz-range-thumb:hover {
                         <option value="7">Forest</option>
                         <option value="8">Cosmic</option>
                         <option value="9">Rainbow</option>
+                        <option value="10">Ice</option>
+                        <option value="11">Lava</option>
+                        <option value="12">Neon</option>
+                        <option value="13">Gold</option>
+                        <option value="14">Aurora</option>
+                        <option value="15">Plasma</option>
+                        <option value="16">Sakura</option>
+                        <option value="17">Copper</option>
+                        <option value="18">Deep Sea</option>
+                        <option value="19">Toxic</option>
+                        <option value="20">Infrared</option>
+                        <option value="21">Desert</option>
+                        <option value="22">Chocolate Hoodoo</option>
                     </select>
                 </div>
 
@@ -813,6 +1016,11 @@ input[type="range"]::-moz-range-thumb:hover {
                         <input type="range" id="trapIterationSlider" min="1" max="128" step="1" value="1">
                         <div class="iteration-value">Step <span id="trapIterationDisplay">1</span></div>
                     </div>
+                    <div style="margin-top:8px">
+                        <label style="font-size:12px; color:#aaa">Rotation (°)</label>
+                        <input type="number" id="trapRotationInput" min="-360" max="360" step="1" value="0"
+                               style="width:65px; margin-left:6px">
+                    </div>
                 </div>
 
                 <div class="control-section">
@@ -833,16 +1041,112 @@ input[type="range"]::-moz-range-thumb:hover {
 
             <div class="tab-content" id="tab-equation" style="display:none">
                 <div class="control-section">
-                    <h3>Equation</h3>
+                    <h3>Formula</h3>
+                    <div class="path-style-options">
+                        <label class="path-style-label"><input type="radio" name="fractalType" value="mandelbrot" checked> Mandelbrot</label>
+                        <label class="path-style-label"><input type="radio" name="fractalType" value="burning-ship"> Burning Ship</label>
+                        <label class="path-style-label"><input type="radio" name="fractalType" value="tricorn"> Tricorn</label>
+                    </div>
+                </div>
+                <div class="control-section">
                     <div class="equation-display">
-                        <div class="equation-line">
+                        <div class="equation-line" id="equationDisplay">
                             z<sub>n+1</sub> = z<sub>n</sub><sup>2</sup> + c
                         </div>
-                        <div class="equation-note">
+                        <div class="equation-note" id="equationNote">
                             Starting from z<sub>0</sub> = 0, a point c is in the
                             Mandelbrot set if z remains bounded as n &rarr; &infin;.
                         </div>
                     </div>
+                </div>
+                <div class="control-section" id="exponentSection">
+                    <h3>Exponent</h3>
+                    <input type="range" id="exponentSlider" min="2" max="5" step="0.1" value="2">
+                    <div class="iteration-value"><span id="exponentDisplay">2</span></div>
+                </div>
+                <div class="control-section">
+                    <h3>Julia Set</h3>
+                    <label class="path-style-label">
+                        <input type="checkbox" id="juliaModeToggle"> Julia Set Mode
+                    </label>
+                    <div id="juliaCSection" style="display:none; margin-top:6px">
+                        <div class="equation-note" id="juliaInstruction">Click a point on the canvas to set c</div>
+                        <div class="equation-note" id="juliaCDisplay" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-auto-explorer" style="display:none">
+                <!-- Mode toggle -->
+                <div class="control-section">
+                    <div class="path-style-options">
+                        <label class="path-style-label"><input type="radio" name="explorerMode" value="live" checked> Live Travel</label>
+                        <label class="path-style-label"><input type="radio" name="explorerMode" value="background"> Background Compute</label>
+                    </div>
+                </div>
+
+                <!-- Start point -->
+                <div class="control-section">
+                    <h3>Start Point</h3>
+                    <div class="path-style-options">
+                        <label class="path-style-label"><input type="radio" name="explorerStart" value="current" checked> Current view</label>
+                        <label class="path-style-label"><input type="radio" name="explorerStart" value="coord"> Coordinates</label>
+                    </div>
+                    <div id="explorerCoordInput" style="display:none; margin-top:6px">
+                        <div class="anim-timing-row">
+                            <label class="anim-label">Re</label>
+                            <input type="number" id="explorerStartReal" value="-0.5" step="0.01" class="anim-number">
+                        </div>
+                        <div class="anim-timing-row" style="margin-top:4px">
+                            <label class="anim-label">Im</label>
+                            <input type="number" id="explorerStartImag" value="0" step="0.01" class="anim-number">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Steps -->
+                <div class="control-section">
+                    <h3>Steps</h3>
+                    <input type="range" id="explorerSteps" min="5" max="100" step="5" value="20">
+                    <div class="iteration-value"><span id="explorerStepsDisplay">20</span></div>
+                </div>
+
+                <!-- Zoom range -->
+                <div class="control-section">
+                    <h3>Zoom Range</h3>
+                    <label class="anim-label">Start zoom</label>
+                    <input type="range" id="explorerZoomStart" min="1" max="20" step="1" value="1">
+                    <div class="iteration-value"><span id="explorerZoomStartDisplay">1</span>×</div>
+                    <label class="anim-label" style="margin-top:6px">End zoom</label>
+                    <input type="range" id="explorerZoomEnd" min="1" max="20" step="1" value="5">
+                    <div class="iteration-value"><span id="explorerZoomEndDisplay">5</span>×</div>
+                </div>
+
+                <!-- Direction -->
+                <div class="control-section">
+                    <h3>Direction</h3>
+                    <div class="path-style-options">
+                        <label class="path-style-label"><input type="radio" name="explorerDirection" value="consistent-cw" checked> Consistent CW</label>
+                        <label class="path-style-label"><input type="radio" name="explorerDirection" value="consistent-ccw"> Consistent CCW</label>
+                        <label class="path-style-label"><input type="radio" name="explorerDirection" value="greedy"> Greedy</label>
+                    </div>
+                </div>
+
+                <!-- Scoring -->
+                <div class="control-section">
+                    <h3>Scoring</h3>
+                    <label class="anim-label">Entropy</label>
+                    <input type="range" id="explorerEntropyWeight" min="0" max="1" step="0.1" value="0.5">
+                    <div class="iteration-value"><span id="explorerEntropyDisplay">0.5</span></div>
+                    <label class="anim-label" style="margin-top:6px">Boundary Density</label>
+                    <input type="range" id="explorerBoundaryWeight" min="0" max="1" step="0.1" value="0.5">
+                    <div class="iteration-value"><span id="explorerBoundaryDisplay">0.5</span></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="control-section">
+                    <button id="explorerRunBtn" class="export-button">Run</button>
+                    <button id="explorerStopExportBtn" style="margin-top:6px" disabled>Stop + Export</button>
                 </div>
             </div>
 
@@ -900,6 +1204,41 @@ input[type="range"]::-moz-range-thumb:hover {
         <div class="path-canvas-container">
             <canvas id="pathCanvas" width="400" height="400"></canvas>
             <canvas id="ratioGraphCanvas" width="400" height="200"></canvas>
+        </div>
+
+        <div class="auto-explore-canvas-container" style="display:none">
+            <canvas id="autoExploreCanvas" width="400" height="400"></canvas>
+        </div>
+    </div>
+
+    <!-- Snapshot modal -->
+    <div id="snapshotModal" class="snapshot-modal-overlay" style="display:none">
+        <div class="snapshot-modal">
+            <div id="snapshotModalExport" class="snapshot-modal-panel">
+                <h2 class="snapshot-modal-title">Export View</h2>
+                <div class="snapshot-modal-field">
+                    <label class="snapshot-modal-label">Label (optional)</label>
+                    <input type="text" id="snapshotLabelInput" class="snapshot-modal-input" placeholder="My favourite spot">
+                </div>
+                <button id="snapshotCopyURLBtn" class="snapshot-modal-btn">Copy URL to Clipboard</button>
+                <div id="snapshotURLCopiedMsg" class="snapshot-copied-msg" style="display:none">Copied!</div>
+                <button id="snapshotSaveFileBtn" class="snapshot-modal-btn" style="margin-top:6px">Save to File</button>
+                <button id="snapshotExportCloseBtn" class="snapshot-modal-cancel">Close</button>
+            </div>
+            <div id="snapshotModalLoad" class="snapshot-modal-panel" style="display:none">
+                <h2 class="snapshot-modal-title">Load View</h2>
+                <div class="snapshot-modal-field">
+                    <label class="snapshot-modal-label">Paste a snapshot URL</label>
+                    <input type="text" id="snapshotURLInput" class="snapshot-modal-input" placeholder="https://...#snap=...">
+                    <button id="snapshotLoadURLBtn" class="snapshot-modal-btn" style="margin-top:6px">Load from URL</button>
+                </div>
+                <div class="snapshot-modal-or">— or —</div>
+                <label class="snapshot-modal-btn snapshot-modal-filelabel">
+                    Select JSON File
+                    <input type="file" id="snapshotFileInput" accept=".json" style="display:none">
+                </label>
+                <button id="snapshotLoadCloseBtn" class="snapshot-modal-cancel">Close</button>
+            </div>
         </div>
     </div>
 
@@ -1001,6 +1340,111 @@ const originalGradients = [
         { pos: 0.67, r: 0,   g: 0,   b: 255 },
         { pos: 0.83, r: 75,  g: 0,   b: 130 },
         { pos: 1,    r: 148, g: 0,   b: 211 }
+    ],
+    // 10: Ice
+    [
+        { pos: 0,    r: 10,  g: 15,  b: 30  },
+        { pos: 0.3,  r: 20,  g: 80,  b: 150 },
+        { pos: 0.6,  r: 100, g: 200, b: 240 },
+        { pos: 0.85, r: 200, g: 240, b: 255 },
+        { pos: 1,    r: 255, g: 255, b: 255 }
+    ],
+    // 11: Lava
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 0   },
+        { pos: 0.3,  r: 100, g: 0,   b: 0   },
+        { pos: 0.55, r: 220, g: 20,  b: 0   },
+        { pos: 0.75, r: 255, g: 100, b: 0   },
+        { pos: 0.9,  r: 255, g: 200, b: 50  },
+        { pos: 1,    r: 255, g: 255, b: 200 }
+    ],
+    // 12: Neon
+    [
+        { pos: 0,    r: 10,  g: 0,   b: 20  },
+        { pos: 0.2,  r: 80,  g: 0,   b: 120 },
+        { pos: 0.4,  r: 255, g: 0,   b: 150 },
+        { pos: 0.6,  r: 0,   g: 150, b: 255 },
+        { pos: 0.8,  r: 0,   g: 255, b: 100 },
+        { pos: 1,    r: 255, g: 255, b: 0   }
+    ],
+    // 13: Gold
+    [
+        { pos: 0,    r: 10,  g: 5,   b: 0   },
+        { pos: 0.3,  r: 80,  g: 40,  b: 0   },
+        { pos: 0.6,  r: 200, g: 140, b: 0   },
+        { pos: 0.85, r: 255, g: 210, b: 50  },
+        { pos: 1,    r: 255, g: 248, b: 180 }
+    ],
+    // 14: Aurora
+    [
+        { pos: 0,    r: 0,   g: 5,   b: 20  },
+        { pos: 0.25, r: 0,   g: 80,  b: 80  },
+        { pos: 0.5,  r: 50,  g: 200, b: 100 },
+        { pos: 0.75, r: 100, g: 150, b: 200 },
+        { pos: 1,    r: 150, g: 50,  b: 200 }
+    ],
+    // 15: Plasma
+    [
+        { pos: 0,    r: 13,  g: 8,   b: 135 },
+        { pos: 0.25, r: 84,  g: 2,   b: 163 },
+        { pos: 0.5,  r: 175, g: 42,  b: 122 },
+        { pos: 0.75, r: 235, g: 130, b: 40  },
+        { pos: 1,    r: 240, g: 249, b: 33  }
+    ],
+    // 16: Sakura
+    [
+        { pos: 0,    r: 200, g: 180, b: 220 },
+        { pos: 0.3,  r: 255, g: 182, b: 193 },
+        { pos: 0.6,  r: 255, g: 255, b: 255 },
+        { pos: 0.8,  r: 255, g: 200, b: 210 },
+        { pos: 1,    r: 220, g: 190, b: 230 }
+    ],
+    // 17: Copper
+    [
+        { pos: 0,    r: 20,  g: 10,  b: 0   },
+        { pos: 0.33, r: 120, g: 60,  b: 20  },
+        { pos: 0.66, r: 200, g: 110, b: 50  },
+        { pos: 1,    r: 235, g: 195, b: 100 }
+    ],
+    // 18: Deep Sea
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 10  },
+        { pos: 0.3,  r: 0,   g: 10,  b: 60  },
+        { pos: 0.6,  r: 0,   g: 50,  b: 120 },
+        { pos: 0.8,  r: 0,   g: 200, b: 180 },
+        { pos: 1,    r: 100, g: 255, b: 240 }
+    ],
+    // 19: Toxic
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 0   },
+        { pos: 0.3,  r: 30,  g: 50,  b: 0   },
+        { pos: 0.6,  r: 100, g: 200, b: 0   },
+        { pos: 0.85, r: 180, g: 255, b: 0   },
+        { pos: 1,    r: 230, g: 255, b: 100 }
+    ],
+    // 20: Infrared
+    [
+        { pos: 0,    r: 0,   g: 0,   b: 80  },
+        { pos: 0.2,  r: 0,   g: 0,   b: 200 },
+        { pos: 0.4,  r: 0,   g: 200, b: 200 },
+        { pos: 0.6,  r: 100, g: 255, b: 0   },
+        { pos: 0.8,  r: 255, g: 100, b: 0   },
+        { pos: 1,    r: 255, g: 255, b: 255 }
+    ],
+    // 21: Desert
+    [
+        { pos: 0,    r: 50,  g: 20,  b: 5   },
+        { pos: 0.33, r: 160, g: 80,  b: 20  },
+        { pos: 0.66, r: 210, g: 170, b: 90  },
+        { pos: 1,    r: 245, g: 235, b: 190 }
+    ],
+    // 22: Chocolate Hoodoo
+    [
+        { pos: 0,    r: 15,  g: 5,   b: 2   },
+        { pos: 0.25, r: 60,  g: 22,  b: 5   },
+        { pos: 0.5,  r: 120, g: 55,  b: 10  },
+        { pos: 0.75, r: 175, g: 95,  b: 25  },
+        { pos: 1,    r: 205, g: 140, b: 55  }
     ]
 ];
 
@@ -1087,7 +1531,12 @@ const state = {
     trapScale: 1,
     showTrapShape: true,
     ratioTargetValue: 1.0,
-    zoomBox: null
+    viewRotation: 0,
+    zoomBox: null,
+    fractalType: 'mandelbrot',
+    exponent: 2,
+    juliaMode: false,
+    juliaC: null
 };
 
 // Default view for reset
@@ -1095,12 +1544,126 @@ const defaultView = {
     minReal: -2.5,
     maxReal: 1.0,
     minImag: -1.25,
-    maxImag: 1.25
+    maxImag: 1.25,
+    viewRotation: 0
 };
 
 const MIN_VIEWPORT_SIZE = 1e-10;
 const MAX_ZOOM_ITERATIONS = 50;
 let zoomLevel = 0;
+
+
+/* === js/renderer-worker.js === */
+// Mandelbrot Web Worker source — embedded as a string, spawned via Blob URL.
+// This code runs inside a Worker and must be completely self-contained.
+const MANDELBROT_WORKER_SRC = `
+self.onmessage = function(e) {
+    const {
+        minReal, maxReal, minImag, maxImag, maxIterations, width, height, startRow, endRow,
+        viewRotation, fractalType, exponent, juliaMode, juliaCr, juliaCi
+    } = e.data;
+
+    const type  = fractalType || 'mandelbrot';
+    const exp   = (exponent != null) ? exponent : 2;
+    const julia = !!juliaMode;
+    const jcr   = (juliaCr != null) ? juliaCr : 0;
+    const jci   = (juliaCi != null) ? juliaCi : 0;
+
+    // Smooth coloring: iter + 1 - log(log(|z|)) / log(degree)
+    const escapeLogD = (type === 'mandelbrot') ? Math.log(Math.max(exp, 1.001)) : Math.log(2);
+
+    const cx    = (minReal + maxReal) / 2;
+    const cy    = (minImag + maxImag) / 2;
+    const hw    = (maxReal - minReal) / 2;
+    const hh    = (maxImag - minImag) / 2;
+    const cos_t = Math.cos(viewRotation || 0);
+    const sin_t = Math.sin(viewRotation || 0);
+    const rowCount = endRow - startRow;
+    const smoothedValues = new Float64Array(rowCount * width);
+    const escapedLocalIndices = [];
+
+    for (let py = startRow; py < endRow; py++) {
+        for (let px = 0; px < width; px++) {
+            const u = (2 * px / width) - 1;
+            const v = (2 * py / height) - 1;
+            const pr = cx + u * hw * cos_t - v * hh * sin_t;
+            const pi_ = cy + u * hw * sin_t + v * hh * cos_t;
+            const localIdx = (py - startRow) * width + px;
+
+            // Julia: z0 = pixel coord, c = juliaC.  Normal: z0 = 0, c = pixel coord.
+            let cr, ci, zr, zi;
+            if (julia) {
+                zr = pr; zi = pi_;
+                cr = jcr; ci = jci;
+            } else {
+                zr = 0; zi = 0;
+                cr = pr; ci = pi_;
+            }
+
+            // Cardioid/period-2 rejection only valid for standard Mandelbrot z^2
+            if (!julia && type === 'mandelbrot' && exp === 2) {
+                const cr1 = cr - 0.25;
+                const q   = cr1 * cr1 + ci * ci;
+                if (q * (q + cr1) < 0.25 * ci * ci) { smoothedValues[localIdx] = -1; continue; }
+                const cr2 = cr + 1;
+                if (cr2 * cr2 + ci * ci < 0.0625)    { smoothedValues[localIdx] = -1; continue; }
+            }
+
+            let iter = 0;
+
+            if (type === 'burning-ship') {
+                while (iter < maxIterations) {
+                    const azr = Math.abs(zr), azi = Math.abs(zi);
+                    const azr2 = azr * azr, azi2 = azi * azi;
+                    if (azr2 + azi2 >= 4) break;
+                    zi = 2 * azr * azi + ci;
+                    zr = azr2 - azi2 + cr;
+                    iter++;
+                }
+            } else if (type === 'tricorn') {
+                while (iter < maxIterations) {
+                    const zr2 = zr * zr, zi2 = zi * zi;
+                    if (zr2 + zi2 >= 4) break;
+                    const newZr = zr2 - zi2 + cr;
+                    zi = -2 * zr * zi + ci;
+                    zr = newZr;
+                    iter++;
+                }
+            } else if (exp === 2) {
+                // Standard Mandelbrot z^2 — optimized path
+                while (iter < maxIterations) {
+                    const zr2 = zr * zr, zi2 = zi * zi;
+                    if (zr2 + zi2 >= 4) break;
+                    zi = 2 * zr * zi + ci;
+                    zr = zr2 - zi2 + cr;
+                    iter++;
+                }
+            } else {
+                // Fractional/non-integer exponent via polar form: z^p = |z|^p * e^(i*p*arg(z))
+                while (iter < maxIterations) {
+                    const r2 = zr * zr + zi * zi;
+                    if (r2 >= 4) break;
+                    const rp    = Math.pow(r2, exp * 0.5); // |z|^exp = (r^2)^(exp/2)
+                    const theta = Math.atan2(zi, zr) * exp;
+                    zr = rp * Math.cos(theta) + cr;
+                    zi = rp * Math.sin(theta) + ci;
+                    iter++;
+                }
+            }
+
+            if (iter === maxIterations) {
+                smoothedValues[localIdx] = -1;
+            } else {
+                const zMag = Math.sqrt(zr * zr + zi * zi);
+                smoothedValues[localIdx] = iter + 1 - Math.log(Math.log(zMag)) / escapeLogD;
+                escapedLocalIndices.push(localIdx);
+            }
+        }
+    }
+
+    self.postMessage({ smoothedValues, escapedLocalIndices, startRow }, [smoothedValues.buffer]);
+};
+`;
 
 
 /* === js/renderer.js === */
@@ -1114,19 +1677,70 @@ let cachedNormalizedValues = null;
 let cachedSmoothedValues = null;
 let cachedImageData = null;
 
-// Calculate Mandelbrot iteration count for a point
-function mandelbrot(cr, ci, maxIter) {
-    let zr = 0, zi = 0;
-    let iter = 0;
+// Use all but 2 logical cores — leaves headroom for the OS and UI thread
+const NUM_WORKERS = Math.max(1, (navigator.hardwareConcurrency || 4) - 2);
+let _workerPool = null;
+let _workerBlobUrl = null;
 
-    while (iter < maxIter && zr * zr + zi * zi < 4) {
-        const temp = zr * zr - zi * zi + cr;
-        zi = 2 * zr * zi + ci;
-        zr = temp;
-        iter++;
+function getWorkerPool() {
+    if (_workerPool) return _workerPool;
+    _workerBlobUrl = URL.createObjectURL(
+        new Blob([MANDELBROT_WORKER_SRC], { type: 'application/javascript' })
+    );
+    _workerPool = Array.from({ length: NUM_WORKERS }, () => new Worker(_workerBlobUrl));
+    return _workerPool;
+}
+
+// General iteration function — supports all formula types and Julia mode.
+// zr0/zi0: starting z (0,0 for normal mode; pixel coord for Julia mode)
+// cr/ci:   the c parameter (pixel coord for normal mode; juliaC for Julia mode)
+function iteratePoint(zr0, zi0, cr, ci, maxIter, fractalType, exp) {
+    const type = fractalType || 'mandelbrot';
+    const p    = (exp != null) ? exp : 2;
+    let zr = zr0, zi = zi0, iter = 0;
+
+    if (type === 'burning-ship') {
+        while (iter < maxIter) {
+            const azr = Math.abs(zr), azi = Math.abs(zi);
+            if (azr * azr + azi * azi >= 4) break;
+            zi = 2 * azr * azi + ci;
+            zr = azr * azr - azi * azi + cr;
+            iter++;
+        }
+    } else if (type === 'tricorn') {
+        while (iter < maxIter) {
+            const zr2 = zr * zr, zi2 = zi * zi;
+            if (zr2 + zi2 >= 4) break;
+            const newZr = zr2 - zi2 + cr;
+            zi = -2 * zr * zi + ci;
+            zr = newZr;
+            iter++;
+        }
+    } else if (p === 2) {
+        while (iter < maxIter && zr * zr + zi * zi < 4) {
+            const temp = zr * zr - zi * zi + cr;
+            zi = 2 * zr * zi + ci;
+            zr = temp;
+            iter++;
+        }
+    } else {
+        while (iter < maxIter) {
+            const r2 = zr * zr + zi * zi;
+            if (r2 >= 4) break;
+            const rp    = Math.pow(r2, p * 0.5);
+            const theta = Math.atan2(zi, zr) * p;
+            zr = rp * Math.cos(theta) + cr;
+            zi = rp * Math.sin(theta) + ci;
+            iter++;
+        }
     }
 
     return { iter, zr, zi };
+}
+
+// Convenience wrapper for classic Mandelbrot (used by path-explorer background)
+function mandelbrot(cr, ci, maxIter) {
+    return iteratePoint(0, 0, cr, ci, maxIter, 'mandelbrot', 2);
 }
 
 // Fast recolor pass — uses cached iteration data, no Mandelbrot recomputation
@@ -1178,37 +1792,85 @@ function render() {
         } else if (state.renderingMode === 'orbit-ratio-convergence-to-value') {
             renderRatioConvergenceToValue();
         } else {
-            renderClassic();
+            renderClassic(); // async — manages its own state/overlay cleanup
         }
     }, 10);
 }
 
-// Classic Mandelbrot rendering: per-pixel escape time + histogram equalization
-function renderClassic() {
+// Classic Mandelbrot rendering — async, parallelised across Web Workers.
+// Includes cardioid/period-2 bulb rejection and real-axis symmetry where applicable.
+async function renderClassic() {
     const width = canvas.width;
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const realRange = state.maxReal - state.minReal;
+    // Real-axis symmetry only holds for standard Mandelbrot (z^2, no Julia, no rotation).
     const imagRange = state.maxImag - state.minImag;
+    const useSymmetry = (
+        state.fractalType === 'mandelbrot' && state.exponent === 2 && !state.juliaMode &&
+        state.viewRotation === 0 &&
+        state.minImag < 0 && state.maxImag > 0 &&
+        Math.abs(state.minImag + state.maxImag) < imagRange * 0.02
+    );
 
-    // First pass: compute smoothed values, collect escaped pixel indices
+    // How many rows each worker needs to compute
+    const computeRows = useSymmetry ? Math.ceil(height / 2) : height;
+    const workers = getWorkerPool();
+    const rowsPerWorker = Math.ceil(computeRows / workers.length);
+
+    // Build strip descriptors — one per worker (skip empty strips)
+    const strips = [];
+    for (let i = 0; i < workers.length; i++) {
+        const startRow = i * rowsPerWorker;
+        const endRow = Math.min(startRow + rowsPerWorker, computeRows);
+        if (startRow >= computeRows) break;
+        strips.push({ startRow, endRow, workerIdx: i });
+    }
+
+    // Dispatch all strips in parallel
+    const workerPromises = strips.map(({ startRow, endRow, workerIdx }) =>
+        new Promise(resolve => {
+            workers[workerIdx].onmessage = e => resolve(e.data);
+            workers[workerIdx].postMessage({
+                minReal: state.minReal, maxReal: state.maxReal,
+                minImag: state.minImag, maxImag: state.maxImag,
+                maxIterations: state.maxIterations,
+                width, height, startRow, endRow,
+                viewRotation: state.viewRotation,
+                fractalType: state.fractalType,
+                exponent: state.exponent,
+                juliaMode: state.juliaMode,
+                juliaCr: state.juliaC ? state.juliaC.re : 0,
+                juliaCi: state.juliaC ? state.juliaC.im : 0
+            });
+        })
+    );
+
+    const results = await Promise.all(workerPromises);
+
+    // Merge worker results into a single flat array
     const smoothedValues = new Float64Array(totalPixels);
     const escapedIndices = [];
 
-    for (let py = 0; py < height; py++) {
-        for (let px = 0; px < width; px++) {
-            const cr = state.minReal + (px / width) * realRange;
-            const ci = state.minImag + (py / height) * imagRange;
-            const { iter, zr, zi } = mandelbrot(cr, ci, state.maxIterations);
+    for (const { smoothedValues: strip, escapedLocalIndices, startRow } of results) {
+        smoothedValues.set(strip, startRow * width);
+        for (const localIdx of escapedLocalIndices) {
+            escapedIndices.push(startRow * width + localIdx);
+        }
+    }
 
-            const idx = py * width + px;
-            if (iter === state.maxIterations) {
-                smoothedValues[idx] = -1; // in-set marker
-            } else {
-                const zMagnitude = Math.sqrt(zr * zr + zi * zi);
-                smoothedValues[idx] = iter + 1 - Math.log(Math.log(zMagnitude)) / Math.log(2);
-                escapedIndices.push(idx);
+    // Mirror top half → bottom half when symmetry applies
+    if (useSymmetry) {
+        const halfRows = Math.floor(height / 2);
+        for (let py = 0; py < halfRows; py++) {
+            const mirrorPy = height - 1 - py;
+            const srcOff = py * width;
+            const mirrorOff = mirrorPy * width;
+            smoothedValues.copyWithin(mirrorOff, srcOff, srcOff + width);
+            for (let px = 0; px < width; px++) {
+                if (smoothedValues[srcOff + px] !== -1) {
+                    escapedIndices.push(mirrorOff + px);
+                }
             }
         }
     }
@@ -1246,10 +1908,14 @@ function renderBuddhabrot() {
     const sampleRealRange = sampleMaxReal - sampleMinReal;
     const sampleImagRange = sampleMaxImag - sampleMinImag;
 
-    const realRange = state.maxReal - state.minReal;
-    const imagRange = state.maxImag - state.minImag;
     const maxIter = state.maxIterations;
     const SAMPLES = state.buddhabrotSamples;
+    const cx = (state.minReal + state.maxReal) / 2;
+    const cy = (state.minImag + state.maxImag) / 2;
+    const hw = (state.maxReal - state.minReal) / 2;
+    const hh = (state.maxImag - state.minImag) / 2;
+    const cos_t = Math.cos(state.viewRotation || 0);
+    const sin_t = Math.sin(state.viewRotation || 0);
 
     for (let s = 0; s < SAMPLES; s++) {
         const cr = sampleMinReal + Math.random() * sampleRealRange;
@@ -1266,15 +1932,18 @@ function renderBuddhabrot() {
         }
         if (!escaped) continue;
 
-        // Pass 2: replay orbit and accumulate pixel hits
+        // Pass 2: replay orbit and accumulate pixel hits (inverse rotation to screen coords)
         zr = 0; zi = 0;
         for (let iter = 0; iter < maxIter; iter++) {
             const temp = zr * zr - zi * zi + cr;
             zi = 2 * zr * zi + ci;
             zr = temp;
 
-            const px = Math.floor((zr - state.minReal) / realRange * width);
-            const py = Math.floor((zi - state.minImag) / imagRange * height);
+            const dr = zr - cx, di = zi - cy;
+            const u = (dr * cos_t + di * sin_t) / hw;
+            const v = (-dr * sin_t + di * cos_t) / hh;
+            const px = Math.floor((u + 1) / 2 * width);
+            const py = Math.floor((v + 1) / 2 * height);
             if (px >= 0 && px < width && py >= 0 && py < height) {
                 hitMap[py * width + px]++;
             }
@@ -1359,8 +2028,12 @@ function renderPeriodicity() {
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const realRange = state.maxReal - state.minReal;
-    const imagRange = state.maxImag - state.minImag;
+    const cx = (state.minReal + state.maxReal) / 2;
+    const cy = (state.minImag + state.maxImag) / 2;
+    const hw = (state.maxReal - state.minReal) / 2;
+    const hh = (state.maxImag - state.minImag) / 2;
+    const cos_t = Math.cos(state.viewRotation || 0);
+    const sin_t = Math.sin(state.viewRotation || 0);
 
     const smoothedValues = new Float64Array(totalPixels);
     const normalizedValues = new Float32Array(totalPixels);
@@ -1372,26 +2045,50 @@ function renderPeriodicity() {
 
     for (let py = 0; py < height; py++) {
         for (let px = 0; px < width; px++) {
-            const cr = state.minReal + (px / width) * realRange;
-            const ci = state.minImag + (py / height) * imagRange;
+            const u = (2 * px / width) - 1;
+            const v = (2 * py / height) - 1;
+            const cr = cx + u * hw * cos_t - v * hh * sin_t;
+            const ci = cy + u * hw * sin_t + v * hh * cos_t;
 
-            let zr = 0, zi = 0;
+            const julia = state.juliaMode && state.juliaC;
+            let zr  = julia ? cr : 0;
+            let zi  = julia ? ci : 0;
+            const fcr = julia ? state.juliaC.re : cr;
+            const fci = julia ? state.juliaC.im : ci;
+            const ptype = state.fractalType || 'mandelbrot';
+            const pexp  = state.exponent || 2;
+
             let detectedPeriod = -1;
             let detectionIter = -1;
             let escaped = false;
 
             for (let iter = 0; iter < state.maxIterations; iter++) {
-                const zr2 = zr * zr;
-                const zi2 = zi * zi;
-
-                if (zr2 + zi2 > 4) {
-                    escaped = true;
-                    break;
+                let newZr, newZi;
+                if (ptype === 'burning-ship') {
+                    const azr = Math.abs(zr), azi = Math.abs(zi);
+                    if (azr * azr + azi * azi > 4) { escaped = true; break; }
+                    newZr = azr * azr - azi * azi + fcr;
+                    newZi = 2 * azr * azi + fci;
+                } else if (ptype === 'tricorn') {
+                    const zr2 = zr * zr, zi2 = zi * zi;
+                    if (zr2 + zi2 > 4) { escaped = true; break; }
+                    newZr = zr2 - zi2 + fcr;
+                    newZi = -2 * zr * zi + fci;
+                } else if (pexp === 2) {
+                    const zr2 = zr * zr, zi2 = zi * zi;
+                    if (zr2 + zi2 > 4) { escaped = true; break; }
+                    newZr = zr2 - zi2 + fcr;
+                    newZi = 2 * zr * zi + fci;
+                } else {
+                    const r2 = zr * zr + zi * zi;
+                    if (r2 > 4) { escaped = true; break; }
+                    const rp    = Math.pow(r2, pexp * 0.5);
+                    const theta = Math.atan2(zi, zr) * pexp;
+                    newZr = rp * Math.cos(theta) + fcr;
+                    newZi = rp * Math.sin(theta) + fci;
                 }
-
-                const newZr = zr2 - zi2 + cr;
-                zi = 2 * zr * zi + ci;
                 zr = newZr;
+                zi = newZi;
 
                 // Store current z in rolling window
                 const slot = iter % MAX_PERIOD;
@@ -1438,6 +2135,242 @@ function renderPeriodicity() {
     state.isRendering = false;
     loadingOverlay.classList.remove('active');
 }
+
+
+/* === js/renderer-orbit-trap-worker.js === */
+// Orbit-Trap Web Worker source — embedded as a string, spawned via Blob URL.
+// Must be completely self-contained; no references to main-page globals.
+const ORBIT_TRAP_WORKER_SRC = `
+const TRAP_DIST_CAP = 2.0;
+
+function distToPolygonBoundary(px, py, vx, vy) {
+    const n = vx.length;
+    let minD = Infinity;
+    for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const ex = vx[j] - vx[i], ey = vy[j] - vy[i];
+        const wx = px - vx[i], wy = py - vy[i];
+        const lenSq = ex * ex + ey * ey;
+        const t = lenSq > 0 ? Math.max(0, Math.min(1, (wx * ex + wy * ey) / lenSq)) : 0;
+        const dx = wx - t * ex, dy = wy - t * ey;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < minD) minD = d;
+    }
+    return minD;
+}
+
+function regularPolygon(n, r) {
+    const vx = [], vy = [];
+    for (let i = 0; i < n; i++) {
+        const a = Math.PI / 2 + i * (2 * Math.PI / n);
+        vx.push(r * Math.cos(a));
+        vy.push(r * Math.sin(a));
+    }
+    return { vx, vy };
+}
+
+function star5Vertices(outerR, innerR) {
+    const vx = [], vy = [];
+    for (let i = 0; i < 10; i++) {
+        const a = Math.PI / 2 + i * (Math.PI / 5);
+        const r = i % 2 === 0 ? outerR : innerR;
+        vx.push(r * Math.cos(a));
+        vy.push(r * Math.sin(a));
+    }
+    return { vx, vy };
+}
+
+function trapDistance(zr, zi, shape, rotation, scale, pngDistField, pngWidth, pngHeight) {
+    if (rotation !== 0) {
+        const cos = Math.cos(-rotation);
+        const sin = Math.sin(-rotation);
+        const rZr = zr * cos - zi * sin;
+        zi = zr * sin + zi * cos;
+        zr = rZr;
+    }
+    if (scale !== 1) {
+        zr /= scale;
+        zi /= scale;
+    }
+    switch (shape) {
+        case 'point':
+            return Math.sqrt(zr * zr + zi * zi);
+
+        case 'circle':
+            return Math.abs(Math.sqrt(zr * zr + zi * zi) - 1.0);
+
+        case 'cross':
+            return Math.min(Math.abs(zr), Math.abs(zi));
+
+        case 'square':
+            return Math.abs(Math.max(Math.abs(zr), Math.abs(zi)) - 0.75);
+
+        case 'triangle': {
+            const { vx, vy } = regularPolygon(3, 0.8);
+            return distToPolygonBoundary(zr, zi, vx, vy);
+        }
+
+        case 'pentagon': {
+            const { vx, vy } = regularPolygon(5, 0.8);
+            return distToPolygonBoundary(zr, zi, vx, vy);
+        }
+
+        case 'hexagon': {
+            const { vx, vy } = regularPolygon(6, 0.8);
+            return distToPolygonBoundary(zr, zi, vx, vy);
+        }
+
+        case 'star': {
+            const { vx, vy } = star5Vertices(0.8, 0.35);
+            return distToPolygonBoundary(zr, zi, vx, vy);
+        }
+
+        case 'trapezoid': {
+            const vx = [-0.9, 0.9,  0.45, -0.45];
+            const vy = [-0.4, -0.4, 0.4,   0.4];
+            return distToPolygonBoundary(zr, zi, vx, vy);
+        }
+
+        case 'ring': {
+            const r = Math.sqrt(zr * zr + zi * zi);
+            return Math.min(Math.abs(r - 0.5), Math.abs(r - 1.0));
+        }
+
+        case 'spiral': {
+            const r = Math.sqrt(zr * zr + zi * zi);
+            if (r < 1e-6) return 0;
+            const theta = Math.atan2(zi, zr);
+            const spacing = 0.35;
+            let minD = Infinity;
+            for (let k = -2; k <= 3; k++) {
+                const armR = spacing * (theta + k * Math.PI * 2) / (Math.PI * 2);
+                if (armR >= 0) minD = Math.min(minD, Math.abs(r - armR));
+            }
+            return minD;
+        }
+
+        case 'heart': {
+            const x = zr * 1.2;
+            const y = zi * 1.2 - 0.2;
+            const a = x * x + y * y - 1;
+            const f = a * a * a - x * x * y * y * y;
+            return Math.min(Math.abs(f) * 0.3, TRAP_DIST_CAP);
+        }
+
+        case 'figure8': {
+            const r2 = zr * zr + zi * zi;
+            const f = r2 * r2 - (zr * zr - zi * zi);
+            return Math.min(Math.abs(f) * 0.4, TRAP_DIST_CAP);
+        }
+
+        default: {
+            if (shape.startsWith('png:') && pngDistField) {
+                const px = Math.floor((zr + 1) / 2 * pngWidth);
+                const py = Math.floor((1 - zi) / 2 * pngHeight);
+                if (px < 0 || px >= pngWidth || py < 0 || py >= pngHeight) return TRAP_DIST_CAP;
+                return pngDistField[py * pngWidth + px] * TRAP_DIST_CAP;
+            }
+            return Math.sqrt(zr * zr + zi * zi);
+        }
+    }
+}
+
+self.onmessage = function(e) {
+    const {
+        minReal, maxReal, minImag, maxImag, maxIterations,
+        width, height, startRow, endRow,
+        trapShape, trapRotation, trapScale, trapAggregation, trapIteration,
+        pngDistField, pngWidth, pngHeight, viewRotation,
+        fractalType, exponent, juliaMode, juliaCr, juliaCi
+    } = e.data;
+
+    const type  = fractalType || 'mandelbrot';
+    const exp   = (exponent != null) ? exponent : 2;
+    const julia = !!juliaMode;
+    const jcr   = (juliaCr != null) ? juliaCr : 0;
+    const jci   = (juliaCi != null) ? juliaCi : 0;
+
+    const cx    = (minReal + maxReal) / 2;
+    const cy    = (minImag + maxImag) / 2;
+    const hw    = (maxReal - minReal) / 2;
+    const hh    = (maxImag - minImag) / 2;
+    const cos_t = Math.cos(viewRotation || 0);
+    const sin_t = Math.sin(viewRotation || 0);
+    const rowCount = endRow - startRow;
+    const normalizedValues = new Float32Array(rowCount * width);
+
+    const targetIter = trapIteration - 1; // 0-based
+
+    for (let py = startRow; py < endRow; py++) {
+        for (let px = 0; px < width; px++) {
+            const u  = (2 * px / width) - 1;
+            const v  = (2 * py / height) - 1;
+            const pr = cx + u * hw * cos_t - v * hh * sin_t;
+            const pi_ = cy + u * hw * sin_t + v * hh * cos_t;
+
+            // Julia: z0 = pixel coord, c = juliaC.  Normal: z0 = 0, c = pixel coord.
+            let zr  = julia ? pr  : 0;
+            let zi  = julia ? pi_ : 0;
+            const fcr = julia ? jcr : pr;
+            const fci = julia ? jci : pi_;
+
+            let minDist = TRAP_DIST_CAP;
+            let maxDist = 0;
+            let accumDist = 0;
+            let iterCount = 0;
+            let atIterDist = 0;
+
+            for (let iter = 0; iter < maxIterations; iter++) {
+                const d = trapDistance(zr, zi, trapShape, trapRotation, trapScale, pngDistField, pngWidth, pngHeight);
+                if (d < minDist) minDist = d;
+                if (d > maxDist) maxDist = d;
+                accumDist += d;
+                if (iter === targetIter) atIterDist = d;
+                iterCount++;
+
+                if (trapAggregation === 'iteration' && iter >= targetIter) break;
+
+                let newZr, newZi;
+                if (type === 'burning-ship') {
+                    const azr = Math.abs(zr), azi = Math.abs(zi);
+                    if (azr * azr + azi * azi > 4) break;
+                    newZr = azr * azr - azi * azi + fcr;
+                    newZi = 2 * azr * azi + fci;
+                } else if (type === 'tricorn') {
+                    const zr2 = zr * zr, zi2 = zi * zi;
+                    if (zr2 + zi2 > 4) break;
+                    newZr = zr2 - zi2 + fcr;
+                    newZi = -2 * zr * zi + fci;
+                } else if (exp === 2) {
+                    const zr2 = zr * zr, zi2 = zi * zi;
+                    if (zr2 + zi2 > 4) break;
+                    newZr = zr2 - zi2 + fcr;
+                    newZi = 2 * zr * zi + fci;
+                } else {
+                    const r2 = zr * zr + zi * zi;
+                    if (r2 > 4) break;
+                    const rp    = Math.pow(r2, exp * 0.5);
+                    const theta = Math.atan2(zi, zr) * exp;
+                    newZr = rp * Math.cos(theta) + fcr;
+                    newZi = rp * Math.sin(theta) + fci;
+                }
+                zr = newZr;
+                zi = newZi;
+            }
+
+            let dist;
+            if (trapAggregation === 'max')            dist = maxDist;
+            else if (trapAggregation === 'average')   dist = iterCount > 0 ? accumDist / iterCount : 0;
+            else if (trapAggregation === 'iteration') dist = atIterDist;
+            else                                      dist = minDist;
+
+            normalizedValues[(py - startRow) * width + px] = Math.min(dist, TRAP_DIST_CAP) / TRAP_DIST_CAP;
+        }
+    }
+
+    self.postMessage({ normalizedValues, startRow }, [normalizedValues.buffer]);
+};
+`;
 
 
 /* === js/renderer-orbit-trap.js === */
@@ -1662,62 +2595,73 @@ function trapDistance(zr, zi, shape) {
     }
 }
 
-function renderOrbitTrap() {
+// Persistent worker pool for orbit-trap rendering
+let _orbitTrapWorkerPool = null;
+let _orbitTrapWorkerBlobUrl = null;
+
+function getOrbitTrapWorkerPool() {
+    if (_orbitTrapWorkerPool) return _orbitTrapWorkerPool;
+    _orbitTrapWorkerBlobUrl = URL.createObjectURL(
+        new Blob([ORBIT_TRAP_WORKER_SRC], { type: 'application/javascript' })
+    );
+    _orbitTrapWorkerPool = Array.from({ length: NUM_WORKERS }, () => new Worker(_orbitTrapWorkerBlobUrl));
+    return _orbitTrapWorkerPool;
+}
+
+async function renderOrbitTrap() {
     const width = canvas.width;
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const realRange = state.maxReal - state.minReal;
-    const imagRange = state.maxImag - state.minImag;
+    // Resolve PNG trap data to send to workers (null for non-image shapes)
+    let pngDistField = null, pngWidth = 0, pngHeight = 0;
+    if (state.trapShape.startsWith('png:')) {
+        const pd = pngPixelData[state.trapShape.slice(4)];
+        if (pd) { pngDistField = pd.distField; pngWidth = pd.width; pngHeight = pd.height; }
+    }
 
-    const smoothedValues = new Float64Array(totalPixels);
+    const workers = getOrbitTrapWorkerPool();
+    const rowsPerWorker = Math.ceil(height / workers.length);
+
+    const strips = [];
+    for (let i = 0; i < workers.length; i++) {
+        const startRow = i * rowsPerWorker;
+        const endRow = Math.min(startRow + rowsPerWorker, height);
+        if (startRow >= height) break;
+        strips.push({ startRow, endRow, workerIdx: i });
+    }
+
+    const workerPromises = strips.map(({ startRow, endRow, workerIdx }) =>
+        new Promise(resolve => {
+            workers[workerIdx].onmessage = e => resolve(e.data);
+            workers[workerIdx].postMessage({
+                minReal: state.minReal, maxReal: state.maxReal,
+                minImag: state.minImag, maxImag: state.maxImag,
+                maxIterations: state.maxIterations,
+                width, height, startRow, endRow,
+                trapShape: state.trapShape,
+                trapRotation: state.trapRotation,
+                trapScale: state.trapScale,
+                trapAggregation: state.trapAggregation,
+                trapIteration: state.trapIteration,
+                pngDistField, pngWidth, pngHeight,
+                viewRotation: state.viewRotation,
+                fractalType: state.fractalType,
+                exponent: state.exponent,
+                juliaMode: state.juliaMode,
+                juliaCr: state.juliaC ? state.juliaC.re : 0,
+                juliaCi: state.juliaC ? state.juliaC.im : 0
+            });
+        })
+    );
+
+    const results = await Promise.all(workerPromises);
+
+    // Merge strips into full normalizedValues array
+    const smoothedValues = new Float64Array(totalPixels); // all 0 — orbit-trap has no in-set pixels
     const normalizedValues = new Float32Array(totalPixels);
-
-    const agg = state.trapAggregation;
-
-    for (let py = 0; py < height; py++) {
-        for (let px = 0; px < width; px++) {
-            const cr = state.minReal + (px / width) * realRange;
-            const ci = state.minImag + (py / height) * imagRange;
-
-            let zr = 0, zi = 0;
-            let minDist = TRAP_DIST_CAP;
-            let maxDist = 0;
-            let accumDist = 0;
-            let iterCount = 0;
-            let atIterDist = 0;
-            const targetIter = state.trapIteration - 1; // 0-based
-
-            for (let iter = 0; iter < state.maxIterations; iter++) {
-                const d = trapDistance(zr, zi, state.trapShape);
-                if (d < minDist) minDist = d;
-                if (d > maxDist) maxDist = d;
-                accumDist += d;
-                if (iter === targetIter) atIterDist = d;
-                iterCount++;
-
-                // When in "at iteration" mode, stop after reaching target iteration
-                if (agg === 'iteration' && iter >= targetIter) break;
-
-                const zr2 = zr * zr;
-                const zi2 = zi * zi;
-                if (zr2 + zi2 > 4) break;
-
-                const newZr = zr2 - zi2 + cr;
-                zi = 2 * zr * zi + ci;
-                zr = newZr;
-            }
-
-            let dist;
-            if (agg === 'max')          dist = maxDist;
-            else if (agg === 'average') dist = iterCount > 0 ? accumDist / iterCount : 0;
-            else if (agg === 'iteration') dist = atIterDist;
-            else                        dist = minDist;
-
-            const idx = py * width + px;
-            smoothedValues[idx] = 0;
-            normalizedValues[idx] = Math.min(dist, TRAP_DIST_CAP) / TRAP_DIST_CAP;
-        }
+    for (const { normalizedValues: strip, startRow } of results) {
+        normalizedValues.set(strip, startRow * width);
     }
 
     cachedNormalizedValues = normalizedValues;
@@ -1815,20 +2759,42 @@ function measureRatioConvergence(ratios) {
     return Math.max(0, convergenceSpeed);
 }
 
-// Compute orbit path for a point
+// Compute orbit path for a point using the active formula and Julia mode.
 function computeOrbitPath(cr, ci, maxIter) {
     const bailout = 2;
-    const path = [{ zr: 0, zi: 0 }];
-    let zr = 0, zi = 0;
+    const julia = state.juliaMode && state.juliaC;
+    let zr  = julia ? cr : 0;
+    let zi  = julia ? ci : 0;
+    const fcr = julia ? state.juliaC.re : cr;
+    const fci = julia ? state.juliaC.im : ci;
+    const type = state.fractalType || 'mandelbrot';
+    const exp  = state.exponent || 2;
+
+    const path = [{ zr, zi }];
     let escaped = false;
 
     for (let i = 0; i < maxIter; i++) {
-        const zrNext = zr * zr - zi * zi + cr;
-        const ziNext = 2 * zr * zi + ci;
-        zr = zrNext;
-        zi = ziNext;
+        let newZr, newZi;
+        if (type === 'burning-ship') {
+            const azr = Math.abs(zr), azi = Math.abs(zi);
+            newZr = azr * azr - azi * azi + fcr;
+            newZi = 2 * azr * azi + fci;
+        } else if (type === 'tricorn') {
+            newZr = zr * zr - zi * zi + fcr;
+            newZi = -2 * zr * zi + fci;
+        } else if (exp === 2) {
+            newZr = zr * zr - zi * zi + fcr;
+            newZi = 2 * zr * zi + fci;
+        } else {
+            const r2    = zr * zr + zi * zi;
+            const rp    = Math.pow(r2, exp * 0.5);
+            const theta = Math.atan2(zi, zr) * exp;
+            newZr = rp * Math.cos(theta) + fcr;
+            newZi = rp * Math.sin(theta) + fci;
+        }
+        zr = newZr;
+        zi = newZi;
         path.push({ zr, zi });
-        
         if (zr * zr + zi * zi > bailout * bailout) {
             escaped = true;
             break;
@@ -1844,8 +2810,12 @@ function renderRatioConvergence() {
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const realRange = state.maxReal - state.minReal;
-    const imagRange = state.maxImag - state.minImag;
+    const cx = (state.minReal + state.maxReal) / 2;
+    const cy = (state.minImag + state.maxImag) / 2;
+    const hw = (state.maxReal - state.minReal) / 2;
+    const hh = (state.maxImag - state.minImag) / 2;
+    const cos_t = Math.cos(state.viewRotation || 0);
+    const sin_t = Math.sin(state.viewRotation || 0);
 
     // Per-pixel convergence values
     const smoothedValues = new Float64Array(totalPixels);
@@ -1854,8 +2824,10 @@ function renderRatioConvergence() {
 
     for (let py = 0; py < height; py++) {
         for (let px = 0; px < width; px++) {
-            const cr = state.minReal + (px / width) * realRange;
-            const ci = state.minImag + (py / height) * imagRange;
+            const u = (2 * px / width) - 1;
+            const v = (2 * py / height) - 1;
+            const cr = cx + u * hw * cos_t - v * hh * sin_t;
+            const ci = cy + u * hw * sin_t + v * hh * cos_t;
 
             const { path, escaped } = computeOrbitPath(cr, ci, state.maxIterations);
 
@@ -1928,8 +2900,12 @@ function renderRatioConvergenceToValue() {
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const realRange = state.maxReal - state.minReal;
-    const imagRange = state.maxImag - state.minImag;
+    const cx = (state.minReal + state.maxReal) / 2;
+    const cy = (state.minImag + state.maxImag) / 2;
+    const hw = (state.maxReal - state.minReal) / 2;
+    const hh = (state.maxImag - state.minImag) / 2;
+    const cos_t = Math.cos(state.viewRotation || 0);
+    const sin_t = Math.sin(state.viewRotation || 0);
 
     // Per-pixel proximity values
     const smoothedValues = new Float64Array(totalPixels);
@@ -1938,8 +2914,10 @@ function renderRatioConvergenceToValue() {
 
     for (let py = 0; py < height; py++) {
         for (let px = 0; px < width; px++) {
-            const cr = state.minReal + (px / width) * realRange;
-            const ci = state.minImag + (py / height) * imagRange;
+            const u = (2 * px / width) - 1;
+            const v = (2 * py / height) - 1;
+            const cr = cx + u * hw * cos_t - v * hh * sin_t;
+            const ci = cy + u * hw * sin_t + v * hh * cos_t;
 
             const { path, escaped } = computeOrbitPath(cr, ci, state.maxIterations);
 
@@ -1989,7 +2967,8 @@ function isAtDefaultView() {
     return state.minReal === defaultView.minReal &&
            state.maxReal === defaultView.maxReal &&
            state.minImag === defaultView.minImag &&
-           state.maxImag === defaultView.maxImag;
+           state.maxImag === defaultView.maxImag &&
+           state.viewRotation === 0;
 }
 
 function zoomIn() {
@@ -2052,42 +3031,59 @@ function zoomOut() {
 function reset() {
     Object.assign(state, defaultView);
     zoomLevel = 0;
+    updateCompassRose();
     render();
 }
 
 function panUp() {
     const shift = (state.maxImag - state.minImag) * state.panFactor;
-    state.minImag -= shift;
-    state.maxImag -= shift;
+    const cos_t = Math.cos(state.viewRotation);
+    const sin_t = Math.sin(state.viewRotation);
+    state.minReal += shift * sin_t; state.maxReal += shift * sin_t;
+    state.minImag -= shift * cos_t; state.maxImag -= shift * cos_t;
     render();
 }
 
 function panDown() {
     const shift = (state.maxImag - state.minImag) * state.panFactor;
-    state.minImag += shift;
-    state.maxImag += shift;
+    const cos_t = Math.cos(state.viewRotation);
+    const sin_t = Math.sin(state.viewRotation);
+    state.minReal -= shift * sin_t; state.maxReal -= shift * sin_t;
+    state.minImag += shift * cos_t; state.maxImag += shift * cos_t;
     render();
 }
 
 function panLeft() {
     const shift = (state.maxReal - state.minReal) * state.panFactor;
-    state.minReal -= shift;
-    state.maxReal -= shift;
+    const cos_t = Math.cos(state.viewRotation);
+    const sin_t = Math.sin(state.viewRotation);
+    state.minReal -= shift * cos_t; state.maxReal -= shift * cos_t;
+    state.minImag -= shift * sin_t; state.maxImag -= shift * sin_t;
     render();
 }
 
 function panRight() {
     const shift = (state.maxReal - state.minReal) * state.panFactor;
-    state.minReal += shift;
-    state.maxReal += shift;
+    const cos_t = Math.cos(state.viewRotation);
+    const sin_t = Math.sin(state.viewRotation);
+    state.minReal += shift * cos_t; state.maxReal += shift * cos_t;
+    state.minImag += shift * sin_t; state.maxImag += shift * sin_t;
     render();
 }
 
 // Convert main canvas display pixel to complex plane coordinate
 function pixelToComplex(px, py) {
     const rect = canvas.getBoundingClientRect();
-    const cr = state.minReal + (px / rect.width)  * (state.maxReal - state.minReal);
-    const ci = state.minImag + (py / rect.height) * (state.maxImag - state.minImag);
+    const cx = (state.minReal + state.maxReal) / 2;
+    const cy = (state.minImag + state.maxImag) / 2;
+    const hw = (state.maxReal - state.minReal) / 2;
+    const hh = (state.maxImag - state.minImag) / 2;
+    const u = (px / rect.width) * 2 - 1;
+    const v = (py / rect.height) * 2 - 1;
+    const cos_t = Math.cos(state.viewRotation);
+    const sin_t = Math.sin(state.viewRotation);
+    const cr = cx + u * hw * cos_t - v * hh * sin_t;
+    const ci = cy + u * hw * sin_t + v * hh * cos_t;
     return { cr, ci };
 }
 
@@ -2152,13 +3148,13 @@ function applyZoomBox(currentX, currentY) {
         return;
     }
 
-    const topLeft     = pixelToComplex(x,     y);
-    const bottomRight = pixelToComplex(x + w, y + h);
+    const rect = canvas.getBoundingClientRect();
+    const { cr, ci } = pixelToComplex(x + w / 2, y + h / 2);
+    const newHw = (state.maxReal - state.minReal) / 2 * (w / rect.width);
+    const newHh = (state.maxImag - state.minImag) / 2 * (h / rect.height);
 
-    state.minReal = topLeft.cr;
-    state.maxReal = bottomRight.cr;
-    state.minImag = topLeft.ci;
-    state.maxImag = bottomRight.ci;
+    state.minReal = cr - newHw; state.maxReal = cr + newHw;
+    state.minImag = ci - newHh; state.maxImag = ci + newHh;
 
     zoomLevel++;
     render();
@@ -2199,13 +3195,18 @@ function renderPathBackground() {
     const normalizedValues = new Float32Array(totalPixels);
 
     if (state.renderingMode === 'classic' || state.renderingMode === 'buddhabrot') {
-        // Classic and Buddhabrot both use escape-time coloring for the path background
         const escapedIndices = [];
+        const julia = state.juliaMode && state.juliaC;
         for (let py = 0; py < h; py++) {
             for (let px = 0; px < w; px++) {
-                const cr = defaultView.minReal + (px / w) * realRange;
-                const ci = defaultView.minImag + (py / h) * imagRange;
-                const { iter, zr, zi } = mandelbrot(cr, ci, state.maxIterations);
+                const pr = defaultView.minReal + (px / w) * realRange;
+                const pi_ = defaultView.minImag + (py / h) * imagRange;
+                // Julia: z0 = pixel coord, c = juliaC.  Normal: z0 = 0, c = pixel coord.
+                const zr0 = julia ? pr : 0;
+                const zi0 = julia ? pi_ : 0;
+                const cr  = julia ? state.juliaC.re : pr;
+                const ci  = julia ? state.juliaC.im : pi_;
+                const { iter, zr, zi } = iteratePoint(zr0, zi0, cr, ci, state.maxIterations, state.fractalType, state.exponent);
                 const idx = py * w + px;
                 if (iter === state.maxIterations) {
                     smoothedValues[idx] = -1;
@@ -2308,18 +3309,43 @@ function renderPathBackground() {
     drawTrapShapeOverlay();
 }
 
-// Compute iteration path for a given c value
+// Compute iteration path for a hovered point.
+// In normal mode: hover coord = c, z0 = 0.
+// In Julia mode:  hover coord = z0, c = state.juliaC.
 function computeIterationPath(cr, ci) {
     const bailout = 2;
-    const path = [{ zr: 0, zi: 0 }];
-    let zr = 0, zi = 0;
+    const julia = state.juliaMode && state.juliaC;
+    let zr = julia ? cr : 0;
+    let zi = julia ? ci : 0;
+    const fcr = julia ? state.juliaC.re : cr;
+    const fci = julia ? state.juliaC.im : ci;
+    const type = state.fractalType || 'mandelbrot';
+    const exp  = state.exponent || 2;
+
+    const path = [{ zr, zi }];
     let escaped = false;
 
     for (let i = 0; i < state.maxIterations; i++) {
-        const zrNext = zr * zr - zi * zi + cr;
-        const ziNext = 2 * zr * zi + ci;
-        zr = zrNext;
-        zi = ziNext;
+        let newZr, newZi;
+        if (type === 'burning-ship') {
+            const azr = Math.abs(zr), azi = Math.abs(zi);
+            newZr = azr * azr - azi * azi + fcr;
+            newZi = 2 * azr * azi + fci;
+        } else if (type === 'tricorn') {
+            newZr = zr * zr - zi * zi + fcr;
+            newZi = -2 * zr * zi + fci;
+        } else if (exp === 2) {
+            newZr = zr * zr - zi * zi + fcr;
+            newZi = 2 * zr * zi + fci;
+        } else {
+            const r2    = zr * zr + zi * zi;
+            const rp    = Math.pow(r2, exp * 0.5);
+            const theta = Math.atan2(zi, zr) * exp;
+            newZr = rp * Math.cos(theta) + fcr;
+            newZi = rp * Math.sin(theta) + fci;
+        }
+        zr = newZr;
+        zi = newZi;
         path.push({ zr, zi });
         if (zr * zr + zi * zi > bailout * bailout) {
             escaped = true;
@@ -2534,6 +3560,24 @@ function drawTrapShapeOverlay() {
     const realScale = w / (defaultView.maxReal - defaultView.minReal);
     const imagScale = h / (defaultView.maxImag - defaultView.minImag);
     const origin = complexToPathPixel(0, 0);
+    const rot = state.trapRotation;
+
+    // Rotate a complex coordinate by rot radians, then project to canvas pixels
+    const rotAndProj = (x, y) => {
+        const cos = Math.cos(rot), sin = Math.sin(rot);
+        return complexToPathPixel(x * cos - y * sin, x * sin + y * cos);
+    };
+
+    // Draw a closed polygon with rotation applied to each vertex
+    const drawPoly = (vx, vy) => {
+        const first = rotAndProj(vx[0], vy[0]);
+        pathCtx.moveTo(first.px, first.py);
+        for (let i = 1; i < vx.length; i++) {
+            const p = rotAndProj(vx[i], vy[i]);
+            pathCtx.lineTo(p.px, p.py);
+        }
+        pathCtx.closePath();
+    };
 
     pathCtx.save();
     pathCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
@@ -2542,34 +3586,97 @@ function drawTrapShapeOverlay() {
     pathCtx.beginPath();
 
     const shape = state.trapShape;
+
     if (shape === 'point') {
         pathCtx.arc(origin.px, origin.py, 5, 0, Math.PI * 2);
+
     } else if (shape === 'circle') {
+        // Circle is rotationally symmetric — no rotation needed
         pathCtx.ellipse(origin.px, origin.py, realScale * 1.0, imagScale * 1.0, 0, 0, Math.PI * 2);
+
     } else if (shape === 'cross') {
-        pathCtx.moveTo(0, origin.py); pathCtx.lineTo(w, origin.py);
-        pathCtx.moveTo(origin.px, 0); pathCtx.lineTo(origin.px, h);
+        // Two infinite lines through origin, rotated
+        const BIG = 4;
+        const cos = Math.cos(rot), sin = Math.sin(rot);
+        const a1 = complexToPathPixel(-BIG * cos, -BIG * sin);
+        const b1 = complexToPathPixel( BIG * cos,  BIG * sin);
+        const a2 = complexToPathPixel( BIG * sin, -BIG * cos);
+        const b2 = complexToPathPixel(-BIG * sin,  BIG * cos);
+        pathCtx.moveTo(a1.px, a1.py); pathCtx.lineTo(b1.px, b1.py);
+        pathCtx.moveTo(a2.px, a2.py); pathCtx.lineTo(b2.px, b2.py);
+
     } else if (shape === 'square') {
-        const tl = complexToPathPixel(-0.75, -0.75);
-        const br = complexToPathPixel(0.75, 0.75);
-        pathCtx.rect(tl.px, tl.py, br.px - tl.px, br.py - tl.py);
-    } else {
-        let vx, vy;
-        if (shape === 'triangle')       { ({ vx, vy } = regularPolygon(3, 0.8)); }
-        else if (shape === 'pentagon')  { ({ vx, vy } = regularPolygon(5, 0.8)); }
-        else if (shape === 'hexagon')   { ({ vx, vy } = regularPolygon(6, 0.8)); }
-        else if (shape === 'star')      { ({ vx, vy } = star5Vertices(0.8, 0.35)); }
-        else if (shape === 'trapezoid') { vx = [-0.9, 0.9, 0.45, -0.45]; vy = [-0.4, -0.4, 0.4, 0.4]; }
-        if (vx) {
-            const first = complexToPathPixel(vx[0], vy[0]);
-            pathCtx.moveTo(first.px, first.py);
-            for (let i = 1; i < vx.length; i++) {
-                const p = complexToPathPixel(vx[i], vy[i]);
-                pathCtx.lineTo(p.px, p.py);
-            }
-            pathCtx.closePath();
+        const hw = 0.75;
+        drawPoly([-hw, hw, hw, -hw], [-hw, -hw, hw, hw]);
+
+    } else if (shape === 'triangle') {
+        const { vx, vy } = regularPolygon(3, 0.8);
+        drawPoly(vx, vy);
+
+    } else if (shape === 'pentagon') {
+        const { vx, vy } = regularPolygon(5, 0.8);
+        drawPoly(vx, vy);
+
+    } else if (shape === 'hexagon') {
+        const { vx, vy } = regularPolygon(6, 0.8);
+        drawPoly(vx, vy);
+
+    } else if (shape === 'star') {
+        const { vx, vy } = star5Vertices(0.8, 0.35);
+        drawPoly(vx, vy);
+
+    } else if (shape === 'trapezoid') {
+        drawPoly([-0.9, 0.9, 0.45, -0.45], [-0.4, -0.4, 0.4, 0.4]);
+
+    } else if (shape === 'ring') {
+        // Two concentric ellipses at r=0.5 and r=1.0 (ring is rotationally symmetric)
+        pathCtx.ellipse(origin.px, origin.py, realScale * 0.5, imagScale * 0.5, 0, 0, Math.PI * 2);
+        pathCtx.moveTo(origin.px + realScale * 1.0, origin.py);
+        pathCtx.ellipse(origin.px, origin.py, realScale * 1.0, imagScale * 1.0, 0, 0, Math.PI * 2);
+
+    } else if (shape === 'spiral') {
+        // Archimedean spiral: r = spacing * theta/(2π), spacing=0.35, drawn with rotation
+        const spacing = 0.35;
+        const steps = 300;
+        const maxTheta = Math.PI * 2 * 3;
+        let started = false;
+        for (let i = 0; i <= steps; i++) {
+            const theta = (i / steps) * maxTheta;
+            const r = spacing * theta / (Math.PI * 2);
+            const p = rotAndProj(r * Math.cos(theta), r * Math.sin(theta));
+            if (!started) { pathCtx.moveTo(p.px, p.py); started = true; }
+            else pathCtx.lineTo(p.px, p.py);
+        }
+
+    } else if (shape === 'heart') {
+        // Parametric heart curve; renderer maps zr→x=zr*1.2, zi→y=zi*1.2-0.2
+        // so inverse: zr=x/1.2, zi=(y+0.2)/1.2
+        const steps = 200;
+        let started = false;
+        for (let i = 0; i <= steps; i++) {
+            const t = (i / steps) * Math.PI * 2;
+            const x = Math.pow(Math.sin(t), 3);
+            const y = (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16;
+            const p = rotAndProj(x / 1.2, (y + 0.2) / 1.2);
+            if (!started) { pathCtx.moveTo(p.px, p.py); started = true; }
+            else pathCtx.lineTo(p.px, p.py);
+        }
+        pathCtx.closePath();
+
+    } else if (shape === 'figure8') {
+        // Lemniscate of Bernoulli: (x²+y²)² = x²-y²
+        // Parametric: x = cos(t)/(1+sin²(t)), y = sin(t)cos(t)/(1+sin²(t))
+        const steps = 200;
+        let started = false;
+        for (let i = 0; i <= steps; i++) {
+            const t = (i / steps) * Math.PI * 2;
+            const denom = 1 + Math.sin(t) * Math.sin(t);
+            const p = rotAndProj(Math.cos(t) / denom, Math.sin(t) * Math.cos(t) / denom);
+            if (!started) { pathCtx.moveTo(p.px, p.py); started = true; }
+            else pathCtx.lineTo(p.px, p.py);
         }
     }
+    // png: shapes have no meaningful geometric outline to draw
 
     pathCtx.stroke();
     pathCtx.restore();
@@ -2653,7 +3760,7 @@ const animationDef = {
     boomerang: false,
     fps: 15,
     segments: [
-        { bpm: 120, measures: 4, modifications: [] }
+        { bpm: 120, measures: 4, modifications: [], collapsed: false, easing: 'smooth', pauseBeats: 0 }
     ]
 };
 
@@ -2665,28 +3772,64 @@ function getSegmentFrameCount(seg) {
 function saveAnimationState() {
     return {
         gradientOffset: state.gradientOffset,
+        gradientRepeats: state.gradientRepeats,
         gradientStops: gradients[state.currentGradient].map(s => ({ ...s })),
         toGradientIdx: (state.currentGradient + 1) % gradients.length,
         trapRotation: state.trapRotation,
         trapScale: state.trapScale,
         trapIteration: state.trapIteration,
+        maxIterations: state.maxIterations,
         minReal: state.minReal, maxReal: state.maxReal,
-        minImag: state.minImag, maxImag: state.maxImag
+        minImag: state.minImag, maxImag: state.maxImag,
+        viewRotation: state.viewRotation
     };
 }
 
 function restoreAnimationState(saved) {
     state.gradientOffset = saved.gradientOffset;
+    if (typeof saved.gradientRepeats === 'number') state.gradientRepeats = saved.gradientRepeats;
+    if (typeof saved.maxIterations === 'number') state.maxIterations = saved.maxIterations;
     state.trapRotation = saved.trapRotation;
     state.trapScale = saved.trapScale;
     state.trapIteration = saved.trapIteration;
     state.minReal = saved.minReal; state.maxReal = saved.maxReal;
     state.minImag = saved.minImag; state.maxImag = saved.maxImag;
-    saved.gradientStops.forEach((s, i) => {
-        const stop = gradients[state.currentGradient][i];
-        stop.r = s.r; stop.g = s.g; stop.b = s.b;
-    });
+    state.viewRotation = saved.viewRotation ?? 0;
+    gradients[state.currentGradient] = saved.gradientStops.map(s => ({ ...s }));
     recolor();
+}
+
+// Sample a stop array at a given position [0, 1]
+function interpolateStops(stops, pos) {
+    let i = 0;
+    while (i < stops.length - 1 && stops[i + 1].pos < pos) i++;
+    if (i === stops.length - 1) return { r: stops[i].r, g: stops[i].g, b: stops[i].b };
+    const c1 = stops[i], c2 = stops[i + 1];
+    const range = c2.pos - c1.pos;
+    const t = range === 0 ? 0 : (pos - c1.pos) / range;
+    return {
+        r: Math.round(c1.r + (c2.r - c1.r) * t),
+        g: Math.round(c1.g + (c2.g - c1.g) * t),
+        b: Math.round(c1.b + (c2.b - c1.b) * t)
+    };
+}
+
+// Blend two stop arrays by sampling at N uniform positions
+function blendGradientStops(fromStops, toStops, t) {
+    const N = 64;
+    const result = [];
+    for (let i = 0; i <= N; i++) {
+        const pos = i / N;
+        const c1 = interpolateStops(fromStops, pos);
+        const c2 = interpolateStops(toStops, pos);
+        result.push({
+            pos,
+            r: Math.round(c1.r + (c2.r - c1.r) * t),
+            g: Math.round(c1.g + (c2.g - c1.g) * t),
+            b: Math.round(c1.b + (c2.b - c1.b) * t)
+        });
+    }
+    return result;
 }
 
 // Blended recolor: interpolates between two gradients at factor t
@@ -2712,17 +3855,17 @@ function recolorBlended(fromIdx, toIdx, t) {
     ctx.putImageData(cachedImageData, 0, 0);
 }
 
-// Synchronous render bypass — used during GIF capture to avoid async wrapper
-function renderSync() {
-    state.isRendering = false; // ensure guard is cleared
+// Async render used during GIF capture — bypasses the render() guard/overlay
+async function renderAsync() {
+    state.isRendering = false; // clear guard so renderClassic can run
     if (state.renderingMode === 'buddhabrot') {
         renderBuddhabrot();
     } else if (state.renderingMode === 'periodicity') {
         renderPeriodicity();
     } else if (state.renderingMode === 'orbit-trap') {
-        renderOrbitTrap();
+        await renderOrbitTrap();
     } else {
-        renderClassic();
+        await renderClassic();
     }
 }
 
@@ -2735,21 +3878,31 @@ function cubicBezier(p0, p1, p2, p3, t) {
     };
 }
 
+function applyEase(t, easing) {
+    switch (easing) {
+        case 'easeIn':  return t * t;
+        case 'easeOut': return 1 - (1 - t) * (1 - t);
+        case 'linear':  return t;
+        default:        return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; // smooth (cubic ease-in-out)
+    }
+}
+
 // Apply all active modifications for a given linear progress [0, 1].
 // saved = start state of this segment.
 // modifications = resolved mod list (random values already substituted).
 // Boomerang mirroring is handled at the GIF capture level.
-function applyAnimationFrame(progress, saved, modifications) {
+async function applyAnimationFrame(progress, saved, modifications, easing) {
     let needsRender = false;
     let gradientBlend = null;
-    const ease = progress * progress * (3 - 2 * progress); // smoothstep
+    const ease = applyEase(progress, easing);
 
     for (const mod of modifications) {
         if (mod.type === 'colorPulse') {
             state.gradientOffset = progress;
 
         } else if (mod.type === 'zoomIn') {
-            const factor = 1 - 0.75 * ease; // 1.0 → 0.25
+            const finalScale = mod.finalScale ?? 0.25;
+            const factor = Math.pow(finalScale, ease);
             const cx = (saved.minReal + saved.maxReal) / 2;
             const cy = (saved.minImag + saved.maxImag) / 2;
             const hw = (saved.maxReal - saved.minReal) / 2 * factor;
@@ -2759,7 +3912,8 @@ function applyAnimationFrame(progress, saved, modifications) {
             needsRender = true;
 
         } else if (mod.type === 'zoomOut') {
-            const factor = 0.25 + 0.75 * ease; // 0.25 → 1.0
+            const minScale = mod.minScale ?? 0.25;
+            const factor = Math.pow(minScale, 1 - ease);
             const cx = (saved.minReal + saved.maxReal) / 2;
             const cy = (saved.minImag + saved.maxImag) / 2;
             const hw = (saved.maxReal - saved.minReal) / 2 * factor;
@@ -2808,8 +3962,14 @@ function applyAnimationFrame(progress, saved, modifications) {
             state.minImag = cy - hh; state.maxImag = cy + hh;
             needsRender = true;
 
+        } else if (mod.type === 'rotateView') {
+            const deg = mod.degrees ?? 360;
+            state.viewRotation = (saved.viewRotation ?? 0) + ease * deg * Math.PI / 180;
+            needsRender = true;
+
         } else if (mod.type === 'orbitTrapRotation') {
-            state.trapRotation = progress * Math.PI * 2;
+            const deg = mod.degrees ?? 360;
+            state.trapRotation = saved.trapRotation + progress * deg * Math.PI / 180;
             needsRender = true;
 
         } else if (mod.type === 'trapExpand') {
@@ -2824,13 +3984,57 @@ function applyAnimationFrame(progress, saved, modifications) {
             state.trapIteration = Math.max(1, Math.round(progress * mod.maxIteration));
             needsRender = true;
 
+        } else if (mod.type === 'viewportTransition') {
+            state.minReal = saved.minReal + (mod.toMinReal - saved.minReal) * ease;
+            state.maxReal = saved.maxReal + (mod.toMaxReal - saved.maxReal) * ease;
+            state.minImag = saved.minImag + (mod.toMinImag - saved.minImag) * ease;
+            state.maxImag = saved.maxImag + (mod.toMaxImag - saved.maxImag) * ease;
+            if (typeof mod.toViewRotation === 'number') {
+                state.viewRotation = (saved.viewRotation ?? 0) + (mod.toViewRotation - (saved.viewRotation ?? 0)) * ease;
+            }
+            needsRender = true;
+
         } else if (mod.type === 'gradientFade') {
             gradientBlend = { fromIdx: state.currentGradient, toIdx: saved.toGradientIdx, t: progress };
+
+        } else if (mod.type === 'snapshotTransition') {
+            const target = mod.target;
+            if (target.viewport) {
+                state.minReal = saved.minReal + (target.viewport.minReal - saved.minReal) * ease;
+                state.maxReal = saved.maxReal + (target.viewport.maxReal - saved.maxReal) * ease;
+                state.minImag = saved.minImag + (target.viewport.minImag - saved.minImag) * ease;
+                state.maxImag = saved.maxImag + (target.viewport.maxImag - saved.maxImag) * ease;
+                if (typeof target.viewport.viewRotation === 'number') {
+                    state.viewRotation = (saved.viewRotation ?? 0)
+                        + (target.viewport.viewRotation - (saved.viewRotation ?? 0)) * ease;
+                }
+            }
+            if (target.colorGradient?.stops) {
+                gradients[state.currentGradient] = blendGradientStops(saved.gradientStops, target.colorGradient.stops, ease);
+            }
+            if (typeof target.colorGradient?.shift === 'number') {
+                state.gradientOffset = saved.gradientOffset + (target.colorGradient.shift - saved.gradientOffset) * ease;
+            }
+            if (typeof target.colorGradient?.repeats === 'number') {
+                state.gradientRepeats = saved.gradientRepeats + (target.colorGradient.repeats - saved.gradientRepeats) * ease;
+            }
+            if (typeof target.iterations?.max === 'number') {
+                state.maxIterations = Math.round(saved.maxIterations + (target.iterations.max - saved.maxIterations) * ease);
+            }
+            if (typeof target.rendering?.trapScale === 'number') {
+                state.trapScale = saved.trapScale + (target.rendering.trapScale - saved.trapScale) * ease;
+            }
+            if (ease >= 1) {
+                if (target.rendering?.style) state.renderingMode = target.rendering.style;
+                if (target.rendering?.trapShape) state.trapShape = target.rendering.trapShape;
+                if (target.rendering?.trapAggregation) state.trapAggregation = target.rendering.trapAggregation;
+            }
+            needsRender = true;
         }
     }
 
     if (needsRender) {
-        renderSync();
+        await renderAsync();
         if (gradientBlend) {
             recolorBlended(gradientBlend.fromIdx, gradientBlend.toIdx, gradientBlend.t);
         }
@@ -2917,7 +4121,7 @@ function captureGif() {
     let resolvedMods = null;
     let framesRendered = 0;
 
-    function renderFrame() {
+    async function renderFrame() {
         if (segmentIndex >= animationDef.segments.length) {
             // All forward frames done — add reverse frames for boomerang
             if (frameBuffers && frameBuffers.length > 1) {
@@ -2960,8 +4164,14 @@ function captureGif() {
             resolvedMods = resolveSegmentMods(seg.modifications);
         }
 
-        const progress = frameInSegment / Math.max(segFrameCount - 1, 1);
-        applyAnimationFrame(progress, segmentSaved, resolvedMods);
+        const totalBeats = seg.measures * 4;
+        const pauseBeats = Math.min(seg.pauseBeats ?? 0, totalBeats - 0.25);
+        const activeFraction = (totalBeats - pauseBeats) / totalBeats;
+        const activeFrames = Math.max(1, Math.round(segFrameCount * activeFraction));
+        const progress = frameInSegment < activeFrames
+            ? frameInSegment / Math.max(activeFrames - 1, 1)
+            : 1;
+        await applyAnimationFrame(progress, segmentSaved, resolvedMods, seg.easing);
 
         offCtx.drawImage(canvas, 0, 0, outputSize, outputSize);
         const imageData = offCtx.getImageData(0, 0, outputSize, outputSize);
@@ -2990,131 +4200,713 @@ function captureGif() {
 
 
 /* === js/auto-explore.js === */
-// Auto-Explore: live animation that navigates toward the Mandelbrot set boundary
+// Auto-Explorer: algorithmically navigates the Mandelbrot set boundary
+// Domain objects:
+//   ExplorerConfig  { startViewport, steps, directionMode, entropyWeight, boundaryWeight, zoomStart, zoomEnd }
+//   ExplorerKeyframe { viewport:{minReal,maxReal,minImag,maxImag}, score, stepIndex }
+//   ExplorerPath     ExplorerKeyframe[]
 
-let autoExploreActive = false;
-let autoExploreAngle = 0;
-let autoExploreTarget = null;
-let autoExploreStepsLeft = 0;
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SCORE_GRID_SIZE = 16;       // NxN pixel sample grid for interestingness scoring
+const BORING_THRESHOLD = 0.05;   // minimum score to accept a candidate step
+const STEP_FRACTION = 0.22;       // step size as fraction of current viewport width
+const GREEDY_DIRECTIONS = 8;      // number of candidate directions in greedy mode
+const BG_CHUNK_SIZE = 5;          // steps computed per setTimeout chunk in background mode
 
-const EXPLORE_STEPS_PER_LEG = 60;
-const EXPLORE_ZOOM_PER_STEP = 0.985;  // viewport shrinks ~1.5% each step
-const EXPLORE_PAN_RATE = 0.04;        // lerp rate toward target per step
+// ── Explorer state ────────────────────────────────────────────────────────────
+let explorerConfig = null;
+let explorerPath = [];            // ExplorerKeyframe[]
+let explorerRunning = false;
+let explorerCurrentViewport = null;
+let explorerTravelAngle = 0;
+let explorerAnimFrame = null;
+let explorerMode = 'live';        // 'live' | 'background'
 
-function mandelbrotInSet(cr, ci) {
-    return mandelbrot(cr, ci, state.maxIterations).iter === state.maxIterations;
-}
+// ── Canvas refs ───────────────────────────────────────────────────────────────
+const autoExploreCanvas = document.getElementById('autoExploreCanvas');
+const autoExploreCtx = autoExploreCanvas.getContext('2d');
+const autoExploreContainer = document.querySelector('.auto-explore-canvas-container');
 
-function findBoundaryAlongAngle(cx, cy, angle) {
-    const dx = Math.cos(angle);
-    const dy = Math.sin(angle);
-    const viewSize = state.maxReal - state.minReal;
+// ── Interestingness scorer ────────────────────────────────────────────────────
 
-    // Expand outward until we find an escaped point
-    let hi = viewSize * 0.01;
-    const maxDist = viewSize * 2;
-    while (hi < maxDist && mandelbrotInSet(cx + hi * dx, cy + hi * dy)) {
-        hi *= 2;
-    }
-    if (hi >= maxDist) return null;
+function scoreViewport(vp, maxIter, entropyWeight, boundaryWeight) {
+    const realStep = (vp.maxReal - vp.minReal) / (SCORE_GRID_SIZE - 1);
+    const imagStep = (vp.maxImag - vp.minImag) / (SCORE_GRID_SIZE - 1);
+    const buckets = new Int32Array(10);
+    let boundaryCount = 0;
+    const total = SCORE_GRID_SIZE * SCORE_GRID_SIZE;
 
-    // Binary search between in-set (lo) and escaped (hi)
-    let lo = hi / 2;
-    for (let i = 0; i < 25; i++) {
-        const mid = (lo + hi) / 2;
-        if (mandelbrotInSet(cx + mid * dx, cy + mid * dy)) lo = mid;
-        else hi = mid;
-    }
-
-    // Target: 80% of the way to boundary (safely in-set)
-    return { cx: cx + lo * 0.8 * dx, cy: cy + lo * 0.8 * dy, dist: lo };
-}
-
-function pickExploreTarget() {
-    const cx = (state.minReal + state.maxReal) / 2;
-    const cy = (state.minImag + state.maxImag) / 2;
-
-    // Try angles starting from preferred direction, rotating around
-    for (let attempt = 0; attempt < 24; attempt++) {
-        const angle = autoExploreAngle + attempt * (Math.PI * 2 / 24);
-        const result = findBoundaryAlongAngle(cx, cy, angle);
-        if (result) {
-            // Drift angle slightly so exploration varies over time
-            autoExploreAngle = angle + 0.3;
-            return result;
+    for (let py = 0; py < SCORE_GRID_SIZE; py++) {
+        for (let px = 0; px < SCORE_GRID_SIZE; px++) {
+            const cr = vp.minReal + px * realStep;
+            const ci = vp.minImag + py * imagStep;
+            const { iter } = mandelbrot(cr, ci, maxIter);
+            if (iter < maxIter) {
+                const n = iter / maxIter;
+                buckets[Math.min(9, Math.floor(n * 10))]++;
+                if (n > 0.1 && n < 0.9) boundaryCount++;
+            }
         }
     }
-    return null;
+
+    // Boundary density: fraction of pixels with mid-range escape time
+    const boundaryDensity = boundaryCount / total;
+
+    // Entropy: variety across iteration-count buckets
+    let entropy = 0;
+    for (let i = 0; i < 10; i++) {
+        const p = buckets[i] / total;
+        if (p > 0) entropy -= p * Math.log2(p);
+    }
+    const normalizedEntropy = entropy / Math.log2(10);
+
+    return entropyWeight * normalizedEntropy + boundaryWeight * boundaryDensity;
 }
 
-function autoExploreStep() {
-    if (!autoExploreActive) return;
+// ── Viewport helpers ──────────────────────────────────────────────────────────
 
-    if (!autoExploreTarget || autoExploreStepsLeft <= 0) {
-        const cx = (state.minReal + state.maxReal) / 2;
-        const cy = (state.minImag + state.maxImag) / 2;
+function vpCenter(vp) {
+    return {
+        cx: (vp.minReal + vp.maxReal) / 2,
+        cy: (vp.minImag + vp.maxImag) / 2,
+    };
+}
 
-        // If center drifted outside the set, stop
-        if (!mandelbrotInSet(cx, cy)) {
-            stopAutoExplore();
-            return;
+function vpHalfSize(vp) {
+    return {
+        hw: (vp.maxReal - vp.minReal) / 2,
+        hh: (vp.maxImag - vp.minImag) / 2,
+    };
+}
+
+function makeVp(cx, cy, hw, hh) {
+    return { minReal: cx - hw, maxReal: cx + hw, minImag: cy - hh, maxImag: cy + hh };
+}
+
+// Pan viewport center by one step along angle, keeping size unchanged
+function panViewport(vp, angle) {
+    const { cx, cy } = vpCenter(vp);
+    const { hw, hh } = vpHalfSize(vp);
+    return makeVp(
+        cx + hw * 2 * STEP_FRACTION * Math.cos(angle),
+        cy + hh * 2 * STEP_FRACTION * Math.sin(angle),
+        hw, hh
+    );
+}
+
+// Resize viewport to a zoom factor relative to its own initial size
+// zoom=1 → same size, zoom=2 → half-size (2× more zoomed in)
+function resizeViewport(vp, zoomFactor) {
+    const { cx, cy } = vpCenter(vp);
+    const { hw, hh } = vpHalfSize(vp);
+    return makeVp(cx, cy, hw / zoomFactor, hh / zoomFactor);
+}
+
+// ── Direction selection ───────────────────────────────────────────────────────
+
+function greedyNextViewport(vp, config) {
+    let bestScore = -1, bestVp = null, bestAngle = explorerTravelAngle;
+    for (let i = 0; i < GREEDY_DIRECTIONS; i++) {
+        const angle = (i / GREEDY_DIRECTIONS) * Math.PI * 2;
+        const candidate = panViewport(vp, angle);
+        const score = scoreViewport(candidate, config.maxIter, config.entropyWeight, config.boundaryWeight);
+        if (score > bestScore) { bestScore = score; bestVp = candidate; bestAngle = angle; }
+    }
+    if (bestScore < BORING_THRESHOLD) return null;
+    explorerTravelAngle = bestAngle;
+    return { viewport: bestVp, score: bestScore };
+}
+
+function consistentNextViewport(vp, config) {
+    // Try preferred angle first, then fan out with increasing deviation
+    const rotDir = config.directionMode === 'consistent-ccw' ? -0.2 : 0.2;
+    const adjustments = [0, 0.3, -0.3, 0.6, -0.6, 1.0, -1.0, 1.5, -1.5, Math.PI];
+    for (const adj of adjustments) {
+        const angle = explorerTravelAngle + adj;
+        const candidate = panViewport(vp, angle);
+        const score = scoreViewport(candidate, config.maxIter, config.entropyWeight, config.boundaryWeight);
+        if (score >= BORING_THRESHOLD) {
+            explorerTravelAngle = angle + rotDir; // gently rotate to follow the coastline
+            return { viewport: candidate, score };
         }
+    }
+    return null; // dead end
+}
 
-        autoExploreTarget = pickExploreTarget();
-        if (!autoExploreTarget) {
-            stopAutoExplore();
-            return;
+// ── Preview canvas renderer ───────────────────────────────────────────────────
+
+function renderExplorerFrame(vp) {
+    const w = autoExploreCanvas.width;
+    const h = autoExploreCanvas.height;
+    const realRange = vp.maxReal - vp.minReal;
+    const imagRange = vp.maxImag - vp.minImag;
+    const maxIter = state.maxIterations;
+    const imageData = autoExploreCtx.createImageData(w, h);
+    const smoothed = new Float64Array(w * h);
+    const escaped = [];
+
+    for (let py = 0; py < h; py++) {
+        for (let px = 0; px < w; px++) {
+            const cr = vp.minReal + (px / w) * realRange;
+            const ci = vp.minImag + (py / h) * imagRange;
+            const { iter, zr, zi } = mandelbrot(cr, ci, maxIter);
+            const idx = py * w + px;
+            if (iter === maxIter) {
+                smoothed[idx] = -1;
+            } else {
+                const mag = Math.sqrt(zr * zr + zi * zi);
+                smoothed[idx] = iter + 1 - Math.log(Math.log(mag)) / Math.log(2);
+                escaped.push(idx);
+            }
         }
-        autoExploreStepsLeft = EXPLORE_STEPS_PER_LEG;
     }
 
-    const cx = (state.minReal + state.maxReal) / 2;
-    const cy = (state.minImag + state.maxImag) / 2;
+    escaped.sort((a, b) => smoothed[a] - smoothed[b]);
+    const norm = new Float32Array(w * h);
+    for (let r = 0; r < escaped.length; r++) {
+        norm[escaped[r]] = escaped.length > 1 ? r / (escaped.length - 1) : 0;
+    }
 
-    // Lerp center toward target
-    const newCx = cx + (autoExploreTarget.cx - cx) * EXPLORE_PAN_RATE;
-    const newCy = cy + (autoExploreTarget.cy - cy) * EXPLORE_PAN_RATE;
+    for (let i = 0; i < w * h; i++) {
+        const color = smoothed[i] === -1
+            ? { r: 0, g: 0, b: 0 }
+            : getColor(norm[i], state.currentGradient);
+        const off = i * 4;
+        imageData.data[off] = color.r;
+        imageData.data[off + 1] = color.g;
+        imageData.data[off + 2] = color.b;
+        imageData.data[off + 3] = 255;
+    }
 
-    // Zoom in
-    const hw = (state.maxReal - state.minReal) / 2 * EXPLORE_ZOOM_PER_STEP;
-    const hh = (state.maxImag - state.minImag) / 2 * EXPLORE_ZOOM_PER_STEP;
+    autoExploreCtx.putImageData(imageData, 0, 0);
 
-    if (hw < MIN_VIEWPORT_SIZE) {
-        stopAutoExplore();
+    // Step counter overlay
+    const stepText = `Step ${explorerPath.length - 1} / ${explorerConfig ? explorerConfig.steps : '?'}`;
+    autoExploreCtx.fillStyle = 'rgba(0,0,0,0.55)';
+    autoExploreCtx.fillRect(4, 4, 100, 20);
+    autoExploreCtx.fillStyle = '#ccc';
+    autoExploreCtx.font = '11px monospace';
+    autoExploreCtx.fillText(stepText, 8, 18);
+}
+
+// ── Read UI config ────────────────────────────────────────────────────────────
+
+function readExplorerConfig() {
+    const directionMode = document.querySelector('input[name="explorerDirection"]:checked')?.value || 'consistent-cw';
+    const steps = parseInt(document.getElementById('explorerSteps').value) || 20;
+    const entropyWeight = parseFloat(document.getElementById('explorerEntropyWeight').value);
+    const boundaryWeight = parseFloat(document.getElementById('explorerBoundaryWeight').value);
+    const zoomStart = parseFloat(document.getElementById('explorerZoomStart').value) || 1;
+    const zoomEnd = parseFloat(document.getElementById('explorerZoomEnd').value) || 5;
+    const startType = document.querySelector('input[name="explorerStart"]:checked')?.value || 'current';
+
+    let startVp;
+    if (startType === 'current') {
+        startVp = {
+            minReal: state.minReal, maxReal: state.maxReal,
+            minImag: state.minImag, maxImag: state.maxImag
+        };
+    } else {
+        const cr = parseFloat(document.getElementById('explorerStartReal').value) || -0.5;
+        const ci = parseFloat(document.getElementById('explorerStartImag').value) || 0;
+        const defHw = (defaultView.maxReal - defaultView.minReal) / 2;
+        const defHh = (defaultView.maxImag - defaultView.minImag) / 2;
+        startVp = makeVp(cr, ci, defHw / zoomStart, defHh / zoomStart);
+    }
+
+    return { startVp, steps, directionMode, entropyWeight, boundaryWeight, zoomStart, zoomEnd, maxIter: state.maxIterations };
+}
+
+// ── Step execution ────────────────────────────────────────────────────────────
+
+function explorerStep() {
+    const config = explorerConfig;
+    const vp = explorerCurrentViewport;
+
+    let result = config.directionMode === 'greedy'
+        ? greedyNextViewport(vp, config)
+        : consistentNextViewport(vp, config);
+
+    if (!result) return false;
+
+    // Apply zoom: interpolate from zoomStart to zoomEnd as exploration progresses
+    const t = config.steps > 1 ? explorerPath.length / (config.steps - 1) : 0;
+    const zoomFactor = config.zoomStart + (config.zoomEnd - config.zoomStart) * Math.min(1, t);
+    // zoomFactor is relative to the first keyframe's dimensions
+    const { hw: baseHw, hh: baseHh } = vpHalfSize(config.startVp);
+    const { cx, cy } = vpCenter(result.viewport);
+    const finalVp = makeVp(cx, cy, baseHw / zoomFactor, baseHh / zoomFactor);
+
+    explorerCurrentViewport = finalVp;
+    explorerPath.push({ viewport: { ...finalVp }, score: result.score, stepIndex: explorerPath.length });
+    return true;
+}
+
+// ── Export to animation sequencer ─────────────────────────────────────────────
+
+function exportExplorerPath() {
+    if (explorerPath.length < 2) {
+        alert('Need at least 2 keyframes to export. Run the explorer first.');
         return;
     }
 
-    state.minReal = newCx - hw;
-    state.maxReal = newCx + hw;
-    state.minImag = newCy - hh;
-    state.maxImag = newCy + hh;
-
-    autoExploreStepsLeft--;
+    // Set the main canvas to the first keyframe viewport and re-render
+    const first = explorerPath[0].viewport;
+    state.minReal = first.minReal; state.maxReal = first.maxReal;
+    state.minImag = first.minImag; state.maxImag = first.maxImag;
     render();
-}
 
-function startAutoExplore() {
-    autoExploreActive = true;
-    autoExploreAngle = Math.random() * Math.PI * 2;
-    autoExploreTarget = null;
-    autoExploreStepsLeft = 0;
-    document.getElementById('autoExploreBtn').textContent = 'Stop';
-    pumpAutoExplore();
-}
-
-function stopAutoExplore() {
-    autoExploreActive = false;
-    const btn = document.getElementById('autoExploreBtn');
-    if (btn) btn.textContent = 'Auto-Explore';
-}
-
-function pumpAutoExplore() {
-    if (!autoExploreActive) return;
-    requestAnimationFrame(() => {
-        if (!autoExploreActive) return;
-        if (!state.isRendering) autoExploreStep();
-        pumpAutoExplore();
+    // One segment per consecutive keyframe pair, each with a viewport transition
+    animationDef.segments = explorerPath.slice(0, -1).map((kf, i) => {
+        const next = explorerPath[i + 1].viewport;
+        return {
+            bpm: 120, measures: 4,
+            modifications: [{
+                type: 'viewportTransition',
+                toMinReal: next.minReal, toMaxReal: next.maxReal,
+                toMinImag: next.minImag, toMaxImag: next.maxImag,
+            }],
+            collapsed: false
+        };
     });
+
+    buildSegmentList();
+    document.querySelector('.tab-btn[data-tab="animation"]').click();
+}
+
+// ── Button state ──────────────────────────────────────────────────────────────
+
+function setExplorerButtons(running) {
+    const runBtn = document.getElementById('explorerRunBtn');
+    const stopExportBtn = document.getElementById('explorerStopExportBtn');
+    if (running) {
+        runBtn.disabled = true;
+        stopExportBtn.disabled = false;
+        if (explorerMode === 'live') stopExportBtn.textContent = 'Stop + Export';
+    } else {
+        runBtn.disabled = false;
+        stopExportBtn.disabled = explorerPath.length < 2;
+        stopExportBtn.textContent = explorerPath.length >= 2 ? 'Export' : 'Stop + Export';
+    }
+}
+
+// ── Live Travel ───────────────────────────────────────────────────────────────
+
+function startLiveTravel() {
+    explorerConfig = readExplorerConfig();
+    const startScore = scoreViewport(
+        explorerConfig.startVp, explorerConfig.maxIter,
+        explorerConfig.entropyWeight, explorerConfig.boundaryWeight
+    );
+
+    if (startScore < BORING_THRESHOLD) {
+        if (!confirm('Warning: start point appears to be in boring territory (low interestingness score). Continue anyway?\n\nTip: try zooming into a visually interesting area first.')) return;
+    }
+
+    explorerPath = [{ viewport: { ...explorerConfig.startVp }, score: startScore, stepIndex: 0 }];
+    explorerCurrentViewport = { ...explorerConfig.startVp };
+    explorerTravelAngle = Math.random() * Math.PI * 2;
+    explorerRunning = true;
+    explorerMode = 'live';
+
+    autoExploreContainer.style.display = 'flex';
+    setExplorerButtons(true);
+    renderExplorerFrame(explorerCurrentViewport);
+    pumpLiveTravel();
+}
+
+function pumpLiveTravel() {
+    if (!explorerRunning) return;
+
+    if (explorerPath.length > explorerConfig.steps) {
+        explorerRunning = false;
+        setExplorerButtons(false);
+        return;
+    }
+
+    const ok = explorerStep();
+    if (!ok) {
+        explorerRunning = false;
+        setExplorerButtons(false);
+        alert(`Explorer reached a dead end after ${explorerPath.length} keyframe${explorerPath.length === 1 ? '' : 's'}. Click "Export" to save.`);
+        return;
+    }
+
+    renderExplorerFrame(explorerCurrentViewport);
+    explorerAnimFrame = requestAnimationFrame(pumpLiveTravel);
+}
+
+// ── Background Compute ────────────────────────────────────────────────────────
+
+function startBackgroundCompute() {
+    explorerConfig = readExplorerConfig();
+    const startScore = scoreViewport(
+        explorerConfig.startVp, explorerConfig.maxIter,
+        explorerConfig.entropyWeight, explorerConfig.boundaryWeight
+    );
+
+    if (startScore < BORING_THRESHOLD) {
+        if (!confirm('Warning: start point appears to be in boring territory (low interestingness score). Continue anyway?\n\nTip: try zooming into a visually interesting area first.')) return;
+    }
+
+    explorerPath = [{ viewport: { ...explorerConfig.startVp }, score: startScore, stepIndex: 0 }];
+    explorerCurrentViewport = { ...explorerConfig.startVp };
+    explorerTravelAngle = Math.random() * Math.PI * 2;
+    explorerRunning = true;
+    explorerMode = 'background';
+
+    setExplorerButtons(true);
+    document.getElementById('explorerStopExportBtn').textContent = 'Computing… 0%';
+    setTimeout(runBgChunk, 0);
+}
+
+function runBgChunk() {
+    if (!explorerRunning) return;
+
+    for (let i = 0; i < BG_CHUNK_SIZE; i++) {
+        if (explorerPath.length > explorerConfig.steps) {
+            finishBgCompute(false);
+            return;
+        }
+        if (!explorerStep()) { finishBgCompute(true); return; }
+    }
+
+    const pct = Math.min(100, Math.round(explorerPath.length / explorerConfig.steps * 100));
+    document.getElementById('explorerStopExportBtn').textContent = `Computing… ${pct}%`;
+    setTimeout(runBgChunk, 0);
+}
+
+function finishBgCompute(deadEnd) {
+    explorerRunning = false;
+    autoExploreContainer.style.display = 'flex';
+    renderExplorerFrame(explorerCurrentViewport);
+    setExplorerButtons(false);
+
+    const msg = deadEnd
+        ? `Explorer reached a dead end after ${explorerPath.length} keyframes.`
+        : `Computed ${explorerPath.length} keyframes.`;
+
+    if (explorerPath.length >= 2 && confirm(msg + ' Export to animation sequencer?')) {
+        exportExplorerPath();
+    }
+}
+
+// ── Stop ──────────────────────────────────────────────────────────────────────
+
+function stopExplorer() {
+    explorerRunning = false;
+    if (explorerAnimFrame) { cancelAnimationFrame(explorerAnimFrame); explorerAnimFrame = null; }
+    setExplorerButtons(false);
+}
+
+// ── Tab lifecycle ─────────────────────────────────────────────────────────────
+
+function toggleAutoExplorerTab(enabled) {
+    if (!enabled) {
+        if (explorerRunning) stopExplorer();
+        autoExploreContainer.style.display = 'none';
+    }
+    // Canvas shown only once a run produces frames
+}
+
+// ── Wire up UI ────────────────────────────────────────────────────────────────
+
+// Start-type radios: show/hide coordinate input
+document.querySelectorAll('input[name="explorerStart"]').forEach(r => {
+    r.addEventListener('change', () => {
+        document.getElementById('explorerCoordInput').style.display =
+            document.querySelector('input[name="explorerStart"]:checked')?.value === 'coord' ? '' : 'none';
+    });
+});
+
+// Slider display updates
+[
+    ['explorerSteps',         'explorerStepsDisplay'],
+    ['explorerEntropyWeight', 'explorerEntropyDisplay'],
+    ['explorerBoundaryWeight','explorerBoundaryDisplay'],
+    ['explorerZoomStart',     'explorerZoomStartDisplay'],
+    ['explorerZoomEnd',       'explorerZoomEndDisplay'],
+].forEach(([id, displayId]) => {
+    const el = document.getElementById(id);
+    const display = document.getElementById(displayId);
+    if (el && display) el.addEventListener('input', () => { display.textContent = el.value; });
+});
+
+// Run button
+document.getElementById('explorerRunBtn').addEventListener('click', () => {
+    const mode = document.querySelector('input[name="explorerMode"]:checked')?.value || 'live';
+    if (mode === 'live') startLiveTravel();
+    else startBackgroundCompute();
+});
+
+// Stop + Export button
+document.getElementById('explorerStopExportBtn').addEventListener('click', () => {
+    if (explorerRunning) stopExplorer();
+    else exportExplorerPath();
+});
+
+
+/* === js/snapshot.js === */
+// View Snapshot — export/import full app state as portable JSON
+// Schema version 1
+
+function captureSnapshot(label) {
+    const snap = {
+        version: 1,
+        label: label || undefined,
+        viewport: {
+            minReal: state.minReal,
+            maxReal: state.maxReal,
+            minImag: state.minImag,
+            maxImag: state.maxImag,
+            viewRotation: state.viewRotation
+        },
+        colorGradient: {
+            stops: gradients[state.currentGradient].map(s => ({ ...s })),
+            shift: state.gradientOffset,
+            repeats: state.gradientRepeats,
+            blendRepeats: state.gradientBlendRepeats
+        },
+        rendering: {
+            style: state.renderingMode,
+            buddhabrotSamples: state.buddhabrotSamples,
+            trapShape: state.trapShape,
+            trapAggregation: state.trapAggregation,
+            trapIteration: state.trapIteration,
+            trapScale: state.trapScale,
+            ratioTargetValue: state.ratioTargetValue
+        },
+        iterations: {
+            max: state.maxIterations
+        },
+        orbitExplorer: {
+            pathStyle: state.pathStyle
+        },
+        equation: {
+            fractalType: state.fractalType,
+            exponent: state.exponent,
+            juliaMode: state.juliaMode,
+            juliaC: state.juliaC ? { re: state.juliaC.re, im: state.juliaC.im } : null
+        }
+    };
+    if (!snap.label) delete snap.label;
+    return snap;
+}
+
+function validateSnapshot(snap) {
+    if (!snap || typeof snap !== 'object') return 'Not a valid snapshot object';
+    if (snap.version !== 1) return `Unknown schema version: ${snap.version}`;
+    if (!snap.viewport) return 'Missing required field: viewport';
+    const vp = snap.viewport;
+    if (
+        typeof vp.minReal !== 'number' || typeof vp.maxReal !== 'number' ||
+        typeof vp.minImag !== 'number' || typeof vp.maxImag !== 'number'
+    ) return 'Viewport fields must be numbers';
+    return null; // valid
+}
+
+function applySnapshot(snap) {
+    const err = validateSnapshot(snap);
+    if (err) {
+        alert('Could not load snapshot: ' + err);
+        return false;
+    }
+
+    const unknownKeys = Object.keys(snap).filter(
+        k => !['version', 'label', 'viewport', 'colorGradient', 'rendering', 'iterations', 'orbitExplorer', 'equation'].includes(k)
+    );
+    if (unknownKeys.length > 0) {
+        console.warn('Snapshot has unknown fields (newer schema?):', unknownKeys.join(', '));
+    }
+
+    // Viewport
+    const vp = snap.viewport;
+    state.minReal = vp.minReal;
+    state.maxReal = vp.maxReal;
+    state.minImag = vp.minImag;
+    state.maxImag = vp.maxImag;
+    state.viewRotation = typeof vp.viewRotation === 'number' ? vp.viewRotation : 0;
+    updateCompassRose();
+
+    // Color
+    if (snap.colorGradient) {
+        const c = snap.colorGradient;
+        if (Array.isArray(c.stops) && c.stops.length > 0) {
+            gradients[state.currentGradient] = c.stops.map(s => ({ ...s }));
+            buildGradientPreview();
+            buildStopEditor();
+        }
+        if (typeof c.shift === 'number') state.gradientOffset = c.shift;
+        if (typeof c.repeats === 'number') {
+            state.gradientRepeats = c.repeats;
+            const slider = document.getElementById('repeatSlider');
+            const disp = document.getElementById('repeatDisplay');
+            if (slider) slider.value = c.repeats;
+            if (disp) disp.textContent = c.repeats;
+        }
+        if (typeof c.blendRepeats === 'boolean') {
+            state.gradientBlendRepeats = c.blendRepeats;
+            const cb = document.getElementById('blendRepeatsCheckbox');
+            if (cb) cb.checked = c.blendRepeats;
+        }
+    }
+
+    // Iterations
+    if (snap.iterations) {
+        if (typeof snap.iterations.max === 'number') {
+            state.maxIterations = snap.iterations.max;
+            const slider = document.getElementById('iterationSlider');
+            const disp = document.getElementById('iterationDisplay');
+            if (slider) slider.value = snap.iterations.max;
+            if (disp) disp.textContent = snap.iterations.max;
+        }
+    }
+
+    // Rendering
+    if (snap.rendering) {
+        const r = snap.rendering;
+        if (typeof r.style === 'string') {
+            state.renderingMode = r.style;
+            const radio = document.querySelector(`input[name="renderingMode"][value="${r.style}"]`);
+            if (radio) {
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change'));
+            }
+        }
+        if (typeof r.buddhabrotSamples === 'number') {
+            state.buddhabrotSamples = r.buddhabrotSamples;
+            const slider = document.getElementById('samplesSlider');
+            const disp = document.getElementById('samplesDisplay');
+            if (slider) slider.value = r.buddhabrotSamples;
+            if (disp) disp.textContent = formatSamples(r.buddhabrotSamples);
+        }
+        if (typeof r.trapShape === 'string') {
+            state.trapShape = r.trapShape;
+            const sel = document.getElementById('trapShapeSelect');
+            if (sel) sel.value = r.trapShape;
+        }
+        if (typeof r.trapAggregation === 'string') {
+            state.trapAggregation = r.trapAggregation;
+            const sel = document.getElementById('trapAggregationSelect');
+            if (sel) {
+                sel.value = r.trapAggregation;
+                sel.dispatchEvent(new Event('change'));
+            }
+        }
+        if (typeof r.trapIteration === 'number') {
+            state.trapIteration = r.trapIteration;
+            const slider = document.getElementById('trapIterationSlider');
+            const disp = document.getElementById('trapIterationDisplay');
+            if (slider) slider.value = r.trapIteration;
+            if (disp) disp.textContent = r.trapIteration;
+        }
+        if (typeof r.trapScale === 'number') state.trapScale = r.trapScale;
+        if (typeof r.ratioTargetValue === 'number') {
+            state.ratioTargetValue = r.ratioTargetValue;
+            const inp = document.getElementById('ratioTargetInput');
+            if (inp) inp.value = r.ratioTargetValue;
+        }
+    }
+
+    // Orbit Explorer
+    if (snap.orbitExplorer) {
+        const oe = snap.orbitExplorer;
+        if (typeof oe.pathStyle === 'string') {
+            state.pathStyle = oe.pathStyle;
+            const radio = document.querySelector(`input[name="pathStyle"][value="${oe.pathStyle}"]`);
+            if (radio) radio.checked = true;
+        }
+    }
+
+    // Equation
+    if (snap.equation) {
+        const eq = snap.equation;
+        if (typeof eq.fractalType === 'string') {
+            state.fractalType = eq.fractalType;
+            const radio = document.querySelector(`input[name="fractalType"][value="${eq.fractalType}"]`);
+            if (radio) radio.checked = true;
+        }
+        if (typeof eq.exponent === 'number') {
+            state.exponent = eq.exponent;
+            const slider = document.getElementById('exponentSlider');
+            const disp   = document.getElementById('exponentDisplay');
+            if (slider) slider.value = eq.exponent;
+            if (disp)   disp.textContent = Number.isInteger(eq.exponent) ? String(eq.exponent) : eq.exponent.toFixed(1);
+        }
+        if (typeof eq.juliaMode === 'boolean') {
+            state.juliaMode = eq.juliaMode;
+            const toggle   = document.getElementById('juliaModeToggle');
+            const juliaSec = document.getElementById('juliaCSection');
+            if (toggle)   toggle.checked         = eq.juliaMode;
+            if (juliaSec) juliaSec.style.display = eq.juliaMode ? '' : 'none';
+        }
+        state.juliaC = (eq.juliaC && typeof eq.juliaC.re === 'number') ? { re: eq.juliaC.re, im: eq.juliaC.im } : null;
+        updateEquationDisplay();
+        updateJuliaCDisplay();
+    }
+
+    render();
+    if (state.pathExplorerMode) renderPathBackground();
+    return true;
+}
+
+// --- URL encode/decode ---
+
+function encodeSnapshotToHash(snap) {
+    const json = JSON.stringify(snap);
+    // btoa requires latin1; use encodeURIComponent for unicode safety
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    return '#snap=' + b64;
+}
+
+function decodeSnapshotFromHash(hash) {
+    if (!hash || !hash.startsWith('#snap=')) return null;
+    try {
+        const b64 = hash.slice('#snap='.length);
+        const json = decodeURIComponent(escape(atob(b64)));
+        return JSON.parse(json);
+    } catch (e) {
+        return null;
+    }
+}
+
+// --- File export/import ---
+
+function downloadSnapshotFile(snap) {
+    const json = JSON.stringify(snap, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const label = snap.label ? snap.label.replace(/[^a-z0-9]/gi, '-').toLowerCase() : 'snapshot';
+    a.download = `mandelbrot-${label}.json`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function loadSnapshotFromFileInput(fileInput, onLoaded) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const snap = JSON.parse(e.target.result);
+            onLoaded(snap);
+        } catch (err) {
+            alert('Could not load snapshot: invalid JSON file');
+        }
+    };
+    reader.readAsText(file);
+}
+
+// --- Auto-load from URL hash on page load ---
+
+function tryLoadSnapshotFromURL() {
+    const snap = decodeSnapshotFromHash(location.hash);
+    if (!snap) return;
+    // Clear the hash so it doesn't re-fire on future page loads
+    history.replaceState(null, '', location.pathname + location.search);
+    applySnapshot(snap);
 }
 
 
@@ -3124,6 +4916,7 @@ const gradientSelect = document.getElementById('gradientSelect');
 const zoomInBtn = document.getElementById('zoomInBtn');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 const resetBtn = document.getElementById('resetBtn');
+const zoomStepInput = document.getElementById('zoomStepInput');
 const upBtn = document.getElementById('upBtn');
 const downBtn = document.getElementById('downBtn');
 const leftBtn = document.getElementById('leftBtn');
@@ -3136,6 +4929,13 @@ const repeatDisplay = document.getElementById('repeatDisplay');
 const pulseBtn = document.getElementById('pulseBtn');
 const gradientPreviewBar = document.getElementById('gradientPreviewBar');
 const stopSwatchContainer = document.getElementById('stopSwatchContainer');
+
+function updateCompassRose() {
+    const needle = document.getElementById('compassNeedle');
+    const display = document.getElementById('rotationDisplay');
+    if (needle) needle.setAttribute('transform', `rotate(${state.viewRotation * 180 / Math.PI})`);
+    if (display) display.textContent = `${Math.round(state.viewRotation * 180 / Math.PI)}°`;
+}
 
 function buildGradientPreview() {
     const N = 100;
@@ -3211,6 +5011,10 @@ gradientSelect.addEventListener('change', changeGradient);
 zoomInBtn.addEventListener('click', zoomIn);
 zoomOutBtn.addEventListener('click', zoomOut);
 resetBtn.addEventListener('click', reset);
+zoomStepInput.addEventListener('change', () => {
+    const x = parseFloat(zoomStepInput.value);
+    if (x > 1) state.zoomFactor = 1 / x;
+});
 upBtn.addEventListener('click', panUp);
 downBtn.addEventListener('click', panDown);
 leftBtn.addEventListener('click', panLeft);
@@ -3274,6 +5078,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.add('active');
         document.getElementById('tab-' + btn.dataset.tab).style.display = 'flex';
         togglePathExplorerMode(btn.dataset.tab === 'orbit-explorer');
+        toggleAutoExplorerTab(btn.dataset.tab === 'auto-explorer');
     });
 });
 
@@ -3337,6 +5142,7 @@ trapShapeSelect.addEventListener('change', () => {
 const trapIterationSection = document.getElementById('trapIterationSection');
 const trapIterationSlider = document.getElementById('trapIterationSlider');
 const trapIterationDisplay = document.getElementById('trapIterationDisplay');
+const trapRotationInput = document.getElementById('trapRotationInput');
 
 trapAggregationSelect.addEventListener('change', () => {
     state.trapAggregation = trapAggregationSelect.value;
@@ -3354,6 +5160,14 @@ trapIterationSlider.addEventListener('input', () => {
 });
 
 trapIterationSlider.addEventListener('change', () => {
+    if (state.renderingMode === 'orbit-trap') {
+        render();
+        if (state.pathExplorerMode) renderPathBackground();
+    }
+});
+
+trapRotationInput.addEventListener('change', () => {
+    state.trapRotation = parseFloat(trapRotationInput.value) * Math.PI / 180;
     if (state.renderingMode === 'orbit-trap') {
         render();
         if (state.pathExplorerMode) renderPathBackground();
@@ -3382,8 +5196,26 @@ samplesSlider.addEventListener('change', () => {
     if (state.renderingMode === 'buddhabrot') render();
 });
 
-// Canvas mouse events — Path Explorer Mode or Default Mode (zoom box)
+// Canvas mouse events — Julia mode, Path Explorer Mode, or Default Mode (zoom box)
 canvas.addEventListener('mousedown', (e) => {
+    if (state.juliaMode) {
+        const { cr, ci } = pixelToComplex(e.offsetX, e.offsetY);
+        state.juliaC = { re: cr, im: ci };
+        updateJuliaCDisplay();
+        render();
+        if (state.pathExplorerMode) renderPathBackground();
+        return;
+    }
+    if (e.ctrlKey && !state.pathExplorerMode) {
+        e.preventDefault();
+        const { cr, ci } = pixelToComplex(e.offsetX, e.offsetY);
+        const hw = (state.maxReal - state.minReal) / 2;
+        const hh = (state.maxImag - state.minImag) / 2;
+        state.minReal = cr - hw; state.maxReal = cr + hw;
+        state.minImag = ci - hh; state.maxImag = ci + hh;
+        render();
+        return;
+    }
     if (state.pathExplorerMode) {
         isPathMouseDown = true;
         drawIterationPath(e.offsetX, e.offsetY);
@@ -3433,6 +5265,33 @@ gradientSelect.addEventListener('keydown', (e) => {
     }
 });
 
+const ROTATION_STEP = 5 * Math.PI / 180;
+
+document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+    if (e.shiftKey) {
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            state.viewRotation -= ROTATION_STEP;
+            updateCompassRose();
+            render();
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            state.viewRotation += ROTATION_STEP;
+            updateCompassRose();
+            render();
+        }
+        return;
+    }
+
+    if (e.key === 'ArrowUp')    { e.preventDefault(); panUp(); }
+    else if (e.key === 'ArrowDown')  { e.preventDefault(); panDown(); }
+    else if (e.key === 'ArrowLeft')  { e.preventDefault(); panLeft(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); panRight(); }
+});
+
 // Populate trap shape select with any embedded PNG trap shapes
 function populateTrapShapePNGOptions() {
     const names = Object.keys(trapShapePNGs);
@@ -3460,16 +5319,26 @@ function syncSegmentModifications(segIdx) {
     const seg = animationDef.segments[segIdx];
     const card = document.querySelector(`.segment-card[data-seg-idx="${segIdx}"]`);
     if (!card) return;
+    // Preserve auto-generated modifications that have no UI checkbox
+    const preserved = seg.modifications.filter(m => m.type === 'viewportTransition' || m.type === 'snapshotTransition');
     seg.modifications = [];
     card.querySelectorAll('.seg-effect:checked').forEach(cb => {
         const type = cb.dataset.type;
         const mod = { type };
-        if (type === 'trapIteration') {
+        if (type === 'rotateView') {
+            mod.degrees = parseFloat(card.querySelector('.seg-rotateViewDeg').value) || 360;
+        } else if (type === 'orbitTrapRotation') {
+            mod.degrees = parseFloat(card.querySelector('.seg-orbitRotateDeg').value) || 360;
+        } else if (type === 'trapIteration') {
             mod.maxIteration = parseInt(card.querySelector('.seg-trapIterMax').value) || 32;
         } else if (type === 'trapExpand') {
             mod.maxScale = parseFloat(card.querySelector('.seg-trapExpandMax').value) || 2.0;
         } else if (type === 'trapContract') {
             mod.minScale = parseFloat(card.querySelector('.seg-trapContractMin').value) || 0.3;
+        } else if (type === 'zoomIn') {
+            mod.finalScale = parseFloat(card.querySelector('.seg-zoomInScale').value) || 0.25;
+        } else if (type === 'zoomOut') {
+            mod.minScale = parseFloat(card.querySelector('.seg-zoomOutScale').value) || 0.25;
         } else if (type === 'pan') {
             const isRandom = card.querySelector('.seg-panRandom').checked;
             mod.angle = isRandom ? 'random' : (parseFloat(card.querySelector('.seg-panAngle').value) || 0);
@@ -3479,6 +5348,7 @@ function syncSegmentModifications(segIdx) {
         }
         seg.modifications.push(mod);
     });
+    seg.modifications.push(...preserved);
 }
 
 function buildSegmentCard(segIdx) {
@@ -3494,6 +5364,11 @@ function buildSegmentCard(segIdx) {
     const panRandom = !!(panMod && panMod.angle === 'random');
     const panDistance = panMod?.distance ?? 0.5;
     const panCurve = panMod?.curve ?? 'straight';
+
+    const zoomInMod = getMod('zoomIn');
+    const zoomInScale = zoomInMod?.finalScale ?? 0.25;
+    const zoomOutMod = getMod('zoomOut');
+    const zoomOutScale = zoomOutMod?.minScale ?? 0.25;
 
     const card = document.createElement('div');
     card.className = 'segment-card';
@@ -3519,16 +5394,41 @@ function buildSegmentCard(segIdx) {
                 <label class="anim-label">Measures</label>
                 <input type="number" class="anim-number seg-measures" min="1" max="32" step="1" value="${seg.measures}">
             </div>
+            <div class="anim-timing-row">
+                <label class="anim-label">Hold (beats)</label>
+                <input type="number" class="anim-number seg-pause" min="0" step="0.25" value="${seg.pauseBeats ?? 0}">
+            </div>
+            <div class="anim-timing-row">
+                <label class="anim-label">Easing</label>
+                <select class="seg-easing">
+                    <option value="smooth" ${(seg.easing ?? 'smooth') === 'smooth' ? 'selected' : ''}>Smooth</option>
+                    <option value="easeIn" ${seg.easing === 'easeIn' ? 'selected' : ''}>Ease In</option>
+                    <option value="easeOut" ${seg.easing === 'easeOut' ? 'selected' : ''}>Ease Out</option>
+                    <option value="linear" ${seg.easing === 'linear' ? 'selected' : ''}>Linear</option>
+                </select>
+            </div>
             <div class="anim-effects">
                 <label class="path-style-label">
                     <input type="checkbox" class="seg-effect" data-type="colorPulse" ${hasMod('colorPulse') ? 'checked' : ''}> Color Pulse
                 </label>
                 <label class="path-style-label">
-                    <input type="checkbox" class="seg-effect" data-type="zoomIn" ${hasMod('zoomIn') ? 'checked' : ''}> Zoom In
+                    <input type="checkbox" class="seg-effect seg-zoomIn-check" data-type="zoomIn" ${hasMod('zoomIn') ? 'checked' : ''}> Zoom In
                 </label>
+                <div class="seg-zoomIn-range" style="${hasMod('zoomIn') ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Final scale</label>
+                        <input type="number" class="anim-number seg-zoomInScale" min="0.01" max="0.99" step="0.05" value="${zoomInScale}">
+                    </div>
+                </div>
                 <label class="path-style-label">
-                    <input type="checkbox" class="seg-effect" data-type="zoomOut" ${hasMod('zoomOut') ? 'checked' : ''}> Zoom Out
+                    <input type="checkbox" class="seg-effect seg-zoomOut-check" data-type="zoomOut" ${hasMod('zoomOut') ? 'checked' : ''}> Zoom Out
                 </label>
+                <div class="seg-zoomOut-range" style="${hasMod('zoomOut') ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Min scale</label>
+                        <input type="number" class="anim-number seg-zoomOutScale" min="0.01" max="0.99" step="0.05" value="${zoomOutScale}">
+                    </div>
+                </div>
                 <label class="path-style-label">
                     <input type="checkbox" class="seg-effect seg-pan-check" data-type="pan" ${hasMod('pan') ? 'checked' : ''}> Pan
                 </label>
@@ -3552,9 +5452,24 @@ function buildSegmentCard(segIdx) {
                         <input type="radio" name="seg-${segIdx}-panCurve" class="seg-panCurve" value="sporadic" ${panCurve === 'sporadic' ? 'checked' : ''}> Sporadic Curve
                     </label>
                 </div>
-                <label class="path-style-label seg-orbitRotate-label" style="${isOrbitTrap ? '' : 'display:none'}">
-                    <input type="checkbox" class="seg-effect" data-type="orbitTrapRotation" ${hasMod('orbitTrapRotation') ? 'checked' : ''}> Rotate Orbit Trap
+                <label class="path-style-label">
+                    <input type="checkbox" class="seg-effect seg-rotateView-check" data-type="rotateView" ${hasMod('rotateView') ? 'checked' : ''}> Rotate View
                 </label>
+                <div class="seg-rotateView-options" style="${hasMod('rotateView') ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Degrees</label>
+                        <input type="number" class="anim-number seg-rotateViewDeg" step="1" value="${getMod('rotateView')?.degrees ?? 360}">
+                    </div>
+                </div>
+                <label class="path-style-label seg-orbitRotate-label" style="${isOrbitTrap ? '' : 'display:none'}">
+                    <input type="checkbox" class="seg-effect seg-orbitRotate-check" data-type="orbitTrapRotation" ${hasMod('orbitTrapRotation') ? 'checked' : ''}> Rotate Orbit Trap
+                </label>
+                <div class="seg-orbitRotate-degrees" style="${(isOrbitTrap && hasMod('orbitTrapRotation')) ? '' : 'display:none'}">
+                    <div class="anim-timing-row" style="margin-top:4px">
+                        <label class="anim-label">Degrees</label>
+                        <input type="number" class="anim-number seg-orbitRotateDeg" step="1" value="${getMod('orbitTrapRotation')?.degrees ?? 360}">
+                    </div>
+                </div>
                 <label class="path-style-label seg-trapExpand-label" style="${isOrbitTrap ? '' : 'display:none'}">
                     <input type="checkbox" class="seg-effect seg-trapExpand-check" data-type="trapExpand" ${hasMod('trapExpand') ? 'checked' : ''}> Expand Trap
                 </label>
@@ -3585,17 +5500,23 @@ function buildSegmentCard(segIdx) {
                 <label class="path-style-label">
                     <input type="checkbox" class="seg-effect" data-type="gradientFade" ${hasMod('gradientFade') ? 'checked' : ''}> Fade Between Gradients
                 </label>
+                <div class="seg-snapshot-row" style="margin-top:6px">
+                    <button type="button" class="seg-snapshotLoad-btn">Transition to Snapshot…</button>
+                    <input type="file" class="seg-snapshotFile" accept=".json" style="display:none">
+                    <span class="seg-snapshotLabel" style="margin-left:6px;font-size:0.85em;opacity:0.75">${hasMod('snapshotTransition') ? (getMod('snapshotTransition').target?.label || 'Snapshot loaded') : ''}</span>
+                </div>
             </div>
         </div>
     `;
 
     // --- Collapse behavior ---
-    let collapsed = false;
+    let collapsed = seg.collapsed ?? false; // Restore persisted state or migrate old segments
     const effectLabels = {
         colorPulse: 'Color Pulse', zoomIn: 'Zoom In', zoomOut: 'Zoom Out',
-        pan: 'Pan', orbitTrapRotation: 'Rotate Trap',
+        pan: 'Pan', rotateView: 'Rotate View', orbitTrapRotation: 'Rotate Trap',
         trapExpand: 'Expand Trap', trapContract: 'Contract Trap',
-        trapIteration: 'Cycle Iteration', gradientFade: 'Fade Gradient'
+        trapIteration: 'Cycle Iteration', gradientFade: 'Fade Gradient',
+        viewportTransition: 'Travel', snapshotTransition: 'Snapshot Transition'
     };
     function buildSummary() {
         const names = seg.modifications.map(m => effectLabels[m.type] || m.type).join(', ');
@@ -3603,6 +5524,7 @@ function buildSegmentCard(segIdx) {
     }
     function toggleCollapse() {
         collapsed = !collapsed;
+        seg.collapsed = collapsed; // Persist state
         card.querySelector('.seg-chevron').innerHTML = collapsed ? '&#9658;' : '&#9660;';
         card.querySelector('.segment-body').style.display = collapsed ? 'none' : '';
         card.querySelector('.seg-summary').textContent = collapsed ? buildSummary() : '';
@@ -3625,6 +5547,14 @@ function buildSegmentCard(segIdx) {
         e.target.value = seg.measures;
         if (collapsed) card.querySelector('.seg-summary').textContent = buildSummary();
     });
+    card.querySelector('.seg-pause').addEventListener('change', (e) => {
+        const totalBeats = seg.measures * 4;
+        seg.pauseBeats = Math.min(Math.max(0, parseFloat(e.target.value) || 0), totalBeats - 0.25);
+        e.target.value = seg.pauseBeats;
+    });
+    card.querySelector('.seg-easing').addEventListener('change', (e) => {
+        seg.easing = e.target.value;
+    });
 
     // --- Effect checkboxes (sync + refresh summary) ---
     card.querySelectorAll('.seg-effect').forEach(cb => {
@@ -3646,6 +5576,19 @@ function buildSegmentCard(segIdx) {
     card.querySelector('.seg-panDistance').addEventListener('change', () => syncSegmentModifications(segIdx));
     card.querySelectorAll('.seg-panCurve').forEach(r => r.addEventListener('change', () => syncSegmentModifications(segIdx)));
 
+    // --- Rotate view sub-option visibility ---
+    card.querySelector('.seg-rotateView-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-rotateView-options').style.display = e.target.checked ? '' : 'none';
+    });
+    card.querySelector('.seg-rotateViewDeg').addEventListener('change', () => syncSegmentModifications(segIdx));
+
+    // --- Orbit rotate degrees sub-option visibility ---
+    card.querySelector('.seg-orbitRotate-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-orbitRotate-degrees').style.display =
+            (e.target.checked && state.renderingMode === 'orbit-trap') ? '' : 'none';
+    });
+    card.querySelector('.seg-orbitRotateDeg').addEventListener('change', () => syncSegmentModifications(segIdx));
+
     // --- Trap expand/contract sub-option visibility ---
     card.querySelector('.seg-trapExpand-check').addEventListener('change', (e) => {
         card.querySelector('.seg-trapExpand-range').style.display =
@@ -3658,12 +5601,47 @@ function buildSegmentCard(segIdx) {
     card.querySelector('.seg-trapExpandMax').addEventListener('change', () => syncSegmentModifications(segIdx));
     card.querySelector('.seg-trapContractMin').addEventListener('change', () => syncSegmentModifications(segIdx));
 
+    // --- Zoom in/out sub-option visibility ---
+    card.querySelector('.seg-zoomIn-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-zoomIn-range').style.display = e.target.checked ? '' : 'none';
+    });
+    card.querySelector('.seg-zoomOut-check').addEventListener('change', (e) => {
+        card.querySelector('.seg-zoomOut-range').style.display = e.target.checked ? '' : 'none';
+    });
+    card.querySelector('.seg-zoomInScale').addEventListener('change', () => syncSegmentModifications(segIdx));
+    card.querySelector('.seg-zoomOutScale').addEventListener('change', () => syncSegmentModifications(segIdx));
+
     // --- Trap iteration sub-option visibility ---
     card.querySelector('.seg-trapIter-check').addEventListener('change', (e) => {
         card.querySelector('.seg-trapIter-max').style.display =
             (e.target.checked && state.renderingMode === 'orbit-trap' && state.trapAggregation === 'iteration') ? '' : 'none';
     });
     card.querySelector('.seg-trapIterMax').addEventListener('change', () => syncSegmentModifications(segIdx));
+
+    // --- Snapshot transition file picker ---
+    const snapshotLoadBtn = card.querySelector('.seg-snapshotLoad-btn');
+    const snapshotFileInput = card.querySelector('.seg-snapshotFile');
+    const snapshotLabel = card.querySelector('.seg-snapshotLabel');
+    snapshotLoadBtn.addEventListener('click', () => snapshotFileInput.click());
+    snapshotFileInput.addEventListener('change', () => {
+        loadSnapshotFromFileInput(snapshotFileInput, (snap) => {
+            const err = validateSnapshot(snap);
+            if (err) { alert('Invalid snapshot: ' + err); return; }
+            seg.modifications = seg.modifications.filter(m => m.type !== 'snapshotTransition');
+            seg.modifications.push({ type: 'snapshotTransition', target: snap });
+            const label = snap.label || snapshotFileInput.files[0]?.name || 'Snapshot loaded';
+            snapshotLabel.textContent = label;
+            if (collapsed) card.querySelector('.seg-summary').textContent = buildSummary();
+        });
+        snapshotFileInput.value = '';
+    });
+
+    // Apply persisted collapsed state on initial render
+    if (collapsed) {
+        card.querySelector('.seg-chevron').innerHTML = '&#9658;';
+        card.querySelector('.segment-body').style.display = 'none';
+        card.querySelector('.seg-summary').textContent = buildSummary();
+    }
 
     return card;
 }
@@ -3675,7 +5653,7 @@ function buildSegmentList() {
 }
 
 function addSegment() {
-    animationDef.segments.push({ bpm: 120, measures: 4, modifications: [] });
+    animationDef.segments.push({ bpm: 120, measures: 4, modifications: [], collapsed: false, easing: 'smooth', pauseBeats: 0 });
     buildSegmentList();
 }
 
@@ -3711,6 +5689,7 @@ function updateOrbitRotateVisibility() {
                 '.seg-effect[data-type="orbitTrapRotation"], .seg-effect[data-type="trapExpand"], ' +
                 '.seg-effect[data-type="trapContract"], .seg-effect[data-type="trapIteration"]'
             ).forEach(cb => { cb.checked = false; });
+            card.querySelector('.seg-orbitRotate-degrees').style.display = 'none';
             card.querySelector('.seg-trapExpand-range').style.display = 'none';
             card.querySelector('.seg-trapContract-range').style.display = 'none';
             card.querySelector('.seg-trapIter-max').style.display = 'none';
@@ -3727,8 +5706,166 @@ function updateOrbitRotateVisibility() {
 document.getElementById('exportGifBtn').addEventListener('click', captureGif);
 document.getElementById('addSegmentBtn').addEventListener('click', addSegment);
 
-document.getElementById('autoExploreBtn').addEventListener('click', () => {
-    autoExploreActive ? stopAutoExplore() : startAutoExplore();
+// Snapshot modal wiring
+const snapshotModal = document.getElementById('snapshotModal');
+const snapshotModalExport = document.getElementById('snapshotModalExport');
+const snapshotModalLoad = document.getElementById('snapshotModalLoad');
+
+function openSnapshotModal(panel) {
+    snapshotModalExport.style.display = panel === 'export' ? '' : 'none';
+    snapshotModalLoad.style.display = panel === 'load' ? '' : 'none';
+    snapshotModal.style.display = 'flex';
+}
+
+function closeSnapshotModal() {
+    snapshotModal.style.display = 'none';
+}
+
+snapshotModal.addEventListener('click', (e) => {
+    if (e.target === snapshotModal) closeSnapshotModal();
+});
+
+document.getElementById('snapshotExportBtn').addEventListener('click', () => {
+    document.getElementById('snapshotLabelInput').value = '';
+    document.getElementById('snapshotURLCopiedMsg').style.display = 'none';
+    openSnapshotModal('export');
+});
+
+document.getElementById('snapshotLoadBtn').addEventListener('click', () => {
+    document.getElementById('snapshotURLInput').value = '';
+    openSnapshotModal('load');
+});
+
+document.getElementById('snapshotExportCloseBtn').addEventListener('click', closeSnapshotModal);
+document.getElementById('snapshotLoadCloseBtn').addEventListener('click', closeSnapshotModal);
+
+document.getElementById('snapshotCopyURLBtn').addEventListener('click', () => {
+    const label = document.getElementById('snapshotLabelInput').value.trim();
+    const snap = captureSnapshot(label || undefined);
+    const hash = encodeSnapshotToHash(snap);
+    const url = location.href.replace(/#.*$/, '') + hash;
+    navigator.clipboard.writeText(url).then(() => {
+        const msg = document.getElementById('snapshotURLCopiedMsg');
+        msg.style.display = 'block';
+        setTimeout(() => { msg.style.display = 'none'; }, 2000);
+    });
+});
+
+document.getElementById('snapshotSaveFileBtn').addEventListener('click', () => {
+    const label = document.getElementById('snapshotLabelInput').value.trim();
+    const snap = captureSnapshot(label || undefined);
+    downloadSnapshotFile(snap);
+});
+
+document.getElementById('snapshotLoadURLBtn').addEventListener('click', () => {
+    const raw = document.getElementById('snapshotURLInput').value.trim();
+    // Accept either a full URL with hash or just the hash itself
+    const hashIdx = raw.indexOf('#');
+    const hash = hashIdx !== -1 ? raw.slice(hashIdx) : ('#snap=' + raw);
+    const snap = decodeSnapshotFromHash(hash);
+    if (!snap) {
+        alert('Could not load snapshot: invalid or unrecognized URL');
+        return;
+    }
+    if (applySnapshot(snap)) closeSnapshotModal();
+});
+
+document.getElementById('snapshotFileInput').addEventListener('change', (e) => {
+    loadSnapshotFromFileInput(e.target, (snap) => {
+        if (applySnapshot(snap)) closeSnapshotModal();
+    });
+    e.target.value = ''; // reset so same file can be loaded again
+});
+
+// Equation tab — formula, exponent, Julia mode
+
+function updateEquationDisplay() {
+    const display = document.getElementById('equationDisplay');
+    const note    = document.getElementById('equationNote');
+    const expSec  = document.getElementById('exponentSection');
+    if (!display) return;
+
+    const p    = state.exponent;
+    const pStr = Number.isInteger(p) ? String(p) : p.toFixed(1);
+
+    if (state.fractalType === 'burning-ship') {
+        display.innerHTML = 'z<sub>n+1</sub> = (|Re(z<sub>n</sub>)| + i|Im(z<sub>n</sub>)|)<sup>2</sup> + c';
+        if (note) note.innerHTML = 'A point c is in the Burning Ship set if z remains bounded as n &rarr; &infin;.';
+    } else if (state.fractalType === 'tricorn') {
+        display.innerHTML = 'z<sub>n+1</sub> = conj(z<sub>n</sub>)<sup>2</sup> + c';
+        if (note) note.innerHTML = 'A point c is in the Tricorn (Mandelbar) set if z remains bounded as n &rarr; &infin;.';
+    } else {
+        display.innerHTML = `z<sub>n+1</sub> = z<sub>n</sub><sup>${pStr}</sup> + c`;
+        if (note) note.innerHTML = `Starting from z<sub>0</sub> = 0, a point c is in the Mandelbrot set if z remains bounded as n &rarr; &infin;.`;
+    }
+
+    if (expSec) expSec.style.display = state.fractalType === 'mandelbrot' ? '' : 'none';
+}
+
+function updateJuliaCDisplay() {
+    const instruction = document.getElementById('juliaInstruction');
+    const cDisplay    = document.getElementById('juliaCDisplay');
+    if (!instruction || !cDisplay) return;
+
+    if (state.juliaC) {
+        instruction.style.display = 'none';
+        cDisplay.style.display    = '';
+        const re    = state.juliaC.re.toFixed(4);
+        const im    = state.juliaC.im;
+        const imStr = im >= 0 ? `+ ${im.toFixed(4)}` : `− ${Math.abs(im).toFixed(4)}`;
+        cDisplay.textContent = `c = ${re} ${imStr}i`;
+    } else {
+        instruction.style.display = '';
+        cDisplay.style.display    = 'none';
+    }
+}
+
+document.querySelectorAll('input[name="fractalType"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        if (state.fractalType === radio.value) return;
+        state.fractalType = radio.value;
+        // Clear Julia mode on formula switch (different parameter spaces)
+        state.juliaMode = false;
+        state.juliaC    = null;
+        const toggle   = document.getElementById('juliaModeToggle');
+        const juliaSec = document.getElementById('juliaCSection');
+        if (toggle)   toggle.checked            = false;
+        if (juliaSec) juliaSec.style.display    = 'none';
+        updateJuliaCDisplay();
+        updateEquationDisplay();
+        reset(); // resets viewport and calls render()
+        if (state.pathExplorerMode) renderPathBackground();
+    });
+});
+
+const exponentSlider  = document.getElementById('exponentSlider');
+const exponentDisplay = document.getElementById('exponentDisplay');
+
+exponentSlider.addEventListener('input', () => {
+    state.exponent = parseFloat(exponentSlider.value);
+    const disp = Number.isInteger(state.exponent) ? String(state.exponent) : state.exponent.toFixed(1);
+    exponentDisplay.textContent = disp;
+    updateEquationDisplay();
+});
+
+exponentSlider.addEventListener('change', () => {
+    render();
+    if (state.pathExplorerMode) renderPathBackground();
+});
+
+const juliaModeToggle = document.getElementById('juliaModeToggle');
+
+juliaModeToggle.addEventListener('change', () => {
+    state.juliaMode = juliaModeToggle.checked;
+    state.juliaC    = null;
+    const juliaSec = document.getElementById('juliaCSection');
+    if (juliaSec) juliaSec.style.display = state.juliaMode ? '' : 'none';
+    updateJuliaCDisplay();
+    if (!state.juliaMode) {
+        render();
+        if (state.pathExplorerMode) renderPathBackground();
+    }
+    // When enabling Julia mode, wait for user to click a point before rendering
 });
 
 // Initial render
@@ -3738,6 +5875,7 @@ render();
 buildGradientPreview();
 buildStopEditor();
 buildSegmentList();
+tryLoadSnapshotFromURL();
 
     </script>
 </body>
