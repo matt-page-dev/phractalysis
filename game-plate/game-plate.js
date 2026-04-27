@@ -341,7 +341,9 @@
         var t = e.changedTouches[i];
         if (!activeBtnTouches.has(t.identifier)) continue;
         var n = getButtonAtPoint(t.clientX, t.clientY);
-        if (n) activeBtnTouches.get(t.identifier).add(n);
+        var s = new Set();
+        if (n) s.add(n);
+        activeBtnTouches.set(t.identifier, s);
       }
       flushButtons();
     }, { passive: false });
