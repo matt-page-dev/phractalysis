@@ -57,8 +57,11 @@
 
   function setupOrientation(orientation) {
     if (orientation === 'auto') return;
+    var lockValue = orientation === 'landscape' ? 'landscape-primary'
+                  : orientation === 'portrait'  ? 'portrait-primary'
+                  : orientation;
     document.addEventListener('pointerdown', function () {
-      try { screen.orientation.lock(orientation).catch(function () {}); } catch (e) {}
+      try { screen.orientation.lock(lockValue).catch(function () {}); } catch (e) {}
     }, { once: true });
   }
 
@@ -112,10 +115,23 @@
       var THRESHOLD = 15;
       window.addEventListener('deviceorientation', function (e) {
         var s = sources.tilt;
-        s.left  = e.gamma < -THRESHOLD;
-        s.right = e.gamma >  THRESHOLD;
-        s.up    = e.beta  < -THRESHOLD;
-        s.down  = e.beta  >  THRESHOLD;
+        var type = screen.orientation ? screen.orientation.type : '';
+        if (type === 'landscape-primary') {
+          s.left  = e.beta  < -THRESHOLD;
+          s.right = e.beta  >  THRESHOLD;
+          s.up    = e.gamma < -THRESHOLD;
+          s.down  = e.gamma >  THRESHOLD;
+        } else if (type === 'landscape-secondary') {
+          s.left  = e.beta  >  THRESHOLD;
+          s.right = e.beta  < -THRESHOLD;
+          s.up    = e.gamma >  THRESHOLD;
+          s.down  = e.gamma < -THRESHOLD;
+        } else {
+          s.left  = e.gamma < -THRESHOLD;
+          s.right = e.gamma >  THRESHOLD;
+          s.up    = e.beta  < -THRESHOLD;
+          s.down  = e.beta  >  THRESHOLD;
+        }
         merge();
       });
     }

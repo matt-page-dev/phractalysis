@@ -77,7 +77,7 @@
     var ctx        = canvas.getContext('2d');
     var debug      = document.getElementById('debug');
 
-    var isMobile = /Mobi|Android/i.test(navigator.userAgent);
+    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     if (isMobile) { hint.style.display = 'none'; }
     else          { choice.style.display = 'none'; }
 
@@ -106,7 +106,7 @@
       if (document.fullscreenEnabled && !document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(function () {});
       }
-      try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {}
+      try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
 
       GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
       dismissSplash();
