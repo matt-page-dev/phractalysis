@@ -302,6 +302,7 @@
     var activeBtnTouches = new Map(); // identifier → Set<'a'|'b'>
     var AB_HYSTERESIS_MS = 30;
     var buttonFlushRaf = 0;
+    var buttonFlushTimer = 0;
     var stableButtons = { a: false, b: false };
     var dualTransitionTarget = null;
     var dualTransitionSince = 0;
@@ -353,19 +354,21 @@
           stableButtons.a = rawPressed.a;
           stableButtons.b = rawPressed.b;
           dualTransitionTarget = null;
+          return 0;
         }
-        return;
+        return AB_HYSTERESIS_MS - (nowMs - dualTransitionSince);
       }
 
       // Keep single-button transitions responsive when not changing dual-press mode.
       dualTransitionTarget = null;
       stableButtons.a = rawPressed.a;
       stableButtons.b = rawPressed.b;
+      return 0;
     }
 
     function flushButtons(nowMs) {
       var rawPressed = computePressedButtons();
-      updateStableButtons(rawPressed, nowMs || performance.now());
+      var pendingMs = updateStableButtons(rawPressed, nowMs || performance.now());
 
       for (var name in btnEls) {
         btnEls[name].classList.toggle('lit', stableButtons[name]);
@@ -374,14 +377,31 @@
       var didChange =
         sources.touch.a !== stableButtons.a ||
         sources.touch.b !== stableButtons.b;
-      if (!didChange) return;
+      if (!didChange) {
+        if (pendingMs > 0) {
+          scheduleButtonFlush(pendingMs);
+        }
+        return;
+      }
 
       sources.touch.a = stableButtons.a;
       sources.touch.b = stableButtons.b;
       merge();
+
+      if (pendingMs > 0) {
+        scheduleButtonFlush(pendingMs);
+      }
     }
 
-    function scheduleButtonFlush() {
+    function scheduleButtonFlush(delayMs) {
+      if (delayMs && delayMs > 0) {
+        if (buttonFlushTimer) return;
+        buttonFlushTimer = setTimeout(function () {
+          buttonFlushTimer = 0;
+          scheduleButtonFlush();
+        }, Math.ceil(delayMs));
+        return;
+      }
       if (buttonFlushRaf) return;
       buttonFlushRaf = requestAnimationFrame(function (ts) {
         buttonFlushRaf = 0;
