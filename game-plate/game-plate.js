@@ -300,6 +300,11 @@
       b: overlay.querySelector('#gp-btn-b')
     };
     var activeBtnTouches = new Map(); // identifier → Set<'a'|'b'>
+    var AB_HYSTERESIS_MS = 30;
+    var buttonFlushRaf = 0;
+    var stableButtons = { a: false, b: false };
+    var dualTransitionTarget = null;
+    var dualTransitionSince = 0;
 
     function getButtonAtPoint(x, y) {
       for (var name in btnEls) {
@@ -327,16 +332,61 @@
       return result;
     }
 
-    function flushButtons() {
+    function computePressedButtons() {
       var pressed = { a: false, b: false };
       activeBtnTouches.forEach(function (names) {
         names.forEach(function (n) { pressed[n] = true; });
       });
-      for (var name in btnEls) {
-        sources.touch[name] = pressed[name];
-        btnEls[name].classList.toggle('lit', pressed[name]);
+      return pressed;
+    }
+
+    function updateStableButtons(rawPressed, nowMs) {
+      var rawBoth = rawPressed.a && rawPressed.b;
+      var stableBoth = stableButtons.a && stableButtons.b;
+
+      if (rawBoth !== stableBoth) {
+        if (dualTransitionTarget !== rawBoth) {
+          dualTransitionTarget = rawBoth;
+          dualTransitionSince = nowMs;
+        }
+        if (nowMs - dualTransitionSince >= AB_HYSTERESIS_MS) {
+          stableButtons.a = rawPressed.a;
+          stableButtons.b = rawPressed.b;
+          dualTransitionTarget = null;
+        }
+        return;
       }
+
+      // Keep single-button transitions responsive when not changing dual-press mode.
+      dualTransitionTarget = null;
+      stableButtons.a = rawPressed.a;
+      stableButtons.b = rawPressed.b;
+    }
+
+    function flushButtons(nowMs) {
+      var rawPressed = computePressedButtons();
+      updateStableButtons(rawPressed, nowMs || performance.now());
+
+      for (var name in btnEls) {
+        btnEls[name].classList.toggle('lit', stableButtons[name]);
+      }
+
+      var didChange =
+        sources.touch.a !== stableButtons.a ||
+        sources.touch.b !== stableButtons.b;
+      if (!didChange) return;
+
+      sources.touch.a = stableButtons.a;
+      sources.touch.b = stableButtons.b;
       merge();
+    }
+
+    function scheduleButtonFlush() {
+      if (buttonFlushRaf) return;
+      buttonFlushRaf = requestAnimationFrame(function (ts) {
+        buttonFlushRaf = 0;
+        flushButtons(ts);
+      });
     }
 
     var btnsContainer = overlay.querySelector('#gp-buttons');
@@ -347,7 +397,7 @@
         var t = e.changedTouches[i];
         activeBtnTouches.set(t.identifier, getButtonsAtTouch(t));
       }
-      flushButtons();
+      scheduleButtonFlush();
     }, { passive: false });
 
     btnsContainer.addEventListener('touchmove', function (e) {
@@ -357,7 +407,7 @@
         if (!activeBtnTouches.has(t.identifier)) continue;
         activeBtnTouches.set(t.identifier, getButtonsAtTouch(t));
       }
-      flushButtons();
+      scheduleButtonFlush();
     }, { passive: false });
 
     function btnsEnd(e) {
@@ -365,7 +415,7 @@
       for (var i = 0; i < e.changedTouches.length; i++) {
         activeBtnTouches.delete(e.changedTouches[i].identifier);
       }
-      flushButtons();
+      scheduleButtonFlush();
     }
     btnsContainer.addEventListener('touchend',    btnsEnd, { passive: false });
     btnsContainer.addEventListener('touchcancel', btnsEnd, { passive: false });
