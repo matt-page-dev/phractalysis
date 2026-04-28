@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Grid Fall</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #06080e; overflow: hidden; }
+    canvas { display: block; }
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: #06080e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash h1 {
+      margin: 0;
+      font: 700 52px/1 sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #e8f3ff;
+    }
+    #splash-choice { display: flex; gap: 14px; }
+    .splash-btn {
+      padding: 14px 24px;
+      font: 600 16px/1 sans-serif;
+      color: #dbe9ff;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .splash-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.45); }
+    #splash-hint {
+      margin: 0;
+      font: 17px/1 sans-serif;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 0.95; }
+    }
+    #hud {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      font: 12px/1.4 monospace;
+      color: rgba(220, 237, 255, 0.82);
+      pointer-events: none;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud"></div>
+  <div id="splash">
+    <h1>Grid Fall</h1>
+    <div id="splash-choice">
+      <button class="splash-btn" id="btn-controller">Controller</button>
+      <button class="splash-btn" id="btn-tilt">Tilt</button>
+    </div>
+    <p id="splash-hint">click to start</p>
+  </div>
+
+  <script src="game-plate.js"></script>
+  <script>
+    var splash = document.getElementById('splash');
+    var choice = document.getElementById('splash-choice');
+    var hint = document.getElementById('splash-hint');
+    var canvas = document.getElementById('game');
+    var ctx = canvas.getContext('2d');
+    var hud = document.getElementById('hud');
+
+    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (isMobile) { hint.style.display = 'none'; }
+    else { choice.style.display = 'none'; }
+
+    var centerX = 0;
+    var centerY = 0;
+    var fov = 560;
+
+    var camX = 0;
+    var camY = 0;
+    var camZ = 0;
+
+    var GRID_STEP = 140;
+    var GRID_RANGE_XY = 9;
+    var GRID_RANGE_Z = 20;
+    var BASE_SPEED = 7.2;
+    var BOOST_SPEED = 14.2;
+    var BRAKE_SPEED = 2.5;
+    var STRAFE_SPEED = 5.4;
+    var VERTICAL_SPEED = 5.4;
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      centerX = canvas.width / 2;
+      centerY = canvas.height / 2;
+      fov = Math.min(canvas.width, canvas.height) * 0.82;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function dismissSplash() {
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
+    }
+
+    function start(controller) {
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+      try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
+      dismissSplash();
+    }
+
+    document.getElementById('btn-controller').addEventListener('click', function () { start('nes'); });
+    document.getElementById('btn-tilt').addEventListener('click', function () { start('tilt'); });
+    hint.addEventListener('click', function () { start('keyboard'); });
+
+    function mod(n, m) {
+      return ((n % m) + m) % m;
+    }
+
+    function drawOrb(screenX, screenY, radius, color, alpha) {
+      var glow = radius * 2.2;
+      var g = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, glow);
+      g.addColorStop(0, 'rgba(255,255,255,' + (0.8 * alpha) + ')');
+      g.addColorStop(0.35, color.replace('__A__', String(0.8 * alpha)));
+      g.addColorStop(1, color.replace('__A__', '0'));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, glow, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = color.replace('__A__', String(alpha));
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function loop() {
+      var inp = GamePlate.input || {};
+
+      var speed = BASE_SPEED;
+      if (inp.a) speed = BOOST_SPEED;
+      if (inp.b) speed = BRAKE_SPEED;
+
+      if (inp.left) camX -= STRAFE_SPEED;
+      if (inp.right) camX += STRAFE_SPEED;
+      if (inp.up) camY -= VERTICAL_SPEED;
+      if (inp.down) camY += VERTICAL_SPEED;
+      camZ += speed;
+
+      ctx.fillStyle = '#06080e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      var gxCenter = Math.round(camX / GRID_STEP);
+      var gyCenter = Math.round(camY / GRID_STEP);
+      var gzFront = Math.floor(camZ / GRID_STEP);
+
+      var points = [];
+      for (var iz = -2; iz <= GRID_RANGE_Z; iz++) {
+        var gz = gzFront + iz;
+        var worldZ = gz * GRID_STEP;
+        var relZ = worldZ - camZ;
+        if (relZ < 30 || relZ > 5200) continue;
+
+        for (var ix = -GRID_RANGE_XY; ix <= GRID_RANGE_XY; ix++) {
+          var gx = gxCenter + ix;
+          var worldX = gx * GRID_STEP;
+          var relX = worldX - camX;
+
+          for (var iy = -GRID_RANGE_XY; iy <= GRID_RANGE_XY; iy++) {
+            var gy = gyCenter + iy;
+            var worldY = gy * GRID_STEP;
+            var relY = worldY - camY;
+
+            var scale = fov / relZ;
+            var screenX = centerX + relX * scale;
+            var screenY = centerY + relY * scale;
+            if (screenX < -50 || screenX > canvas.width + 50 || screenY < -50 || screenY > canvas.height + 50) {
+              continue;
+            }
+
+            var marker = (mod(gx, 5) === 0) && (mod(gy, 5) === 0) && (mod(gz, 5) === 0);
+            var depthT = 1 - Math.min(relZ / 5200, 1);
+            var baseRadius = marker ? 2.2 : 1.1;
+            var radius = baseRadius + depthT * (marker ? 6.0 : 3.2);
+            var alpha = marker ? (0.45 + depthT * 0.55) : (0.2 + depthT * 0.42);
+            var color = marker ? 'rgba(255,145,72,__A__)' : 'rgba(92,197,255,__A__)';
+
+            points.push({
+              z: relZ,
+              x: screenX,
+              y: screenY,
+              radius: radius,
+              alpha: alpha,
+              color: color
+            });
+          }
+        }
+      }
+
+      points.sort(function (a, b) { return b.z - a.z; });
+      for (var i = 0; i < points.length; i++) {
+        var p = points[i];
+        drawOrb(p.x, p.y, p.radius, p.color, p.alpha);
+      }
+
+      hud.textContent =
+        'forward:' + speed.toFixed(1) + '\n' +
+        'x:' + camX.toFixed(1) + ' y:' + camY.toFixed(1) + '\n' +
+        'A boost:' + +!!inp.a + '  B brake:' + +!!inp.b;
+
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
