@@ -36,7 +36,7 @@
       cursor: pointer;
       animation: pulse 2s ease-in-out infinite;
     }
-    #splash-btn {
+    .ctrl-btn {
       padding: 14px 32px;
       font: 600 16px/1 sans-serif;
       color: #d8c0ff;
@@ -46,9 +46,9 @@
       border: 2px solid rgba(150,80,255,0.35);
       border-radius: 8px;
       cursor: pointer;
-      display: none;
     }
-    #splash-btn:hover { background: rgba(150,80,255,0.28); }
+    .ctrl-btn:hover { background: rgba(150,80,255,0.28); }
+    #ctrl-choice { display: none; gap: 16px; }
     @keyframes pulse {
       0%, 100% { opacity: 0.45; }
       50%       { opacity: 0.95; }
@@ -59,20 +59,25 @@
   <canvas id="game"></canvas>
   <div id="splash">
     <h1>Mega-Bat</h1>
-    <p   id="splash-hint">click to start</p>
-    <button id="splash-btn">Play</button>
+    <p id="splash-hint">click to start</p>
+    <div id="ctrl-choice">
+      <button class="ctrl-btn" id="btn-nes">NES Pad</button>
+      <button class="ctrl-btn" id="btn-tilt">Tilt</button>
+    </div>
   </div>
 
   <script src="./game-plate.js"></script>
   <script>
     var canvas = document.getElementById('game');
     var ctx    = canvas.getContext('2d');
-    var splash = document.getElementById('splash');
-    var hint   = document.getElementById('splash-hint');
-    var btn    = document.getElementById('splash-btn');
+    var splash     = document.getElementById('splash');
+    var hint       = document.getElementById('splash-hint');
+    var ctrlChoice = document.getElementById('ctrl-choice');
+    var btnNes     = document.getElementById('btn-nes');
+    var btnTilt    = document.getElementById('btn-tilt');
 
     var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-    if (isMobile) { hint.style.display = 'none'; btn.style.display = 'block'; }
+    if (isMobile) { hint.style.display = 'none'; ctrlChoice.style.display = 'flex'; }
 
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; buildVignette(); }
     window.addEventListener('resize', resize);
@@ -83,13 +88,21 @@
       splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
     }
 
-    function start() {
-      GamePlate.init({ orientation: 'landscape', controller: isMobile ? 'nes' : 'keyboard', fullscreen: true });
+    hint.addEventListener('click', function () {
+      GamePlate.init({ orientation: 'landscape', controller: 'keyboard', fullscreen: true });
       dismissSplash();
-    }
+    });
 
-    hint.addEventListener('click', start);
-    btn.addEventListener('click', start);
+    btnNes.addEventListener('click', function () {
+      GamePlate.init({ orientation: 'landscape', controller: 'nes', fullscreen: true });
+      dismissSplash();
+    });
+
+    btnTilt.addEventListener('click', function () {
+      try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
+      GamePlate.init({ orientation: 'landscape', controller: 'tilt', fullscreen: true });
+      dismissSplash();
+    });
 
     // ── sprite sheet ──────────────────────────────────────────────
     // 1280×1280, 5 cols × 5 rows, 256×256 per frame, transparent PNG.
@@ -99,7 +112,7 @@
     var ROW_H   = 256;
     var FRAMES  = 5;
     var FPS     = 8;
-    var SCALE   = 1.5;
+    var SCALE   = 0.75;
     var EYE_X   = 110;  // source x of eye within frame (tune me)
     var EYE_Y   = 100;  // source y of eye within frame (tune me)
 
