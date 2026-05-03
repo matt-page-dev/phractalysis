@@ -151,7 +151,9 @@
 
   // ─── Virtual NES Controller ───────────────────────────────────────────────────
 
-  function setupVirtualController() {
+  function setupVirtualController(buttons) {
+    var labelA = (buttons && buttons.a) ? buttons.a : 'A';
+    var labelB = (buttons && buttons.b) ? buttons.b : 'B';
     var style = document.createElement('style');
     style.textContent = [
       '#gp-overlay{',
@@ -222,8 +224,8 @@
         '<div class="gp-arrow right" id="gp-arr-right"></div>',
       '</div>',
       '<div id="gp-buttons">',
-        '<div class="gp-btn gp-btn-b" id="gp-btn-b">B</div>',
-        '<div class="gp-btn gp-btn-a" id="gp-btn-a">A</div>',
+        '<div class="gp-btn gp-btn-b" id="gp-btn-b">' + labelB + '</div>',
+        '<div class="gp-btn gp-btn-a" id="gp-btn-a">' + labelA + '</div>',
       '</div>',
     ].join('');
 
@@ -561,6 +563,7 @@
       var orientation = config.orientation !== undefined ? config.orientation : 'landscape';
       var controller  = config.controller  !== undefined ? config.controller  : 'auto';
       var fullscreen  = config.fullscreen  !== undefined ? config.fullscreen  : true;
+      var buttons     = config.buttons     !== undefined ? config.buttons     : {};
 
       if (fullscreen) setupFullscreen();
       setupOrientation(orientation);
@@ -573,7 +576,7 @@
       if (controller === 'tilt') {
         setupTilt();
       } else if (controller === 'nes' || (controller === 'auto' && hasTouch)) {
-        setupVirtualController();
+        setupVirtualController(buttons);
       }
     }
   };

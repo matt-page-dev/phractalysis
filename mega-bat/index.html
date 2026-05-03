@@ -140,7 +140,11 @@
         document.documentElement.requestFullscreen().catch(function () {});
       }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
-      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Flap', b: 'Bite' } });
+      if (mode === 'easy') {
+        var bBtn = document.getElementById('gp-btn-b');
+        if (bBtn) bBtn.style.display = 'none';
+      }
       dismissSplash();
       gameState = 'playing';
     }
@@ -153,7 +157,8 @@
     var gameMode  = 'easy';
     var score     = 0;
     var timeLeft  = 30000;
-    var highScore = parseInt(localStorage.getItem('megabat-highscore') || '0', 10);
+    var highScoreEasy = parseInt(localStorage.getItem('megabat-highscore-easy') || '0', 10);
+    var highScoreHard = parseInt(localStorage.getItem('megabat-highscore-hard') || '0', 10);
 
     var gameoverDiv = document.getElementById('gameover');
     var goScore     = document.getElementById('go-score');
@@ -161,8 +166,11 @@
     var goNewBest   = document.getElementById('go-newbest');
     var splashBest  = document.getElementById('splash-best');
 
-    if (highScore > 0) {
-      splashBest.textContent = 'Best: ' + highScore + (highScore === 1 ? ' bug' : ' bugs');
+    if (highScoreEasy > 0 || highScoreHard > 0) {
+      var parts = [];
+      if (highScoreEasy > 0) parts.push('Easy: ' + highScoreEasy);
+      if (highScoreHard > 0) parts.push('Hard: ' + highScoreHard);
+      splashBest.textContent = parts.join('  |  ');
       splashBest.style.display = 'block';
     }
 
@@ -181,10 +189,17 @@
 
     function triggerGameOver() {
       gameState = 'gameover';
+      var highScore = gameMode === 'easy' ? highScoreEasy : highScoreHard;
       var isNewBest = score > highScore;
       if (isNewBest) {
         highScore = score;
-        localStorage.setItem('megabat-highscore', String(highScore));
+        if (gameMode === 'easy') {
+          highScoreEasy = score;
+          localStorage.setItem('megabat-highscore-easy', String(score));
+        } else {
+          highScoreHard = score;
+          localStorage.setItem('megabat-highscore-hard', String(score));
+        }
       }
       goScore.textContent = 'You got ' + score + (score === 1 ? ' bug' : ' bugs') + '!';
       goBest.textContent  = 'Best: ' + highScore + (highScore === 1 ? ' bug' : ' bugs');
@@ -229,6 +244,8 @@
     var ORB_LIFETIME_MAX     = 8000;
     var PURPLE_CHANCE        = 0.15;
     var PURPLE_MAX_SPEED     = 0.15;
+    var GREEN_CHANCE         = 0.04;
+    var GREEN_MAX_SPEED      = 0.35;
     var AUTO_BITE_FPS        = 24;
 
     var orbs        = [];
@@ -237,18 +254,21 @@
     var chompSound  = new Audio('./assets/sounds/megabat-chomp.mp3');
 
     function spawnOrb(ts) {
-      var isPurple = Math.random() < PURPLE_CHANCE;
+      var rand = Math.random();
+      var type = rand < GREEN_CHANCE ? 'green'
+               : rand < GREEN_CHANCE + PURPLE_CHANCE ? 'purple'
+               : 'bug';
       var a = Math.random() * Math.PI * 2;
       var r = ORB_SPAWN_RADIUS_MIN + Math.random() * (ORB_SPAWN_RADIUS_MAX - ORB_SPAWN_RADIUS_MIN);
       orbs.push({
         x:         camX + Math.cos(a) * r,
         y:         camY + Math.sin(a) * r,
-        type:      isPurple ? 'purple' : 'bug',
+        type:      type,
         phase:     Math.random() * Math.PI * 2,
         spawnedAt: ts,
         lifetime:  ORB_LIFETIME_MIN + Math.random() * (ORB_LIFETIME_MAX - ORB_LIFETIME_MIN),
-        vx:        isPurple ? (Math.random() - 0.5) * 0.1 : 0,
-        vy:        isPurple ? (Math.random() - 0.5) * 0.1 : 0,
+        vx:        type !== 'bug' ? (Math.random() - 0.5) * 0.2 : 0,
+        vy:        type !== 'bug' ? (Math.random() - 0.5) * 0.2 : 0,
         consumed:  false
       });
     }
@@ -432,6 +452,13 @@
           orb.vy = Math.max(-PURPLE_MAX_SPEED, Math.min(PURPLE_MAX_SPEED, orb.vy));
           orb.x += orb.vx * dt;
           orb.y += orb.vy * dt;
+        } else if (orb.type === 'green') {
+          orb.vx += (Math.random() - 0.5) * 0.003 * dt;
+          orb.vy += (Math.random() - 0.5) * 0.003 * dt;
+          orb.vx = Math.max(-GREEN_MAX_SPEED, Math.min(GREEN_MAX_SPEED, orb.vx));
+          orb.vy = Math.max(-GREEN_MAX_SPEED, Math.min(GREEN_MAX_SPEED, orb.vy));
+          orb.x += orb.vx * dt;
+          orb.y += orb.vy * dt;
         } else {
           activeBugCount++;
         }
@@ -468,12 +495,11 @@
           if (odist < ORB_EAT_DIST && facing) {
             if (isGliding) {
               orb.consumed = true;
-              score += orb.type === 'purple' ? 5 : 1;
+              score += orb.type === 'purple' ? 5 : orb.type === 'green' ? 10 : 1;
               chompSound.currentTime = 0; chompSound.play();
             } else if (!autoBiting) {
               autoBiting  = true; autoBiteOrb = orb;
               animFrame   = 0; animElapsed = 0;
-              chompSound.currentTime = 0; chompSound.play();
             }
           }
         }
@@ -487,7 +513,7 @@
           var nextFrame = (animFrame + 1) % FRAMES;
           if (autoBiting && nextFrame === 0) {
             if (autoBiteOrb) {
-              score += autoBiteOrb.type === 'purple' ? 5 : 1;
+              score += autoBiteOrb.type === 'purple' ? 5 : autoBiteOrb.type === 'green' ? 10 : 1;
               autoBiteOrb.consumed = true;
               chompSound.currentTime = 0; chompSound.play();
             }
@@ -519,10 +545,11 @@
       ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.textAlign = 'right';
       ctx.fillText(score + (score === 1 ? ' bug' : ' bugs'), canvas.width - 20, 22);
-      if (highScore > 0) {
+      var hudBest = gameMode === 'easy' ? highScoreEasy : highScoreHard;
+      if (hudBest > 0) {
         ctx.font = '16px monospace';
         ctx.fillStyle = 'rgba(180,130,255,0.55)';
-        ctx.fillText('best ' + highScore, canvas.width - 20, 58);
+        ctx.fillText('best ' + hudBest, canvas.width - 20, 58);
       }
       ctx.restore();
 
@@ -538,7 +565,7 @@
         if (orb.consumed) continue;
         var sx = canvas.width  / 2 + (orb.x - camX);
         var sy = canvas.height / 2 + (orb.y - camY);
-        var baseR   = orb.type === 'purple' ? ORB_RADIUS * 1.4 : ORB_RADIUS;
+        var baseR   = (orb.type === 'purple' || orb.type === 'green') ? ORB_RADIUS * 1.4 : ORB_RADIUS;
         var twinkle = 0.85 + 0.15 * Math.sin(ts * 0.004 + orb.phase);
         var dr      = baseR * twinkle;
         if (sx < -dr * 3 || sx > canvas.width  + dr * 3) continue;
@@ -550,6 +577,11 @@
           grd.addColorStop(0.3, 'rgba(180,60,255,0.85)');
           grd.addColorStop(0.7, 'rgba(100,0,200,0.4)');
           grd.addColorStop(1,   'rgba(100,0,200,0)');
+        } else if (orb.type === 'green') {
+          grd.addColorStop(0,   'rgba(180,255,160,' + glow + ')');
+          grd.addColorStop(0.3, 'rgba(40,220,60,0.85)');
+          grd.addColorStop(0.7, 'rgba(0,150,20,0.4)');
+          grd.addColorStop(1,   'rgba(0,150,20,0)');
         } else {
           grd.addColorStop(0,   'rgba(255,240,80,' + glow + ')');
           grd.addColorStop(0.3, 'rgba(255,140,20,0.85)');
