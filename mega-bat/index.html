@@ -27,14 +27,18 @@
       text-transform: uppercase;
       color: #d8c0ff;
     }
-    #splash-hint {
+    #splash-mode {
       margin: 0;
-      font: 17px/1 sans-serif;
-      color: rgba(200,170,255,0.6);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      cursor: pointer;
-      animation: pulse 2s ease-in-out infinite;
+      font: 500 18px/1 sans-serif;
+      color: rgba(200,170,255,0.55);
+      letter-spacing: 0.06em;
+    }
+    #splash-best {
+      margin: 0;
+      font: 500 15px/1 sans-serif;
+      color: rgba(180,130,255,0.5);
+      letter-spacing: 0.06em;
+      display: none;
     }
     .ctrl-btn {
       padding: 14px 32px;
@@ -48,36 +52,74 @@
       cursor: pointer;
     }
     .ctrl-btn:hover { background: rgba(150,80,255,0.28); }
-    #ctrl-choice { display: none; gap: 16px; }
+    #ctrl-choice { display: flex; gap: 16px; }
+    #ctrl-choice .btn-easy { border-color: rgba(80,200,150,0.45); }
+    #ctrl-choice .btn-easy:hover { background: rgba(80,200,150,0.18); }
+    #ctrl-choice .btn-hard { border-color: rgba(255,80,80,0.45); }
+    #ctrl-choice .btn-hard:hover { background: rgba(255,80,80,0.18); }
     @keyframes pulse {
       0%, 100% { opacity: 0.45; }
       50%       { opacity: 0.95; }
+    }
+    #gameover {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: #0d0a14;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    #gameover h1 {
+      margin: 0;
+      font: 700 52px/1 sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #d8c0ff;
+    }
+    #gameover .score-line {
+      margin: 0;
+      font: 500 26px/1 sans-serif;
+      color: rgba(200,170,255,0.8);
+    }
+    #go-newbest {
+      margin: 0;
+      font: 700 22px/1 sans-serif;
+      color: #b060ff;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      animation: pulse 1s ease-in-out infinite;
     }
   </style>
 </head>
 <body>
   <canvas id="game"></canvas>
   <div id="splash">
-    <h1>Mega-Bat</h1>
-    <p id="splash-hint">click to start</p>
+    <h1>MegaBat</h1>
+    <p id="splash-mode">How many bugs in 30 seconds?</p>
+    <p id="splash-best"></p>
     <div id="ctrl-choice">
-      <button class="ctrl-btn" id="btn-nes">NES Pad</button>
-      <button class="ctrl-btn" id="btn-tilt">Tilt</button>
+      <button class="ctrl-btn btn-easy" id="btn-easy">Easy</button>
+      <button class="ctrl-btn btn-hard" id="btn-hard">Hard</button>
     </div>
+  </div>
+  <div id="gameover">
+    <h1>Time's Up!</h1>
+    <p id="go-score" class="score-line"></p>
+    <p id="go-best" class="score-line"></p>
+    <p id="go-newbest" style="display:none">New Best!</p>
+    <button class="ctrl-btn" onclick="resetGame()">Play Again</button>
   </div>
 
   <script src="./game-plate.js"></script>
   <script>
     var canvas = document.getElementById('game');
     var ctx    = canvas.getContext('2d');
-    var splash     = document.getElementById('splash');
-    var hint       = document.getElementById('splash-hint');
-    var ctrlChoice = document.getElementById('ctrl-choice');
-    var btnNes     = document.getElementById('btn-nes');
-    var btnTilt    = document.getElementById('btn-tilt');
-
-    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-    if (isMobile) { hint.style.display = 'none'; ctrlChoice.style.display = 'flex'; }
+    var splash  = document.getElementById('splash');
+    var btnEasy = document.getElementById('btn-easy');
+    var btnHard = document.getElementById('btn-hard');
 
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; buildVignette(); }
     window.addEventListener('resize', resize);
@@ -85,24 +127,70 @@
 
     function dismissSplash() {
       splash.classList.add('hidden');
-      splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
+      splash.addEventListener('transitionend', function () {
+        splash.style.display = 'none';
+      }, { once: true });
     }
 
-    hint.addEventListener('click', function () {
-      GamePlate.init({ orientation: 'landscape', controller: 'keyboard', fullscreen: true });
-      dismissSplash();
-    });
-
-    btnNes.addEventListener('click', function () {
-      GamePlate.init({ orientation: 'landscape', controller: 'nes', fullscreen: true });
-      dismissSplash();
-    });
-
-    btnTilt.addEventListener('click', function () {
+    function start(mode) {
+      gameMode = mode;
+      var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+      var controller = isMobile ? 'nes' : 'keyboard';
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
-      GamePlate.init({ orientation: 'landscape', controller: 'tilt', fullscreen: true });
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
       dismissSplash();
-    });
+      gameState = 'playing';
+    }
+
+    btnEasy.addEventListener('click', function () { start('easy'); });
+    btnHard.addEventListener('click', function () { start('hard'); });
+
+    // ── game state ────────────────────────────────────────────────
+    var gameState = 'splash';
+    var gameMode  = 'easy';
+    var score     = 0;
+    var timeLeft  = 30000;
+    var highScore = parseInt(localStorage.getItem('megabat-highscore') || '0', 10);
+
+    var gameoverDiv = document.getElementById('gameover');
+    var goScore     = document.getElementById('go-score');
+    var goBest      = document.getElementById('go-best');
+    var goNewBest   = document.getElementById('go-newbest');
+    var splashBest  = document.getElementById('splash-best');
+
+    if (highScore > 0) {
+      splashBest.textContent = 'Best: ' + highScore + (highScore === 1 ? ' bug' : ' bugs');
+      splashBest.style.display = 'block';
+    }
+
+    function resetGame() {
+      score = 0;
+      timeLeft = 30000;
+      orbs = [];
+      autoBiting = false; autoBiteOrb = null;
+      camX = 0; camY = 0; velX = 0; velY = 0;
+      animFrame = 0; animRow = 0; animElapsed = 0;
+      glideAnimFrame = 3; glideAnimTimer = 1500;
+      flipX = false; prevB = false; prev = 0;
+      gameoverDiv.style.display = 'none';
+      gameState = 'playing';
+    }
+
+    function triggerGameOver() {
+      gameState = 'gameover';
+      var isNewBest = score > highScore;
+      if (isNewBest) {
+        highScore = score;
+        localStorage.setItem('megabat-highscore', String(highScore));
+      }
+      goScore.textContent = 'You got ' + score + (score === 1 ? ' bug' : ' bugs') + '!';
+      goBest.textContent  = 'Best: ' + highScore + (highScore === 1 ? ' bug' : ' bugs');
+      goNewBest.style.display = isNewBest ? 'block' : 'none';
+      gameoverDiv.style.display = 'flex';
+    }
 
     // ── sprite sheet ──────────────────────────────────────────────
     // 1280×1280, 5 cols × 5 rows, 256×256 per frame, transparent PNG.
@@ -119,6 +207,8 @@
     var animFrame   = 0;
     var animRow     = 0;
     var animElapsed = 0;
+    var glideAnimFrame = 3;
+    var glideAnimTimer = 1500;
     var flipX       = false;  // true when bat moves right (sprite faces left natively)
 
     var spriteCanvas = new Image();
@@ -129,9 +219,51 @@
 
     var prevB = false;
 
-    // ── camera ───────────────────────────────────────────────────
+    // ── orbs ─────────────────────────────────────────────────────
+    var ORB_RADIUS           = 5;
+    var ORB_EAT_DIST         = 50;
+    var ORB_TARGET           = 10;
+    var ORB_SPAWN_RADIUS_MIN = 300;
+    var ORB_SPAWN_RADIUS_MAX = 700;
+    var ORB_LIFETIME_MIN     = 3000;
+    var ORB_LIFETIME_MAX     = 8000;
+    var PURPLE_CHANCE        = 0.15;
+    var PURPLE_MAX_SPEED     = 0.15;
+    var AUTO_BITE_FPS        = 24;
+
+    var orbs        = [];
+    var autoBiting  = false;
+    var autoBiteOrb = null;
+    var chompSound  = new Audio('./assets/sounds/megabat-chomp.mp3');
+
+    function spawnOrb(ts) {
+      var isPurple = Math.random() < PURPLE_CHANCE;
+      var a = Math.random() * Math.PI * 2;
+      var r = ORB_SPAWN_RADIUS_MIN + Math.random() * (ORB_SPAWN_RADIUS_MAX - ORB_SPAWN_RADIUS_MIN);
+      orbs.push({
+        x:         camX + Math.cos(a) * r,
+        y:         camY + Math.sin(a) * r,
+        type:      isPurple ? 'purple' : 'bug',
+        phase:     Math.random() * Math.PI * 2,
+        spawnedAt: ts,
+        lifetime:  ORB_LIFETIME_MIN + Math.random() * (ORB_LIFETIME_MAX - ORB_LIFETIME_MIN),
+        vx:        isPurple ? (Math.random() - 0.5) * 0.1 : 0,
+        vy:        isPurple ? (Math.random() - 0.5) * 0.1 : 0,
+        consumed:  false
+      });
+    }
+
+    // ── physics ──────────────────────────────────────────────────
     var camX = 0, camY = 0;
-    var SPEED = 0.2;  // px per ms
+    var velX = 0, velY = 0;
+
+    var PASSIVE_ACCEL = 0.00008;
+    var ACCEL         = 0.0004;
+    var GRAVITY       = 0.0001;
+    var FLAP_FORCE    = 0.00025;
+    var GLIDE_FACTOR  = 0.3;
+    var MAX_SPEED     = 0.4;
+    var DAMPING       = 0.999;
 
     // ── cavern background tiles ──────────────────────────────────
     function mulberry32(seed) {
@@ -230,21 +362,141 @@
     var prev = 0;
     function loop(ts) {
       requestAnimationFrame(loop);
+      if (GamePlate.paused) return;
+      if (gameState !== 'playing') return;
 
       var dt = ts - prev; if (dt > 50) dt = 50; prev = ts;
       var inp = GamePlate.input || {};
 
-      // Move camera; track which way bat faces (sprite is natively left-facing)
-      if (inp.left)  { camX -= SPEED * dt; flipX = true;  }
-      if (inp.right) { camX += SPEED * dt; flipX = false; }
-      if (inp.up)    camY -= SPEED * dt;
-      if (inp.down)  camY += SPEED * dt;
+      // Timer countdown
+      timeLeft -= dt;
+      if (timeLeft <= 0) {
+        timeLeft = 0;
+        triggerGameOver();
+        return;
+      }
 
-      // Advance sprite animation
-      animElapsed += dt;
-      if (animElapsed >= 1000 / FPS) {
-        animFrame    = (animFrame + 1) % FRAMES;
-        animElapsed -= 1000 / FPS;
+      // Facing direction
+      if (inp.left)  flipX = true;
+      if (inp.right) flipX = false;
+
+      var isGliding      = gameMode === 'easy' && !!inp.b;
+      var isFlapping     = !!inp.a && !isGliding;
+      var isAnimatingFlap = !!inp.a && !isGliding;
+
+      // Passive forward drift in faced direction
+      velX += (flipX ? -1 : 1) * PASSIVE_ACCEL * dt;
+
+      // D-pad acceleration (up blocked while gliding — no lift without flapping)
+      if (inp.left)              velX -= ACCEL * dt;
+      if (inp.right)             velX += ACCEL * dt;
+      if (inp.up && isFlapping)  velY -= ACCEL * dt;
+      if (inp.down)              velY += ACCEL * dt;
+
+      // Gravity and lift
+      var grav = GRAVITY;
+      velY += isFlapping ? -FLAP_FORCE * dt : grav * dt;
+
+      // Clamp, damp, integrate
+      velX = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, velX));
+      velY = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, velY));
+      var damp = Math.pow(DAMPING, dt);
+      velX *= damp; velY *= damp;
+      camX += velX * dt;
+      camY += velY * dt;
+
+      // Intermittent wing twitch while coasting
+      if (!isAnimatingFlap && !isGliding) {
+        glideAnimTimer -= dt;
+        if (glideAnimTimer <= 0) {
+          if (glideAnimFrame === 3) {
+            glideAnimFrame = 4;
+            glideAnimTimer = 80 + Math.random() * 120;
+          } else {
+            glideAnimFrame = 3;
+            glideAnimTimer = 1000 + Math.random() * 2000;
+          }
+        }
+      }
+
+      // Purple bug movement + orb lifetime expiry; count active regular bugs
+      var activeBugCount = 0;
+      for (var oi = 0; oi < orbs.length; oi++) {
+        var orb = orbs[oi];
+        if (orb.consumed) continue;
+        if (ts - orb.spawnedAt > orb.lifetime) { orb.consumed = true; continue; }
+        if (orb.type === 'purple') {
+          orb.vx += (Math.random() - 0.5) * 0.0006 * dt;
+          orb.vy += (Math.random() - 0.5) * 0.0006 * dt;
+          orb.vx = Math.max(-PURPLE_MAX_SPEED, Math.min(PURPLE_MAX_SPEED, orb.vx));
+          orb.vy = Math.max(-PURPLE_MAX_SPEED, Math.min(PURPLE_MAX_SPEED, orb.vy));
+          orb.x += orb.vx * dt;
+          orb.y += orb.vy * dt;
+        } else {
+          activeBugCount++;
+        }
+      }
+
+      // Spawn new orbs to maintain target density
+      if (activeBugCount < ORB_TARGET && Math.random() < 0.04) {
+        spawnOrb(ts);
+      }
+
+      // Orb collision
+      if (gameMode === 'hard') {
+        // Hard: B tap always chomps; consume bug only if one is in range + facing
+        if (inp.b && !prevB && !autoBiting) {
+          autoBiting = true; autoBiteOrb = null;
+          animFrame = 0; animElapsed = 0;
+          for (var oi = 0; oi < orbs.length; oi++) {
+            var orb = orbs[oi];
+            if (orb.consumed) continue;
+            var odx = orb.x - camX, ody = orb.y - camY;
+            var odist = Math.sqrt(odx * odx + ody * ody);
+            var facing = flipX ? odx < 0 : odx > 0;
+            if (odist < ORB_EAT_DIST * 2.5 && facing) { autoBiteOrb = orb; break; }
+          }
+        }
+      } else {
+        // Easy: auto-bite on proximity + facing; glide = instant consume
+        for (var oi = 0; oi < orbs.length; oi++) {
+          var orb = orbs[oi];
+          if (orb.consumed) continue;
+          var odx = orb.x - camX, ody = orb.y - camY;
+          var odist = Math.sqrt(odx * odx + ody * ody);
+          var facing = flipX ? odx < 0 : odx > 0;
+          if (odist < ORB_EAT_DIST && facing) {
+            if (isGliding) {
+              orb.consumed = true;
+              score += orb.type === 'purple' ? 5 : 1;
+              chompSound.currentTime = 0; chompSound.play();
+            } else if (!autoBiting) {
+              autoBiting  = true; autoBiteOrb = orb;
+              animFrame   = 0; animElapsed = 0;
+              chompSound.currentTime = 0; chompSound.play();
+            }
+          }
+        }
+      }
+
+      // Advance sprite animation when flapping or auto-biting
+      if (isAnimatingFlap || autoBiting) {
+        animElapsed += dt;
+        var frameMs = autoBiting ? 1000 / AUTO_BITE_FPS : 1000 / FPS;
+        if (animElapsed >= frameMs) {
+          var nextFrame = (animFrame + 1) % FRAMES;
+          if (autoBiting && nextFrame === 0) {
+            if (autoBiteOrb) {
+              score += autoBiteOrb.type === 'purple' ? 5 : 1;
+              autoBiteOrb.consumed = true;
+              chompSound.currentTime = 0; chompSound.play();
+            }
+            autoBiting  = false;
+            autoBiteOrb = null;
+          }
+          animFrame    = nextFrame;
+          animElapsed -= frameMs;
+        }
       }
 
       // Draw
@@ -256,15 +508,63 @@
 
       if (vigCanvas) ctx.drawImage(vigCanvas, 0, 0);
 
-      // Reset animation on B press so bite starts from frame 0
-      if (inp.b && !prevB) { animFrame = 0; animElapsed = 0; }
+      // HUD
+      ctx.save();
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 48px monospace';
+      ctx.fillStyle = timeLeft < 10000 ? 'rgba(255,80,80,0.9)' : 'rgba(255,255,255,0.8)';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.ceil(timeLeft / 1000), canvas.width / 2, 16);
+      ctx.font = 'bold 28px monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.textAlign = 'right';
+      ctx.fillText(score + (score === 1 ? ' bug' : ' bugs'), canvas.width - 20, 22);
+      if (highScore > 0) {
+        ctx.font = '16px monospace';
+        ctx.fillStyle = 'rgba(180,130,255,0.55)';
+        ctx.fillText('best ' + highScore, canvas.width - 20, 58);
+      }
+      ctx.restore();
+
+      // Reset animation on glide start so mouth-open starts from frame 0
+      if (isGliding && !prevB) { animFrame = 0; animElapsed = 0; autoBiting = false; autoBiteOrb = null; }
       prevB = inp.b;
 
-      var activeSprite = inp.b ? biteSprite : spriteCanvas;
+      var activeSprite = (isGliding || autoBiting) ? biteSprite : spriteCanvas;
+
+      // Draw orbs behind bat
+      for (var oi = 0; oi < orbs.length; oi++) {
+        var orb = orbs[oi];
+        if (orb.consumed) continue;
+        var sx = canvas.width  / 2 + (orb.x - camX);
+        var sy = canvas.height / 2 + (orb.y - camY);
+        var baseR   = orb.type === 'purple' ? ORB_RADIUS * 1.4 : ORB_RADIUS;
+        var twinkle = 0.85 + 0.15 * Math.sin(ts * 0.004 + orb.phase);
+        var dr      = baseR * twinkle;
+        if (sx < -dr * 3 || sx > canvas.width  + dr * 3) continue;
+        if (sy < -dr * 3 || sy > canvas.height + dr * 3) continue;
+        var glow = 0.75 + 0.2 * twinkle;
+        var grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, dr * 2.5);
+        if (orb.type === 'purple') {
+          grd.addColorStop(0,   'rgba(240,180,255,' + glow + ')');
+          grd.addColorStop(0.3, 'rgba(180,60,255,0.85)');
+          grd.addColorStop(0.7, 'rgba(100,0,200,0.4)');
+          grd.addColorStop(1,   'rgba(100,0,200,0)');
+        } else {
+          grd.addColorStop(0,   'rgba(255,240,80,' + glow + ')');
+          grd.addColorStop(0.3, 'rgba(255,140,20,0.85)');
+          grd.addColorStop(0.7, 'rgba(200,40,0,0.4)');
+          grd.addColorStop(1,   'rgba(200,40,0,0)');
+        }
+        ctx.beginPath();
+        ctx.arc(sx, sy, dr * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = grd;
+        ctx.fill();
+      }
 
       // Bat: centered on eye, flipped when moving left
       if (activeSprite.complete && activeSprite.naturalWidth) {
-        var srcX = animFrame * FRAME_W;
+        var srcX = (isGliding || isAnimatingFlap || autoBiting ? animFrame : glideAnimFrame) * FRAME_W;
         var srcY = animRow   * ROW_H;
         var dw   = FRAME_W * SCALE;
         var dh   = FRAME_H * SCALE;
