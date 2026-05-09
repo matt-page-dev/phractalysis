@@ -464,6 +464,11 @@
       snapAudio.load();
     }
 
+    var introThumbsImg = new Image();
+    var holdPhoneImg   = new Image();
+    introThumbsImg.src = (cfg.introImages && cfg.introImages.thumbsUp)  || 'assets/images/two-thumbs-up.png';
+    holdPhoneImg.src   = (cfg.introImages && cfg.introImages.holdPhone) || 'assets/images/hold-phone-like-this.png';
+
     var style = document.createElement('style');
     style.textContent = '#gp-calib{position:fixed;inset:0;z-index:30000;touch-action:none;-webkit-user-select:none;user-select:none;}';
     document.head.appendChild(style);
@@ -479,15 +484,25 @@
 
     var ctx       = canvas.getContext('2d');
     var startTs   = 0;
-    var hintShown = false;
     var done      = false;
     var snapping  = false;
     var snapTs    = 0;
     var SNAP_MS   = 650;
 
+    var phase        = 0;
+    var phaseStartTs = 0;
+    var INTRO_FADE_MS   = 2000;
+    var INTRO_THUMBS_MS = 2000;
+    var INTRO_HOLD_MS   = 2000;
+
     var leftTouch  = null; // { id, x, y }
     var rightTouch = null;
-    var hintTimer, autoTimer;
+    var leftDragged  = false;
+    var rightDragged = false;
+    var leftStart    = null;
+    var rightStart   = null;
+    var MIN_DRAG_PX  = 22;
+    var autoTimer;
 
     function resize() {
       canvas.width  = window.innerWidth;
@@ -498,13 +513,12 @@
 
     function zoneData() {
       var w = canvas.width, h = canvas.height;
-      var zr = Math.min(w * 0.16, h * 0.28);
+      var zr = Math.min(w * 0.22, h * 0.38);
       return {
-        left:  { x: w * 0.14, y: h * 0.5, r: zr },
-        right: { x: w * 0.86, y: h * 0.5, r: zr },
-        cx: w * 0.5, cy: h * 0.5,
-        cr:    Math.min(w, h) * 0.07,
-        snapR: Math.min(w, h) * 0.14
+        left:  { x: w * 0.18, y: h * 0.76, r: zr },
+        right: { x: w * 0.82, y: h * 0.76, r: zr },
+        cx: w * 0.5, cy: h * 0.46,
+        cr: Math.min(w, h) * 0.07
       };
     }
 
@@ -513,16 +527,12 @@
     }
 
     function checkSnap() {
-      if (!leftTouch || !rightTouch) return false;
-      var z = zoneData();
-      return dist(leftTouch.x,  leftTouch.y,  z.cx, z.cy) < z.snapR &&
-             dist(rightTouch.x, rightTouch.y, z.cx, z.cy) < z.snapR;
+      return !!leftTouch && !!rightTouch && leftDragged && rightDragged;
     }
 
     function complete() {
       if (done) return;
       done = true;
-      clearTimeout(hintTimer);
       clearTimeout(autoTimer);
       window.removeEventListener('resize', resize);
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -541,8 +551,15 @@
       var w = canvas.width;
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        if (!leftTouch  && t.clientX < w * 0.45) { leftTouch  = { id: t.identifier, x: t.clientX, y: t.clientY }; }
-        else if (!rightTouch && t.clientX > w * 0.55) { rightTouch = { id: t.identifier, x: t.clientX, y: t.clientY }; }
+        if (!leftTouch && t.clientX < w * 0.5) {
+          leftTouch   = { id: t.identifier, x: t.clientX, y: t.clientY };
+          leftStart   = { x: t.clientX, y: t.clientY };
+          leftDragged = false;
+        } else if (!rightTouch && t.clientX >= w * 0.5) {
+          rightTouch   = { id: t.identifier, x: t.clientX, y: t.clientY };
+          rightStart   = { x: t.clientX, y: t.clientY };
+          rightDragged = false;
+        }
       }
       if (!snapping && checkSnap()) triggerSnap();
     }
@@ -551,8 +568,16 @@
       e.preventDefault();
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        if (leftTouch  && t.identifier === leftTouch.id)  { leftTouch.x  = t.clientX; leftTouch.y  = t.clientY; }
-        if (rightTouch && t.identifier === rightTouch.id) { rightTouch.x = t.clientX; rightTouch.y = t.clientY; }
+        if (leftTouch && t.identifier === leftTouch.id) {
+          leftTouch.x = t.clientX; leftTouch.y = t.clientY;
+          if (!leftDragged && leftStart && dist(t.clientX, t.clientY, leftStart.x, leftStart.y) >= MIN_DRAG_PX)
+            leftDragged = true;
+        }
+        if (rightTouch && t.identifier === rightTouch.id) {
+          rightTouch.x = t.clientX; rightTouch.y = t.clientY;
+          if (!rightDragged && rightStart && dist(t.clientX, t.clientY, rightStart.x, rightStart.y) >= MIN_DRAG_PX)
+            rightDragged = true;
+        }
       }
       if (!snapping && checkSnap()) triggerSnap();
     }
@@ -561,8 +586,8 @@
       e.preventDefault();
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        if (leftTouch  && t.identifier === leftTouch.id)  leftTouch  = null;
-        if (rightTouch && t.identifier === rightTouch.id) rightTouch = null;
+        if (leftTouch  && t.identifier === leftTouch.id)  { leftTouch  = null; leftStart  = null; leftDragged  = false; }
+        if (rightTouch && t.identifier === rightTouch.id) { rightTouch = null; rightStart = null; rightDragged = false; }
       }
     }
 
@@ -571,8 +596,7 @@
     overlay.addEventListener('touchend',    handleTouchEnd,   { passive: false });
     overlay.addEventListener('touchcancel', handleTouchEnd,   { passive: false });
 
-    hintTimer = setTimeout(function() { hintShown = true; }, 10000);
-    autoTimer = setTimeout(function() { if (!done) complete(); }, 20000);
+    // autoTimer started when calibration phase begins (after intro images)
 
     // ── Drawing helpers ──
 
@@ -592,40 +616,78 @@
       }
     }
 
-    function tensionLine(x1, y1, x2, y2, color, alpha) {
-      var mx = (x1 + x2) / 2;
-      var my = (y1 + y2) / 2 - Math.abs(x1 - x2) * 0.12;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.quadraticCurveTo(mx, my, x2, y2);
-      ctx.strokeStyle = 'rgba(' + hexToRgb(color) + ',' + alpha + ')';
-      ctx.lineWidth   = 2;
-      ctx.shadowColor = color; ctx.shadowBlur = 14;
-      ctx.stroke();
-      ctx.shadowBlur  = 0;
+    function rippleDots(x1, y1, x2, y2, color, ts, active) {
+      var COUNT = 7, DOT_R = 5;
+      var dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx * dx + dy * dy);
+      var ux = dx / len, uy = dy / len;
+      var speed = active ? 0.00055 : 0.00035;
+      for (var i = 0; i < COUNT; i++) {
+        var t  = ((ts * speed + i / COUNT) % 1);
+        var px = x1 + ux * len * t, py = y1 + uy * len * t;
+        var a  = Math.sin(t * Math.PI) * (active ? 0.9 : 0.5);
+        var r  = DOT_R * (0.6 + (1 - t) * 0.6);
+        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + hexToRgb(color) + ',' + a + ')';
+        ctx.shadowColor = color; ctx.shadowBlur = active ? 12 : 6;
+        ctx.fill(); ctx.shadowBlur = 0;
+      }
     }
 
-    function drawArrow(x1, y1, x2, y2) {
-      var a = Math.atan2(y2 - y1, x2 - x1), hl = 11;
-      ctx.strokeStyle = ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - hl * Math.cos(a - Math.PI/6), y2 - hl * Math.sin(a - Math.PI/6));
-      ctx.lineTo(x2 - hl * Math.cos(a + Math.PI/6), y2 - hl * Math.sin(a + Math.PI/6));
-      ctx.closePath(); ctx.fill();
+    function drawCenteredImage(img, alpha, yShiftFrac) {
+      if (!img.complete || !img.naturalWidth) return;
+      var w = canvas.width, h = canvas.height;
+      var maxH = h * (yShiftFrac ? 0.72 : 0.82);
+      var scale = Math.min(w * 0.82 / img.naturalWidth, maxH / img.naturalHeight);
+      var dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+      var cy = h / 2 + (yShiftFrac ? h * yShiftFrac : 0);
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, (w - dw) / 2, cy - dh / 2, dw, dh);
+      ctx.globalAlpha = 1;
     }
 
     function drawFrame(ts) {
-      if (!startTs) startTs = ts;
+      if (!phaseStartTs) phaseStartTs = ts;
       var w = canvas.width, h = canvas.height;
-      var z = zoneData();
-      var pulse = (Math.sin((ts - startTs) * 0.0038) + 1) / 2;
-
       ctx.clearRect(0, 0, w, h);
 
-      // Snap burst animation
+      // ── Intro phases ────────────────────────────────────────────────────────
+      if (phase < 2) {
+        var elapsed = ts - phaseStartTs;
+        var totalMs = phase === 0 ? INTRO_THUMBS_MS : INTRO_HOLD_MS;
+        var alpha   = Math.min(elapsed / INTRO_FADE_MS, 1);
+        var img     = phase === 0 ? introThumbsImg : holdPhoneImg;
+
+        ctx.fillStyle = 'rgba(0,4,12,1)';
+        ctx.fillRect(0, 0, w, h);
+        drawCenteredImage(img, alpha, phase === 1 ? 0.06 : 0);
+
+        if (phase === 1) {
+          var tfs = Math.round(Math.min(w, h) * 0.052);
+          ctx.globalAlpha = alpha;
+          ctx.font = 'bold ' + tfs + 'px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 10;
+          ctx.fillStyle = 'rgba(255,255,255,0.92)';
+          ctx.fillText('Hold your phone like this', w / 2, h * 0.12);
+          ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+        }
+
+        if (elapsed >= totalMs) {
+          phase++;
+          phaseStartTs = ts;
+          if (phase === 2) {
+            autoTimer = setTimeout(function () { if (!done) complete(); }, 20000);
+          }
+        }
+        return;
+      }
+
+      // ── Calibration phase ───────────────────────────────────────────────────
+      if (!startTs) startTs = ts;
+      var z     = zoneData();
+      var pulse = (Math.sin((ts - startTs) * 0.0038) + 1) / 2;
+
+      // Snap burst
       if (snapping) {
         if (!snapTs) snapTs = ts;
         var sp = Math.min((ts - snapTs) / SNAP_MS, 1);
@@ -635,11 +697,9 @@
         for (var ri = 0; ri < 4; ri++) {
           var rp = Math.max(0, sp - ri * 0.07);
           if (rp > 0) {
-            ctx.beginPath();
-            ctx.arc(z.cx, z.cy, rp * Math.max(w, h) * 0.7, 0, Math.PI * 2);
+            ctx.beginPath(); ctx.arc(z.cx, z.cy, rp * Math.max(w, h) * 0.7, 0, Math.PI * 2);
             ctx.strokeStyle = 'rgba(255,255,255,' + ((1 - rp) * 0.65) + ')';
-            ctx.lineWidth   = Math.max(1, 3 - ri * 0.8);
-            ctx.stroke();
+            ctx.lineWidth = Math.max(1, 3 - ri * 0.8); ctx.stroke();
           }
         }
         if (sp >= 1) complete();
@@ -652,27 +712,36 @@
 
       var lActive = !!leftTouch, rActive = !!rightTouch, both = lActive && rActive;
 
-      // Invitation zones (dim when grabbed, pulse when waiting)
-      var zaL = lActive ? 0.18 : (0.28 + pulse * 0.18);
-      var zaR = rActive ? 0.18 : (0.28 + pulse * 0.18);
+      // Zones
+      var zaL = lActive ? 0.15 : (0.28 + pulse * 0.18);
+      var zaR = rActive ? 0.15 : (0.28 + pulse * 0.18);
       var zbL = lActive ? 4    : (5 + pulse * 6);
       var zbR = rActive ? 4    : (5 + pulse * 6);
       arcShape(z.left.x,  z.left.y,  z.left.r,  hColor, zaL, zbL, 2, 0);
       arcShape(z.right.x, z.right.y, z.right.r, hColor, zaR, zbR, 2, 0);
-      arcShape(z.left.x,  z.left.y,  z.left.r  * 0.15, hColor, zaL + 0.2, 0, 0, zaL + 0.2);
-      arcShape(z.right.x, z.right.y, z.right.r * 0.15, hColor, zaR + 0.2, 0, 0, zaR + 0.2);
+      arcShape(z.left.x,  z.left.y,  z.left.r  * 0.12, hColor, zaL + 0.2, 0, 0, zaL + 0.2);
+      arcShape(z.right.x, z.right.y, z.right.r * 0.12, hColor, zaR + 0.2, 0, 0, zaR + 0.2);
 
-      // Thumb dots and tension lines
-      if (leftTouch) {
-        var la = Math.max(0.25, 0.85 - dist(leftTouch.x, leftTouch.y, z.cx, z.cy) / (w * 0.45));
-        tensionLine(leftTouch.x, leftTouch.y, z.cx, z.cy, tColor, la);
-        arcShape(leftTouch.x, leftTouch.y, 18, hColor, 0.9, 18, 2, 0.3);
-      }
-      if (rightTouch) {
-        var ra = Math.max(0.25, 0.85 - dist(rightTouch.x, rightTouch.y, z.cx, z.cy) / (w * 0.45));
-        tensionLine(rightTouch.x, rightTouch.y, z.cx, z.cy, tColor, ra);
-        arcShape(rightTouch.x, rightTouch.y, 18, hColor, 0.9, 18, 2, 0.3);
-      }
+      // Zone labels
+      var lfs = Math.round(Math.min(w, h) * 0.038);
+      ctx.font = 'bold ' + lfs + 'px sans-serif'; ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 6;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.45 + pulse * 0.25) + ')';
+      ctx.fillText('Left Thumb',  z.left.x,  z.left.y  - z.left.r  - 10);
+      ctx.fillText('Right Thumb', z.right.x, z.right.y - z.right.r - 10);
+      ctx.shadowBlur = 0;
+
+      // Ripple dots from zone (or thumb) toward center — always visible
+      var lSrcX = lActive ? leftTouch.x  : z.left.x;
+      var lSrcY = lActive ? leftTouch.y  : z.left.y;
+      var rSrcX = rActive ? rightTouch.x : z.right.x;
+      var rSrcY = rActive ? rightTouch.y : z.right.y;
+      rippleDots(lSrcX, lSrcY, z.cx, z.cy, tColor, ts, lActive);
+      rippleDots(rSrcX, rSrcY, z.cx, z.cy, tColor, ts, rActive);
+
+      // Thumb dots
+      if (leftTouch)  arcShape(leftTouch.x,  leftTouch.y,  20, hColor, 0.9, 18, 2, 0.3);
+      if (rightTouch) arcShape(rightTouch.x, rightTouch.y, 20, hColor, 0.9, 18, 2, 0.3);
 
       // Center lock node
       var lnA = both ? 1   : (0.55 + pulse * 0.35);
@@ -682,19 +751,13 @@
       arcShape(z.cx, z.cy, z.cr * lnS,       lColor, lnA, lnB, 2, 0);
       arcShape(z.cx, z.cy, z.cr * lnS * 0.3, lColor, lnA, 0, 0, lnA);
 
-      // Hint (after 10s timeout)
-      if (hintShown) {
-        var fs = Math.round(Math.min(w, h) * 0.042);
-        ctx.font        = 'bold ' + fs + 'px sans-serif';
-        ctx.textAlign   = 'center';
-        ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 8;
-        ctx.fillStyle   = 'rgba(255,255,255,0.72)';
-        ctx.fillText('drag thumbs together toward center', z.cx, h * 0.16);
-        ctx.shadowBlur  = 0;
-        var al = w * 0.07;
-        drawArrow(w * 0.37, z.cy, w * 0.37 + al, z.cy);
-        drawArrow(w * 0.63, z.cy, w * 0.63 - al, z.cy);
-      }
+      // Always-visible instruction
+      var fs = Math.round(Math.min(w, h) * 0.044);
+      ctx.font = 'bold ' + fs + 'px sans-serif'; ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 8;
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillText('Drag your thumbs toward the center', z.cx, h * 0.13);
+      ctx.shadowBlur = 0;
     }
 
     function loop(ts) {

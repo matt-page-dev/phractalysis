@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mega-Bat 2</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #0d0a14; overflow: hidden; }
+    canvas { display: block; }
+    #splash {
+      position: fixed; inset: 0; z-index: 99999; background: #0d0a14;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 24px; transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #game-logo {
+      max-width: min(480px, 80vw); max-height: 30vh; object-fit: contain;
+      animation: logo-zoom-in 2.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    #game-logo.floating { animation: logo-float 7s ease-in-out infinite; }
+    @keyframes logo-zoom-in {
+      from { transform: scale(0.25); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+    @keyframes logo-float {
+      0%   { transform: translate(0px,   0px)  rotate(0deg);    }
+      25%  { transform: translate(6px,  -8px)  rotate(0.8deg);  }
+      50%  { transform: translate(-3px, -14px) rotate(-0.5deg); }
+      75%  { transform: translate(-7px, -5px)  rotate(0.6deg);  }
+      100% { transform: translate(0px,   0px)  rotate(0deg);    }
+    }
+    #splash-mode {
+      margin: 0; font: 500 18px/1 sans-serif;
+      color: rgba(200,170,255,0.55); letter-spacing: 0.06em;
+    }
+    .ctrl-btn {
+      padding: 14px 32px; font: 600 16px/1 sans-serif; color: #d8c0ff;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      background: rgba(150,80,255,0.15); border: 2px solid rgba(150,80,255,0.35);
+      border-radius: 8px; cursor: pointer;
+    }
+    .ctrl-btn:hover { background: rgba(150,80,255,0.28); }
+    @keyframes pulse { 0%,100% { opacity:.45; } 50% { opacity:.95; } }
+    #gameover, #levelcomplete {
+      position: fixed; inset: 0; z-index: 99999; background: #0d0a14;
+      display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+    }
+    #gameover h1    { margin:0; font:700 52px/1 sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#ff6060; }
+    #levelcomplete h1 { margin:0; font:700 52px/1 sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#ffe87a; }
+    .score-line { margin:0; font:500 26px/1 sans-serif; color:rgba(200,170,255,0.8); }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="splash">
+    <img id="game-logo" src="../mega-bat/assets/game-plate-images/megabat-game-logo.png" alt="MegaBat">
+    <p id="splash-mode">Escape the cave!</p>
+    <button class="ctrl-btn" id="btn-play">Play</button>
+  </div>
+
+  <div id="gameover">
+    <h1>Game Over!</h1>
+    <p id="go-progress" class="score-line"></p>
+    <button class="ctrl-btn" onclick="resetGame()">Try Again</button>
+  </div>
+
+  <div id="levelcomplete">
+    <h1>You Escaped!</h1>
+    <p class="score-line">You made it through the cave!</p>
+    <button class="ctrl-btn" onclick="resetGame()">Play Again</button>
+  </div>
+
+  <script src="./game-plate.js"></script>
+  <script>
+    var canvas = document.getElementById('game');
+    var ctx    = canvas.getContext('2d');
+    var splash = document.getElementById('splash');
+
+    document.getElementById('game-logo').addEventListener('animationend', function () {
+      this.classList.add('floating');
+    }, { once: true });
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      buildVignette();
+      if (gameState !== 'splash') generateCave();
+    }
+    window.addEventListener('resize', resize);
+
+    function dismissSplash() {
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function () {
+        splash.style.display = 'none';
+      }, { once: true });
+    }
+
+    // ── game state ────────────────────────────────────────────────
+    var gameState    = 'splash';
+    var respawnTimer = 0;
+
+    // ── health / lives ────────────────────────────────────────────
+    var lives           = 3;
+    var hp              = 100;
+    var invincible      = false;
+    var invincibleTimer = 0;
+    var damageFlash     = 0;
+
+    // ── sprite / animation ────────────────────────────────────────
+    var FRAME_W = 256, FRAME_H = 256, ROW_H = 256, FRAMES = 5;
+    var FPS   = 8;
+    var SCALE = 0.75;
+    var EYE_X = 110, EYE_Y = 100;
+
+    var animFrame      = 0, animRow = 0, animElapsed = 0;
+    var glideAnimFrame = 3, glideAnimTimer = 1500;
+    var biteAnimFrame  = 0, biteAnimElapsed = 0;
+    var BITE_FPS = 10;
+    var flipX = false, prevB = false;
+
+    var spriteSheet = new Image();
+    spriteSheet.src = '../mega-bat/assets/spritesheets/megabat-flapping_wings.png';
+    var biteSprite  = new Image();
+    biteSprite.src  = '../mega-bat/assets/spritesheets/megabat-biting.png';
+    var chompSound  = new Audio('../mega-bat/assets/sounds/megabat-chomp.mp3');
+
+    // ── physics ──────────────────────────────────────────────────
+    var camX = 0, camY = 0, velX = 0, velY = 0;
+    var PASSIVE_ACCEL  = 0.00008;
+    var ACCEL          = 0.0004;
+    var GRAVITY        = 0.0001;
+    var FLAP_FORCE     = 0.00025;
+    var MAX_SPEED      = 0.4;
+    var DAMPING        = 0.999;
+    var DIVE_ACCEL     = 0.003;
+    var MAX_DIVE_SPEED = 0.9;
+    var MAX_TILT       = Math.PI * 0.45;
+    var PULLUP_RATE    = 0.003;
+    var BAT_RADIUS     = 22;   // world-px collision half-height
+
+    // ── cave ─────────────────────────────────────────────────────
+    var SEG_W        = 32;
+    var NUM_SEGS     = 310;
+    var LEVEL_LENGTH = 8000;
+    var HALF_W_MIN   = 85;
+    var HALF_W_MAX   = 270;
+    var segments     = [];
+
+    function mulberry32(seed) {
+      return function () {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    }
+
+    function generateCave() {
+      segments = [];
+      var rng     = mulberry32(Date.now() | 0);
+      var centerY = 0;
+      var targetY = 0;
+      var halfW   = 240;
+      var targetW = 240;
+      // How many segments are the "normal" cave (vs open-exit zone)
+      var normalSegs = NUM_SEGS - 30;
+
+      for (var i = 0; i < NUM_SEGS; i++) {
+        var progress = Math.max(0, (i - 30)) / normalSegs; // ramp after intro
+
+        // Center wanders — more aggressively as level progresses
+        var wanderChance = 0.06 + progress * 0.06;
+        var wanderRange  = canvas.height * (0.35 + progress * 0.30);
+        if (rng() < wanderChance) {
+          targetY = (rng() - 0.5) * wanderRange;
+        }
+        var lerpY = 0.05 + progress * 0.04;
+        centerY += (targetY - centerY) * lerpY;
+        var maxOffset = canvas.height / 2 - HALF_W_MIN - 12;
+        centerY = Math.max(-maxOffset, Math.min(maxOffset, centerY));
+
+        // Width target — starts wide, progressively narrows/pinches
+        var dynMin = HALF_W_MIN + (180 - HALF_W_MIN) * Math.max(0, 1 - progress * 2.5);
+        var dynMax = HALF_W_MAX - (HALF_W_MAX - 160) * progress;
+        if (rng() < 0.04) {
+          // Dramatic pinch
+          targetW = dynMin + rng() * 35;
+        } else if (rng() < 0.04) {
+          // Wide relief section
+          targetW = dynMax - rng() * 30;
+        } else if (rng() < 0.05) {
+          targetW = dynMin + rng() * (dynMax - dynMin);
+        }
+        halfW += (targetW - halfW) * 0.05;
+        halfW = Math.max(dynMin, Math.min(dynMax, halfW));
+
+        var finalHalfW = halfW;
+        if (i >= NUM_SEGS - 30) {
+          var t = (i - (NUM_SEGS - 30)) / 30;
+          finalHalfW = halfW + (canvas.height - halfW) * t;
+        }
+
+        segments.push({ centerY: centerY, halfWidth: finalHalfW });
+      }
+    }
+
+    // Interpolated cave value at any world X
+    function getCaveAt(worldX) {
+      if (segments.length === 0) return { centerY: 0, halfWidth: 200 };
+      var fi = worldX / SEG_W;
+      var i0 = Math.floor(fi);
+      var t  = fi - i0;
+      var i1 = i0 + 1;
+      i0 = Math.max(0, Math.min(segments.length - 1, i0));
+      i1 = Math.max(0, Math.min(segments.length - 1, i1));
+      return {
+        centerY:   segments[i0].centerY   + (segments[i1].centerY   - segments[i0].centerY)   * t,
+        halfWidth: segments[i0].halfWidth + (segments[i1].halfWidth - segments[i0].halfWidth) * t
+      };
+    }
+
+    // ── orbs (bugs = health) ─────────────────────────────────────
+    var ORB_TARGET    = 10;
+    var PURPLE_CHANCE = 0.15;
+    var GREEN_CHANCE  = 0.04;
+    var orbs          = [];
+
+    function spawnOrb(ts) {
+      var aheadX = camX + 400 + Math.random() * 500;
+      var cave   = getCaveAt(aheadX);
+      var margin = 30;
+      var yMin   = cave.centerY - cave.halfWidth + margin;
+      var yMax   = cave.centerY + cave.halfWidth - margin;
+      if (yMin >= yMax) return;
+
+      var rand = Math.random();
+      var type = rand < GREEN_CHANCE                   ? 'green'
+               : rand < GREEN_CHANCE + PURPLE_CHANCE   ? 'purple'
+               : 'bug';
+
+      orbs.push({
+        x: aheadX, y: yMin + Math.random() * (yMax - yMin),
+        type: type, phase: Math.random() * Math.PI * 2,
+        spawnedAt: ts, lifetime: 8000 + Math.random() * 6000,
+        consumed: false
+      });
+    }
+
+    // ── cavern background tiles ──────────────────────────────────
+    function stalactite(oc, x, baseW, h, color) {
+      oc.fillStyle = color;
+      oc.beginPath();
+      oc.moveTo(x - baseW / 2, 0);
+      oc.quadraticCurveTo(x - baseW / 5, h * 0.6, x, h);
+      oc.quadraticCurveTo(x + baseW / 5, h * 0.6, x + baseW / 2, 0);
+      oc.closePath(); oc.fill();
+    }
+    function stalagmite(oc, x, tileH, baseW, h, color) {
+      oc.fillStyle = color;
+      oc.beginPath();
+      oc.moveTo(x - baseW / 2, tileH);
+      oc.quadraticCurveTo(x - baseW / 5, tileH - h * 0.6, x, tileH - h);
+      oc.quadraticCurveTo(x + baseW / 5, tileH - h * 0.6, x + baseW / 2, tileH);
+      oc.closePath(); oc.fill();
+    }
+    function buildTile(w, h, seed, nSpikes, nRocks, stalColor, stagColor) {
+      var el = document.createElement('canvas');
+      el.width = w; el.height = h;
+      var oc = el.getContext('2d');
+      var rng = mulberry32(seed);
+      oc.fillStyle = '#0d0a14';
+      oc.fillRect(0, 0, w, h);
+      for (var i = 0; i < nSpikes; i++) stalactite(oc, rng() * w, 16 + rng() * 55, 60 + rng() * 210, stalColor);
+      for (var i = 0; i < nSpikes; i++) stalagmite(oc, rng() * w, h, 12 + rng() * 45, 45 + rng() * 170, stagColor);
+      for (var i = 0; i < nRocks; i++) {
+        oc.fillStyle = 'rgba(22,14,36,0.8)';
+        oc.beginPath();
+        oc.ellipse(rng() * w, h * 0.15 + rng() * h * 0.7, 22 + rng() * 65, 12 + rng() * 38, rng() * Math.PI, 0, Math.PI * 2);
+        oc.fill();
+      }
+      return el;
+    }
+    var farTile  = buildTile(920, 700, 42,  6, 4, '#22163a', '#17102c');
+    var nearTile = buildTile(720, 540, 99, 11, 7, '#2e1f4a', '#221440');
+
+    function drawTiled(tile, scrollX, scrollY) {
+      var tw = tile.width, th = tile.height;
+      var ox = -(((scrollX % tw) + tw) % tw);
+      var oy = -(((scrollY % th) + th) % th);
+      var cols = Math.ceil(canvas.width  / tw) + 2;
+      var rows = Math.ceil(canvas.height / th) + 2;
+      for (var r = 0; r < rows; r++)
+        for (var c = 0; c < cols; c++)
+          ctx.drawImage(tile, ox + c * tw, oy + r * th);
+    }
+
+    // ── vignette ─────────────────────────────────────────────────
+    var vigCanvas = null;
+    function buildVignette() {
+      vigCanvas = document.createElement('canvas');
+      vigCanvas.width  = canvas.width;
+      vigCanvas.height = canvas.height;
+      var vc = vigCanvas.getContext('2d');
+      var cx = canvas.width / 2, cy = canvas.height / 2;
+      var g = vc.createRadialGradient(cx, cy, Math.min(cx, cy) * 0.35, cx, cy, Math.hypot(cx, cy));
+      g.addColorStop(0,   'rgba(0,0,0,0)');
+      g.addColorStop(0.6, 'rgba(0,0,0,0.25)');
+      g.addColorStop(1,   'rgba(0,0,0,0.82)');
+      vc.fillStyle = g;
+      vc.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // ── night sky ─────────────────────────────────────────────────
+    var stars = [], nightSkyAlpha = 0;
+    function buildNightSky() {
+      stars = [];
+      for (var i = 0; i < 180; i++) {
+        stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height * 0.9,
+                     r: 0.5 + Math.random() * 1.8, phase: Math.random() * Math.PI * 2 });
+      }
+    }
+    function drawNightSky(ts) {
+      var bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bg.addColorStop(0, '#020a1a'); bg.addColorStop(1, '#0d1830');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      var mx = canvas.width - 110, my = 95, mr = 52;
+      var mg = ctx.createRadialGradient(mx, my, mr * 0.2, mx, my, mr * 3);
+      mg.addColorStop(0, 'rgba(255,250,210,0.9)'); mg.addColorStop(0.4, 'rgba(220,210,160,0.35)'); mg.addColorStop(1, 'rgba(200,190,120,0)');
+      ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, mr * 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff8d0'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(200,190,150,0.35)';
+      ctx.beginPath(); ctx.arc(mx - 14, my + 10, 9,  0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx + 18, my - 8,  6,  0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx + 5,  my + 20, 5,  0, Math.PI * 2); ctx.fill();
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i], tw = 0.55 + 0.45 * Math.sin(ts * 0.002 + s.phase);
+        ctx.globalAlpha = tw * nightSkyAlpha;
+        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // ── cave drawing — curved walls across full screen width ──────
+    function drawCaveWalls() {
+      if (segments.length === 0) return;
+      var W = canvas.width, H = canvas.height;
+      var step = SEG_W; // match segment granularity
+
+      ctx.fillStyle = '#1a0f2e';
+
+      // Top wall polygon
+      ctx.beginPath();
+      ctx.moveTo(-2, -2);
+      for (var x = 0; x <= W + step; x += step) {
+        var cave     = getCaveAt(x + camX - W / 2);
+        var screenCY = cave.centerY - camY + H / 2;
+        ctx.lineTo(x, screenCY - cave.halfWidth);
+      }
+      ctx.lineTo(W + 2, -2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bottom wall polygon
+      ctx.beginPath();
+      ctx.moveTo(-2, H + 2);
+      for (var x = 0; x <= W + step; x += step) {
+        var cave     = getCaveAt(x + camX - W / 2);
+        var screenCY = cave.centerY - camY + H / 2;
+        ctx.lineTo(x, screenCY + cave.halfWidth);
+      }
+      ctx.lineTo(W + 2, H + 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Soft inner glow along the wall edges (drawn over the polygons)
+      var batCave  = getCaveAt(camX);
+      var batCY    = batCave.centerY - camY + H / 2;
+      var topEdgeY = batCY - batCave.halfWidth;
+      var botEdgeY = batCY + batCave.halfWidth;
+
+      if (topEdgeY > -20 && topEdgeY < H + 20) {
+        var tg = ctx.createLinearGradient(0, topEdgeY - 18, 0, topEdgeY + 8);
+        tg.addColorStop(0, 'rgba(55,25,95,0)');
+        tg.addColorStop(1, 'rgba(55,25,95,0.8)');
+        ctx.fillStyle = tg;
+        ctx.fillRect(0, topEdgeY - 18, W, 26);
+      }
+      if (botEdgeY > -20 && botEdgeY < H + 20) {
+        var bg = ctx.createLinearGradient(0, botEdgeY - 8, 0, botEdgeY + 18);
+        bg.addColorStop(0, 'rgba(55,25,95,0.8)');
+        bg.addColorStop(1, 'rgba(55,25,95,0)');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, botEdgeY - 8, W, 26);
+      }
+    }
+
+    // ── HUD ───────────────────────────────────────────────────────
+    function drawHUD() {
+      ctx.save();
+      var lifeSize = 20, lifeY = 26;
+      for (var i = 0; i < 3; i++) {
+        var lx = 24 + i * (lifeSize * 2 + 10);
+        ctx.globalAlpha = i < lives ? 0.9 : 0.18;
+        ctx.fillStyle = '#c090ff';
+        ctx.beginPath(); ctx.arc(lx, lifeY, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(lx - 4, lifeY - 2);
+        ctx.quadraticCurveTo(lx - lifeSize, lifeY - 10, lx - lifeSize * 2, lifeY + 2);
+        ctx.quadraticCurveTo(lx - lifeSize, lifeY + 3, lx - 4, lifeY + 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(lx + 4, lifeY - 2);
+        ctx.quadraticCurveTo(lx + lifeSize, lifeY - 10, lx + lifeSize * 2, lifeY + 2);
+        ctx.quadraticCurveTo(lx + lifeSize, lifeY + 3, lx + 4, lifeY + 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      var barX = 16, barY = 50, barW = 130, barH = 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+      ctx.fillStyle = 'rgba(80,40,80,0.5)'; ctx.fillRect(barX, barY, barW, barH);
+      if (hp > 0) {
+        var barGrd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+        barGrd.addColorStop(0, '#ff2020'); barGrd.addColorStop(0.5, '#ffdd00'); barGrd.addColorStop(1, '#30ff60');
+        ctx.fillStyle = barGrd;
+        ctx.fillRect(barX, barY, barW * (hp / 100), barH);
+      }
+      ctx.font = '10px monospace'; ctx.fillStyle = 'rgba(200,160,255,0.7)';
+      ctx.textAlign = 'left'; ctx.fillText('HP', barX + barW + 6, barY + barH - 1);
+
+      var pBarH = 4, pBarY = canvas.height - pBarH - 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, pBarY, canvas.width, pBarH);
+      ctx.fillStyle = 'rgba(160,100,255,0.75)';
+      ctx.fillRect(0, pBarY, canvas.width * Math.min(1, camX / LEVEL_LENGTH), pBarH);
+      ctx.font = '9px monospace'; ctx.fillStyle = 'rgba(160,100,255,0.5)';
+      ctx.textAlign = 'right'; ctx.fillText('EXIT', canvas.width - 3, pBarY - 2);
+      ctx.restore();
+    }
+
+    // ── damage flash ──────────────────────────────────────────────
+    function drawDamageFlash() {
+      if (damageFlash <= 0) return;
+      var alpha = (damageFlash / 600) * 0.6;
+      var cx = canvas.width / 2, cy = canvas.height / 2;
+      var grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 130);
+      grd.addColorStop(0,   'rgba(255,20,20,' + (alpha * 0.85) + ')');
+      grd.addColorStop(0.5, 'rgba(255,20,20,' + (alpha * 0.35) + ')');
+      grd.addColorStop(1,   'rgba(255,20,20,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(cx, cy, 130, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,50,50,' + Math.min(1, alpha * 1.4) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, cy, 88, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // ── damage / lives ────────────────────────────────────────────
+    function takeDamage() {
+      hp -= 20; damageFlash = 600; invincible = true; invincibleTimer = 1200;
+      if (hp <= 0) { hp = 0; loseLife(); }
+    }
+    function loseLife() {
+      lives--;
+      if (lives <= 0) { triggerGameOver(); return; }
+      hp = 100; gameState = 'respawning'; respawnTimer = 1500;
+      invincible = true; invincibleTimer = 1500;
+    }
+    function triggerGameOver() {
+      gameState = 'gameover';
+      var pct = Math.round(Math.min(100, (camX / LEVEL_LENGTH) * 100));
+      document.getElementById('go-progress').textContent = 'You made it ' + pct + '% through the cave';
+      document.getElementById('gameover').style.display = 'flex';
+    }
+    function triggerLevelComplete() {
+      gameState = 'levelcomplete'; nightSkyAlpha = 0; buildNightSky();
+      document.getElementById('levelcomplete').style.display = 'flex';
+    }
+
+    // ── start / reset ─────────────────────────────────────────────
+    function start() {
+      var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+      if (document.fullscreenEnabled && !document.fullscreenElement)
+        document.documentElement.requestFullscreen().catch(function () {});
+      try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
+      GamePlate.init({ orientation: 'landscape', controller: isMobile ? 'nes' : 'keyboard',
+                       fullscreen: true, buttons: { a: 'Flap', b: 'Glide' } });
+      dismissSplash();
+      resetGame();
+    }
+    function resetGame() {
+      camX = 0; camY = 0; velX = 0; velY = 0;
+      lives = 3; hp = 100; invincible = false; invincibleTimer = 0; damageFlash = 0; respawnTimer = 0;
+      animFrame = 0; animRow = 0; animElapsed = 0;
+      glideAnimFrame = 3; glideAnimTimer = 1500;
+      biteAnimFrame = 0; biteAnimElapsed = 0;
+      flipX = false; prevB = false; prev = 0; orbs = [];
+      nightSkyAlpha = 0; stars = [];
+      document.getElementById('gameover').style.display      = 'none';
+      document.getElementById('levelcomplete').style.display = 'none';
+      generateCave();
+      gameState = 'playing';
+    }
+    document.getElementById('btn-play').addEventListener('click', start);
+
+    // ── main loop ─────────────────────────────────────────────────
+    var prev = 0;
+    function loop(ts) {
+      requestAnimationFrame(loop);
+      if (GamePlate.paused) return;
+      var dt = ts - prev; if (dt > 50) dt = 50; prev = ts;
+      if (gameState === 'splash' || gameState === 'gameover') return;
+
+      // Level complete: animate sky + bat gliding away
+      if (gameState === 'levelcomplete') {
+        nightSkyAlpha = Math.min(1, nightSkyAlpha + dt / 1800);
+        drawNightSky(ts);
+        if (spriteSheet.complete && spriteSheet.naturalWidth) {
+          ctx.save(); ctx.translate(canvas.width / 2, canvas.height / 2);
+          if (flipX) ctx.scale(-1, 1);
+          ctx.drawImage(spriteSheet, glideAnimFrame * FRAME_W, 0, FRAME_W, FRAME_H,
+            -EYE_X * SCALE, -EYE_Y * SCALE, FRAME_W * SCALE, FRAME_H * SCALE);
+          ctx.restore();
+        }
+        return;
+      }
+
+      var inp = GamePlate.input || {};
+      var isRespawning = (gameState === 'respawning');
+
+      if (isRespawning) {
+        respawnTimer -= dt;
+        if (respawnTimer <= 0) { gameState = 'playing'; isRespawning = false; }
+      }
+
+      if (!isRespawning) {
+        if (inp.left)  flipX = true;
+        if (inp.right) flipX = false;
+      }
+
+      var isGliding       = !!inp.b;
+      var isFlapping      = !!inp.a && !isGliding;
+      var isAnimatingFlap = isFlapping;
+      var isDiving        = isFlapping && !!inp.down;
+
+      // ── physics ──
+      if (!isRespawning) {
+        velX += (flipX ? -1 : 1) * PASSIVE_ACCEL * dt;
+        if (inp.left)             velX -= ACCEL * dt;
+        if (inp.right)            velX += ACCEL * dt;
+        if (inp.up && isFlapping) velY -= ACCEL * dt;
+        if (isDiving) velY += (2 * FLAP_FORCE + ACCEL) * dt;
+      }
+
+      velY += isFlapping ? -FLAP_FORCE * dt : GRAVITY * dt;
+
+      if (isFlapping && !inp.down && velY > 0) {
+        var transfer = Math.min(velY, PULLUP_RATE * dt);
+        velY -= transfer; velX += (flipX ? -1 : 1) * transfer;
+      }
+
+      velX = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, velX));
+      velY = Math.max(-MAX_SPEED, Math.min(MAX_DIVE_SPEED, velY));
+      var damp = Math.pow(DAMPING, dt);
+      velX *= damp; velY *= damp;
+      camX += velX * dt;
+      camY += velY * dt;
+      if (camX < 0) { camX = 0; velX = 0; }
+
+      var tiltAngle = isDiving ? Math.max(0, velY / MAX_DIVE_SPEED) * MAX_TILT : 0;
+
+      // ── physical wall blocking ──
+      if (segments.length > 0 && !isRespawning) {
+        var cave    = getCaveAt(camX);
+        var topEdge = cave.centerY - cave.halfWidth + BAT_RADIUS;
+        var botEdge = cave.centerY + cave.halfWidth - BAT_RADIUS;
+        if (camY < topEdge) {
+          camY = topEdge;
+          if (velY < 0) { velY *= -0.08; }   // tiny bounce off ceiling
+          if (!invincible) takeDamage();
+        } else if (camY > botEdge) {
+          camY = botEdge;
+          if (velY > 0) { velY *= -0.08; }   // tiny bounce off floor
+          if (!invincible) takeDamage();
+        }
+      }
+
+      // ── invincibility / flash timers ──
+      if (invincible) { invincibleTimer -= dt; if (invincibleTimer <= 0) { invincible = false; invincibleTimer = 0; } }
+      if (damageFlash > 0) damageFlash = Math.max(0, damageFlash - dt);
+
+      // ── level exit ──
+      if (!isRespawning && camX >= LEVEL_LENGTH) {
+        var exitCave = getCaveAt(camX);
+        if (exitCave.halfWidth >= canvas.height / 2 - 10) { triggerLevelComplete(); return; }
+      }
+
+      // ── wing twitch while coasting ──
+      if (!isAnimatingFlap && !isGliding) {
+        glideAnimTimer -= dt;
+        if (glideAnimTimer <= 0) {
+          glideAnimFrame = (glideAnimFrame === 3) ? 4 : 3;
+          glideAnimTimer = (glideAnimFrame === 4) ? 80 + Math.random() * 120 : 1000 + Math.random() * 2000;
+        }
+      }
+
+      // ── flap animation ──
+      if (isAnimatingFlap) {
+        animElapsed += dt;
+        var frameMs = 1000 / FPS;
+        if (animElapsed >= frameMs) { animFrame = (animFrame + 1) % FRAMES; animElapsed -= frameMs; }
+      } else {
+        animElapsed = 0;
+      }
+
+      // ── bite animation (B held = glide + open mouth) ──
+      if (isGliding) {
+        biteAnimElapsed += dt;
+        var biteMs = 1000 / BITE_FPS;
+        if (biteAnimElapsed >= biteMs) { biteAnimFrame = (biteAnimFrame + 1) % FRAMES; biteAnimElapsed -= biteMs; }
+      } else {
+        biteAnimFrame = 0; biteAnimElapsed = 0;
+      }
+
+      // ── orb lifecycle ──
+      var activeBugCount = 0;
+      for (var oi = 0; oi < orbs.length; oi++) {
+        var orb = orbs[oi];
+        if (orb.consumed) continue;
+        if (ts - orb.spawnedAt > orb.lifetime || orb.x < camX - 300) { orb.consumed = true; continue; }
+        activeBugCount++;
+      }
+      if (activeBugCount < ORB_TARGET && Math.random() < 0.06) spawnOrb(ts);
+
+      // ── orb eating ──
+      if (!isRespawning) {
+        for (var oi = 0; oi < orbs.length; oi++) {
+          var orb = orbs[oi];
+          if (orb.consumed) continue;
+          var odx = orb.x - camX, ody = orb.y - camY;
+          if (Math.sqrt(odx * odx + ody * ody) < 55) {
+            orb.consumed = true;
+            hp = Math.min(100, hp + (orb.type === 'green' ? 60 : orb.type === 'purple' ? 40 : 25));
+            chompSound.currentTime = 0; chompSound.play().catch(function () {});
+          }
+        }
+      }
+
+      // ── draw ──────────────────────────────────────────────────────
+      ctx.fillStyle = '#0d0a14';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawTiled(farTile,  camX * 0.35, 0);
+      drawTiled(nearTile, camX * 0.7,  0);
+      drawCaveWalls();
+      if (vigCanvas) ctx.drawImage(vigCanvas, 0, 0);
+
+      // Orbs
+      for (var oi = 0; oi < orbs.length; oi++) {
+        var orb = orbs[oi];
+        if (orb.consumed) continue;
+        var sx = canvas.width  / 2 + (orb.x - camX);
+        var sy = canvas.height / 2 + (orb.y - camY);
+        if (sx < -30 || sx > canvas.width + 30 || sy < -30 || sy > canvas.height + 30) continue;
+        var baseR   = (orb.type !== 'bug') ? 7 : 5;
+        var twinkle = 0.85 + 0.15 * Math.sin(ts * 0.004 + orb.phase);
+        var dr      = baseR * twinkle;
+        var glow    = 0.75 + 0.2 * twinkle;
+        var grd     = ctx.createRadialGradient(sx, sy, 0, sx, sy, dr * 2.5);
+        if (orb.type === 'purple') {
+          grd.addColorStop(0, 'rgba(240,180,255,' + glow + ')'); grd.addColorStop(0.3, 'rgba(180,60,255,0.85)');
+          grd.addColorStop(0.7, 'rgba(100,0,200,0.4)');           grd.addColorStop(1,   'rgba(100,0,200,0)');
+        } else if (orb.type === 'green') {
+          grd.addColorStop(0, 'rgba(180,255,160,' + glow + ')'); grd.addColorStop(0.3, 'rgba(40,220,60,0.85)');
+          grd.addColorStop(0.7, 'rgba(0,150,20,0.4)');            grd.addColorStop(1,   'rgba(0,150,20,0)');
+        } else {
+          grd.addColorStop(0, 'rgba(255,240,80,' + glow + ')');  grd.addColorStop(0.3, 'rgba(255,140,20,0.85)');
+          grd.addColorStop(0.7, 'rgba(200,40,0,0.4)');            grd.addColorStop(1,   'rgba(200,40,0,0)');
+        }
+        ctx.beginPath(); ctx.arc(sx, sy, dr * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = grd; ctx.fill();
+        // Healing cross
+        ctx.save(); ctx.globalAlpha = 0.5 * twinkle; ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sx - 1.5, sy - 5, 3, 10); ctx.fillRect(sx - 5, sy - 1.5, 10, 3);
+        ctx.restore();
+      }
+
+      // Bat
+      var activeSprite = isGliding ? biteSprite : spriteSheet;
+      if (activeSprite.complete && activeSprite.naturalWidth) {
+        var srcFrame = isGliding ? biteAnimFrame : (isAnimatingFlap ? animFrame : glideAnimFrame);
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        if (flipX) ctx.scale(-1, 1);
+        ctx.rotate(tiltAngle);
+        if (invincible && Math.floor(ts / 80) % 2 === 0) ctx.globalAlpha = 0.35;
+        ctx.drawImage(activeSprite, srcFrame * FRAME_W, 0, FRAME_W, FRAME_H,
+          -EYE_X * SCALE, -EYE_Y * SCALE, FRAME_W * SCALE, FRAME_H * SCALE);
+        ctx.restore();
+      }
+
+      drawDamageFlash();
+
+      if (isRespawning) {
+        ctx.fillStyle = 'rgba(255,255,255,' + ((respawnTimer / 1500) * 0.65) + ')';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      drawHUD();
+      prevB = inp.b;
+    }
+
+    // ── init ──────────────────────────────────────────────────────
+    resize();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

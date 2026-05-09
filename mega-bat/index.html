@@ -118,7 +118,7 @@
         document.documentElement.requestFullscreen().catch(function () {});
       }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
-      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Flap', b: 'Bite' } });
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Flap', b: 'Bite' }, calibration: {} });
       if (mode === 'easy') {
         var bBtn = document.getElementById('gp-btn-b');
         if (bBtn) bBtn.style.display = 'none';
@@ -286,6 +286,7 @@
     var velX = 0, velY = 0;
     var prevInpUp        = false;
     var figure8Active     = false;
+    var wasDivingMs       = 0;
     var figure8Phase      = 0;
     var figure8Timer      = 0;
     var figure8EntryVelX  = 0;
@@ -455,9 +456,11 @@
       var isFlapping      = !!inp.a && !isGliding;
       var isAnimatingFlap = !isGliding && (!!inp.a || velY < -0.05);
       var isDiving        = isFlapping && !!inp.down;
+      if (isDiving) wasDivingMs = 250;
+      else wasDivingMs = Math.max(0, wasDivingMs - dt);
 
       // Figure-8 attack trigger: UP press while actively diving (FLAP+DOWN) fast enough
-      if (isDiving && velY > RICOCHET_THRESHOLD && inp.up && !prevInpUp && !figure8Active) {
+      if ((isDiving || wasDivingMs > 0) && velY > RICOCHET_THRESHOLD && inp.up && !prevInpUp && !figure8Active) {
         figure8Active     = true;
         figure8Phase      = 0;
         figure8Timer      = FIGURE8_DURATION;
@@ -737,10 +740,10 @@
       // Countdown overlay
       if (gameState === 'countdown') {
         var cdLabel = ['READY', 'SET', 'GO'][countdownPhase];
-        var cdY = canvas.height / 2 - 160;
+        var cdY = canvas.height * 0.38;
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';
-        ctx.font = 'bold 96px monospace';
+        ctx.font = 'bold 64px monospace';
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.fillText(cdLabel, canvas.width / 2, cdY);
       }
