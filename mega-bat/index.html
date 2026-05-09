@@ -156,7 +156,7 @@
         document.documentElement.requestFullscreen().catch(function () {});
       }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
-      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Flap', b: 'Bite' } });
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Flap', b: 'Bite' }, calibration: { snapSound: './assets/sounds/megabat-chomp.mp3' } });
       if (mode === 'easy') {
         var bBtn = document.getElementById('gp-btn-b');
         if (bBtn) bBtn.style.display = 'none';
@@ -305,6 +305,8 @@
     // ── physics ──────────────────────────────────────────────────
     var camX = 0, camY = 0;
     var velX = 0, velY = 0;
+    var ricochetTimer = 0;
+    var prevInpUp     = false;
 
     var PASSIVE_ACCEL = 0.00008;
     var ACCEL         = 0.0004;
@@ -317,6 +319,11 @@
     var MAX_DIVE_SPEED = 0.9;
     var MAX_TILT      = Math.PI * 0.45;
     var PULLUP_RATE   = 0.003;
+    var RICOCHET_FACTOR    = 0.95;
+    var RICOCHET_BOOST     = 0.15;
+    var RICOCHET_THRESHOLD = 0.15;
+    var RICOCHET_DURATION  = 700;
+    var MAX_RICOCHET_SPEED = 0.75;
 
     // ── cavern background tiles ──────────────────────────────────
     function mulberry32(seed) {
@@ -433,9 +440,19 @@
       if (inp.left)  flipX = true;
       if (inp.right) flipX = false;
 
+      if (ricochetTimer > 0) ricochetTimer = Math.max(0, ricochetTimer - dt);
+
       var isGliding      = gameMode === 'easy' && !!inp.b;
       var isFlapping     = !!inp.a && !isGliding;
       var isAnimatingFlap = !!inp.a && !isGliding;
+      var isDiving       = isFlapping && !!inp.down;
+
+      // Ricochet: UP press while descending fast reflects velocity upward with a brief boost
+      if (velY > RICOCHET_THRESHOLD && inp.up && !prevInpUp && ricochetTimer <= 0) {
+        velY = -velY * RICOCHET_FACTOR;
+        velX += (flipX ? -1 : 1) * RICOCHET_BOOST;
+        ricochetTimer = RICOCHET_DURATION;
+      }
 
       // Passive forward drift in faced direction
       velX += (flipX ? -1 : 1) * PASSIVE_ACCEL * dt;
@@ -443,8 +460,8 @@
       // D-pad acceleration (up blocked while gliding — no lift without flapping)
       if (inp.left)              velX -= ACCEL * dt;
       if (inp.right)             velX += ACCEL * dt;
-      if (inp.up && isFlapping)  velY -= ACCEL * dt;
-      if (inp.down) velY += (isFlapping ? (2 * FLAP_FORCE + ACCEL) : DIVE_ACCEL) * dt;
+      if (inp.up && isFlapping && ricochetTimer <= 0)  velY -= ACCEL * dt;
+      if (isDiving) velY += DIVE_ACCEL * dt;
 
       // Gravity and lift
       var grav = GRAVITY;
@@ -457,15 +474,26 @@
         velX += (flipX ? -1 : 1) * transfer;
       }
 
+      prevInpUp = !!inp.up;
+
       // Clamp, damp, integrate
       velX = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, velX));
-      velY = Math.max(-MAX_SPEED, Math.min(MAX_DIVE_SPEED, velY));
-      var damp = Math.pow(DAMPING, dt);
+      var maxUp = ricochetTimer > 0 ? MAX_RICOCHET_SPEED : MAX_SPEED;
+      velY = Math.max(-maxUp, Math.min(MAX_DIVE_SPEED, velY));
+      var dampExp = (ricochetTimer > 0) ? dt * 0.25 : dt;
+      var damp = Math.pow(DAMPING, dampExp);
       velX *= damp; velY *= damp;
       camX += velX * dt;
       camY += velY * dt;
 
-      var tiltAngle = Math.max(0, velY / MAX_DIVE_SPEED) * MAX_TILT;
+      var tiltAngle;
+      if (ricochetTimer > 0) {
+        tiltAngle = -(ricochetTimer / RICOCHET_DURATION) * MAX_TILT * 0.5;
+      } else if (isDiving) {
+        tiltAngle = Math.max(0, velY / MAX_DIVE_SPEED) * MAX_TILT;
+      } else {
+        tiltAngle = 0;
+      }
 
       // Intermittent wing twitch while coasting
       if (!isAnimatingFlap && !isGliding) {
@@ -550,6 +578,7 @@
               orb.consumed = true;
               score += orb.type === 'purple' ? 5 : orb.type === 'green' ? 10 : 1;
               chompSound.currentTime = 0; chompSound.play();
+              if (navigator.vibrate) navigator.vibrate(30);
             } else if (!autoBiting) {
               autoBiting  = true; autoBiteOrb = orb;
               animFrame   = 0; animElapsed = 0;
@@ -569,6 +598,7 @@
               score += autoBiteOrb.type === 'purple' ? 5 : autoBiteOrb.type === 'green' ? 10 : 1;
               autoBiteOrb.consumed = true;
               chompSound.currentTime = 0; chompSound.play();
+              if (navigator.vibrate) navigator.vibrate(30);
             }
             autoBiting  = false;
             autoBiteOrb = null;

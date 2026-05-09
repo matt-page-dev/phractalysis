@@ -23,6 +23,12 @@
     }
   }
 
+  function hexToRgb(hex) {
+    hex = hex.replace('#', '');
+    if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    return parseInt(hex.slice(0,2),16)+','+parseInt(hex.slice(2,4),16)+','+parseInt(hex.slice(4,6),16);
+  }
+
   // ─── Fullscreen ──────────────────────────────────────────────────────────────
 
   function setupFullscreen() {
@@ -443,6 +449,262 @@
     btnsContainer.addEventListener('touchcancel', btnsEnd, { passive: false });
   }
 
+  // ─── Calibration Sequence ────────────────────────────────────────────────────
+
+  function setupCalibration(calibCfg, onComplete) {
+    var cfg    = (calibCfg && typeof calibCfg === 'object') ? calibCfg : {};
+    var clrs   = cfg.colors || {};
+    var hColor = clrs.handle      || '#00aaff';
+    var lColor = clrs.lockNode    || '#ffffff';
+    var tColor = clrs.tensionLine || '#33ddff';
+
+    var snapAudio = null;
+    if (cfg.snapSound) {
+      snapAudio = new Audio(cfg.snapSound);
+      snapAudio.load();
+    }
+
+    var style = document.createElement('style');
+    style.textContent = '#gp-calib{position:fixed;inset:0;z-index:30000;touch-action:none;-webkit-user-select:none;user-select:none;}';
+    document.head.appendChild(style);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'gp-calib';
+    var canvas = document.createElement('canvas');
+    overlay.appendChild(canvas);
+
+    function insert() { document.body.appendChild(overlay); }
+    if (document.body) insert();
+    else document.addEventListener('DOMContentLoaded', insert);
+
+    var ctx       = canvas.getContext('2d');
+    var startTs   = 0;
+    var hintShown = false;
+    var done      = false;
+    var snapping  = false;
+    var snapTs    = 0;
+    var SNAP_MS   = 650;
+
+    var leftTouch  = null; // { id, x, y }
+    var rightTouch = null;
+    var hintTimer, autoTimer;
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function zoneData() {
+      var w = canvas.width, h = canvas.height;
+      var zr = Math.min(w * 0.16, h * 0.28);
+      return {
+        left:  { x: w * 0.14, y: h * 0.5, r: zr },
+        right: { x: w * 0.86, y: h * 0.5, r: zr },
+        cx: w * 0.5, cy: h * 0.5,
+        cr:    Math.min(w, h) * 0.07,
+        snapR: Math.min(w, h) * 0.14
+      };
+    }
+
+    function dist(ax, ay, bx, by) {
+      return Math.sqrt((ax-bx)*(ax-bx)+(ay-by)*(ay-by));
+    }
+
+    function checkSnap() {
+      if (!leftTouch || !rightTouch) return false;
+      var z = zoneData();
+      return dist(leftTouch.x,  leftTouch.y,  z.cx, z.cy) < z.snapR &&
+             dist(rightTouch.x, rightTouch.y, z.cx, z.cy) < z.snapR;
+    }
+
+    function complete() {
+      if (done) return;
+      done = true;
+      clearTimeout(hintTimer);
+      clearTimeout(autoTimer);
+      window.removeEventListener('resize', resize);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      onComplete();
+    }
+
+    function triggerSnap() {
+      if (snapping) return;
+      snapping = true;
+      if (navigator.vibrate) navigator.vibrate([60, 30, 80]);
+      if (snapAudio) { try { snapAudio.currentTime = 0; snapAudio.play(); } catch(e) {} }
+    }
+
+    function handleTouchStart(e) {
+      e.preventDefault();
+      var w = canvas.width;
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (!leftTouch  && t.clientX < w * 0.45) { leftTouch  = { id: t.identifier, x: t.clientX, y: t.clientY }; }
+        else if (!rightTouch && t.clientX > w * 0.55) { rightTouch = { id: t.identifier, x: t.clientX, y: t.clientY }; }
+      }
+      if (!snapping && checkSnap()) triggerSnap();
+    }
+
+    function handleTouchMove(e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (leftTouch  && t.identifier === leftTouch.id)  { leftTouch.x  = t.clientX; leftTouch.y  = t.clientY; }
+        if (rightTouch && t.identifier === rightTouch.id) { rightTouch.x = t.clientX; rightTouch.y = t.clientY; }
+      }
+      if (!snapping && checkSnap()) triggerSnap();
+    }
+
+    function handleTouchEnd(e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (leftTouch  && t.identifier === leftTouch.id)  leftTouch  = null;
+        if (rightTouch && t.identifier === rightTouch.id) rightTouch = null;
+      }
+    }
+
+    overlay.addEventListener('touchstart',  handleTouchStart, { passive: false });
+    overlay.addEventListener('touchmove',   handleTouchMove,  { passive: false });
+    overlay.addEventListener('touchend',    handleTouchEnd,   { passive: false });
+    overlay.addEventListener('touchcancel', handleTouchEnd,   { passive: false });
+
+    hintTimer = setTimeout(function() { hintShown = true; }, 10000);
+    autoTimer = setTimeout(function() { if (!done) complete(); }, 20000);
+
+    // ── Drawing helpers ──
+
+    function arcShape(x, y, r, color, strokeAlpha, blur, lw, fillAlpha) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      if (lw) {
+        ctx.shadowColor = color; ctx.shadowBlur = blur;
+        ctx.strokeStyle = 'rgba(' + hexToRgb(color) + ',' + strokeAlpha + ')';
+        ctx.lineWidth   = lw;
+        ctx.stroke();
+        ctx.shadowBlur  = 0;
+      }
+      if (fillAlpha) {
+        ctx.fillStyle = 'rgba(' + hexToRgb(color) + ',' + fillAlpha + ')';
+        ctx.fill();
+      }
+    }
+
+    function tensionLine(x1, y1, x2, y2, color, alpha) {
+      var mx = (x1 + x2) / 2;
+      var my = (y1 + y2) / 2 - Math.abs(x1 - x2) * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(mx, my, x2, y2);
+      ctx.strokeStyle = 'rgba(' + hexToRgb(color) + ',' + alpha + ')';
+      ctx.lineWidth   = 2;
+      ctx.shadowColor = color; ctx.shadowBlur = 14;
+      ctx.stroke();
+      ctx.shadowBlur  = 0;
+    }
+
+    function drawArrow(x1, y1, x2, y2) {
+      var a = Math.atan2(y2 - y1, x2 - x1), hl = 11;
+      ctx.strokeStyle = ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - hl * Math.cos(a - Math.PI/6), y2 - hl * Math.sin(a - Math.PI/6));
+      ctx.lineTo(x2 - hl * Math.cos(a + Math.PI/6), y2 - hl * Math.sin(a + Math.PI/6));
+      ctx.closePath(); ctx.fill();
+    }
+
+    function drawFrame(ts) {
+      if (!startTs) startTs = ts;
+      var w = canvas.width, h = canvas.height;
+      var z = zoneData();
+      var pulse = (Math.sin((ts - startTs) * 0.0038) + 1) / 2;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Snap burst animation
+      if (snapping) {
+        if (!snapTs) snapTs = ts;
+        var sp = Math.min((ts - snapTs) / SNAP_MS, 1);
+        var fa = sp < 0.2 ? sp / 0.2 : 1 - (sp - 0.2) / 0.8;
+        ctx.fillStyle = 'rgba(255,255,255,' + (fa * 0.92) + ')';
+        ctx.fillRect(0, 0, w, h);
+        for (var ri = 0; ri < 4; ri++) {
+          var rp = Math.max(0, sp - ri * 0.07);
+          if (rp > 0) {
+            ctx.beginPath();
+            ctx.arc(z.cx, z.cy, rp * Math.max(w, h) * 0.7, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,255,255,' + ((1 - rp) * 0.65) + ')';
+            ctx.lineWidth   = Math.max(1, 3 - ri * 0.8);
+            ctx.stroke();
+          }
+        }
+        if (sp >= 1) complete();
+        return;
+      }
+
+      // Background
+      ctx.fillStyle = 'rgba(0,4,12,0.82)';
+      ctx.fillRect(0, 0, w, h);
+
+      var lActive = !!leftTouch, rActive = !!rightTouch, both = lActive && rActive;
+
+      // Invitation zones (dim when grabbed, pulse when waiting)
+      var zaL = lActive ? 0.18 : (0.28 + pulse * 0.18);
+      var zaR = rActive ? 0.18 : (0.28 + pulse * 0.18);
+      var zbL = lActive ? 4    : (5 + pulse * 6);
+      var zbR = rActive ? 4    : (5 + pulse * 6);
+      arcShape(z.left.x,  z.left.y,  z.left.r,  hColor, zaL, zbL, 2, 0);
+      arcShape(z.right.x, z.right.y, z.right.r, hColor, zaR, zbR, 2, 0);
+      arcShape(z.left.x,  z.left.y,  z.left.r  * 0.15, hColor, zaL + 0.2, 0, 0, zaL + 0.2);
+      arcShape(z.right.x, z.right.y, z.right.r * 0.15, hColor, zaR + 0.2, 0, 0, zaR + 0.2);
+
+      // Thumb dots and tension lines
+      if (leftTouch) {
+        var la = Math.max(0.25, 0.85 - dist(leftTouch.x, leftTouch.y, z.cx, z.cy) / (w * 0.45));
+        tensionLine(leftTouch.x, leftTouch.y, z.cx, z.cy, tColor, la);
+        arcShape(leftTouch.x, leftTouch.y, 18, hColor, 0.9, 18, 2, 0.3);
+      }
+      if (rightTouch) {
+        var ra = Math.max(0.25, 0.85 - dist(rightTouch.x, rightTouch.y, z.cx, z.cy) / (w * 0.45));
+        tensionLine(rightTouch.x, rightTouch.y, z.cx, z.cy, tColor, ra);
+        arcShape(rightTouch.x, rightTouch.y, 18, hColor, 0.9, 18, 2, 0.3);
+      }
+
+      // Center lock node
+      var lnA = both ? 1   : (0.55 + pulse * 0.35);
+      var lnS = both ? 1.3 : (1    + pulse * 0.12);
+      var lnB = both ? 35  : (10   + pulse * 12);
+      arcShape(z.cx, z.cy, z.cr * lnS * 1.8, lColor, lnA * 0.18, 0, 1, 0);
+      arcShape(z.cx, z.cy, z.cr * lnS,       lColor, lnA, lnB, 2, 0);
+      arcShape(z.cx, z.cy, z.cr * lnS * 0.3, lColor, lnA, 0, 0, lnA);
+
+      // Hint (after 10s timeout)
+      if (hintShown) {
+        var fs = Math.round(Math.min(w, h) * 0.042);
+        ctx.font        = 'bold ' + fs + 'px sans-serif';
+        ctx.textAlign   = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 8;
+        ctx.fillStyle   = 'rgba(255,255,255,0.72)';
+        ctx.fillText('drag thumbs together toward center', z.cx, h * 0.16);
+        ctx.shadowBlur  = 0;
+        var al = w * 0.07;
+        drawArrow(w * 0.37, z.cy, w * 0.37 + al, z.cy);
+        drawArrow(w * 0.63, z.cy, w * 0.63 - al, z.cy);
+      }
+    }
+
+    function loop(ts) {
+      if (done) return;
+      drawFrame(ts);
+      if (!done) requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
   // ─── Pause Menu ──────────────────────────────────────────────────────────────
 
   function setupPauseMenu(orientation) {
@@ -564,6 +826,7 @@
       var controller  = config.controller  !== undefined ? config.controller  : 'auto';
       var fullscreen  = config.fullscreen  !== undefined ? config.fullscreen  : true;
       var buttons     = config.buttons     !== undefined ? config.buttons     : {};
+      var calibration = config.calibration !== undefined ? config.calibration : {};
 
       if (fullscreen) setupFullscreen();
       setupOrientation(orientation);
@@ -577,6 +840,12 @@
         setupTilt();
       } else if (controller === 'nes' || (controller === 'auto' && hasTouch)) {
         setupVirtualController(buttons);
+        if (calibration !== false) {
+          GamePlate.paused = true;
+          setupCalibration(calibration, function () {
+            GamePlate.paused = false;
+          });
+        }
       }
     }
   };
