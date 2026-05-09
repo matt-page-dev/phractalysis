@@ -736,11 +736,11 @@
         ctx.fillStyle = 'rgba(255,255,255,0.75)';
         ctx.textAlign = 'right';
         ctx.fillText(score + (score === 1 ? ' bug' : ' bugs'), canvas.width - 20, 22);
-        var hudBest = gameMode === 'easy' ? highScoreEasy : highScoreHard;
+        var hudBest = ctrlMode === 'touch' ? highScoreTouch : ctrlMode === 'tilt' ? highScoreTilt : highScoreKeyboard;
         if (hudBest > 0) {
-          ctx.font = '16px monospace';
+          ctx.font = '12px monospace';
           ctx.fillStyle = 'rgba(180,130,255,0.55)';
-          ctx.fillText('best ' + hudBest, canvas.width - 20, 58);
+          ctx.fillText('best ' + hudBest, canvas.width - 20, 68);
         }
       }
 
@@ -773,7 +773,7 @@
         ctx.font = 'bold 64px monospace';
         ctx.fillStyle = 'rgba(255,255,255,' + reAlpha + ')';
         ctx.fillText(roundScore + (roundScore === 1 ? ' bug' : ' bugs'), canvas.width / 2, reY);
-        var displayBest = gameMode === 'easy' ? highScoreEasy : highScoreHard;
+        var displayBest = ctrlMode === 'touch' ? highScoreTouch : ctrlMode === 'tilt' ? highScoreTilt : highScoreKeyboard;
         if (roundIsNewBest) {
           ctx.font = 'bold 32px monospace';
           ctx.fillStyle = 'rgba(176,96,255,' + reAlpha + ')';
