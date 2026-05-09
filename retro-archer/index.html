@@ -71,7 +71,7 @@
 
   <div id="splash">
     <img id="game-logo" src="./assets/game-plate-images/retro-archer-game-logo.png" alt="Retro Archer">
-    <p id="splash-sub">← → move &nbsp;·&nbsp; ↑ jump &nbsp;·&nbsp; Z shoot</p>
+    <p id="splash-sub">← → move &nbsp;·&nbsp; Z jump &nbsp;·&nbsp; X shoot</p>
     <div id="ctrl-choice">
       <button class="ctrl-btn" id="btn-controller">Controller</button>
       <button class="ctrl-btn" id="btn-keyboard" style="display:none">Play</button>
@@ -118,7 +118,7 @@
         document.documentElement.requestFullscreen().catch(function () {});
       }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
-      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Shoot', b: '' } });
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Jump', b: 'Shoot' } });
       dismissSplash();
       init();
       requestAnimationFrame(loop);
@@ -386,11 +386,11 @@
       if (p.y+p.h > H) { p.y = H-p.h; p.vy = 0; p.onGround = true; }
 
       // Jump
-      if (inp.up && p.onGround) p.vy = JFORCE;
+      if (inp.a && p.onGround) p.vy = JFORCE;
 
       // Shoot
       if (p.shootCD > 0) p.shootCD--;
-      if (inp.a && p.shootCD === 0) {
+      if (inp.b && p.shootCD === 0) {
         p.shootCD = SHOOT_CD;
         arrows.push({ x: p.facing>0 ? p.x+p.w : p.x, y: p.y+10, vx: ASPEED*p.facing, w:4, h:4 });
       }
