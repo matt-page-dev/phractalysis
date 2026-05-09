@@ -66,10 +66,10 @@
     }
     .ctrl-btn:hover { background: rgba(150,80,255,0.28); }
     #ctrl-choice { display: flex; gap: 16px; }
-    #ctrl-choice .btn-easy { border-color: rgba(80,200,150,0.45); }
-    #ctrl-choice .btn-easy:hover { background: rgba(80,200,150,0.18); }
-    #ctrl-choice .btn-hard { border-color: rgba(255,80,80,0.45); }
-    #ctrl-choice .btn-hard:hover { background: rgba(255,80,80,0.18); }
+    #ctrl-choice .btn-touch { border-color: rgba(80,200,150,0.45); }
+    #ctrl-choice .btn-touch:hover { background: rgba(80,200,150,0.18); }
+    #ctrl-choice .btn-tilt { border-color: rgba(80,160,255,0.45); }
+    #ctrl-choice .btn-tilt:hover { background: rgba(80,160,255,0.18); }
     @keyframes pulse {
       0%, 100% { opacity: 0.45; }
       50%       { opacity: 0.95; }
@@ -83,8 +83,9 @@
     <p id="splash-mode">How many bugs in 30 seconds?</p>
     <p id="splash-best"></p>
     <div id="ctrl-choice">
-      <button class="ctrl-btn btn-easy" id="btn-easy">Easy</button>
-      <button class="ctrl-btn btn-hard" id="btn-hard">Hard</button>
+      <button class="ctrl-btn" id="btn-start">Start</button>
+      <button class="ctrl-btn btn-touch" id="btn-touch">Touch</button>
+      <button class="ctrl-btn btn-tilt" id="btn-tilt">Tilt</button>
     </div>
   </div>
 
@@ -96,8 +97,16 @@
     document.getElementById('game-logo').addEventListener('animationend', function () {
       this.classList.add('floating');
     }, { once: true });
-    var btnEasy = document.getElementById('btn-easy');
-    var btnHard = document.getElementById('btn-hard');
+    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    var btnStart = document.getElementById('btn-start');
+    var btnTouch = document.getElementById('btn-touch');
+    var btnTilt  = document.getElementById('btn-tilt');
+    if (isMobile) {
+      btnStart.style.display = 'none';
+    } else {
+      btnTouch.style.display = 'none';
+      btnTilt.style.display  = 'none';
+    }
 
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; buildVignette(); }
     window.addEventListener('resize', resize);
@@ -111,18 +120,18 @@
     }
 
     function start(mode) {
-      gameMode = mode;
-      var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-      var controller = isMobile ? 'nes' : 'keyboard';
+      ctrlMode = mode;
+      gameMode = 'easy';
       if (document.fullscreenEnabled && !document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(function () {});
       }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
+      var controller = mode === 'tilt' ? 'tilt' : mode === 'keyboard' ? 'keyboard' : 'nes';
       GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Flap', b: 'Bite' }, calibration: {} });
-      if (mode === 'easy') {
-        var bBtn = document.getElementById('gp-btn-b');
-        if (bBtn) bBtn.style.display = 'none';
-      }
+      var aBtn = document.getElementById('gp-btn-a');
+      var bBtn = document.getElementById('gp-btn-b');
+      if (aBtn) aBtn.style.display = 'none';
+      if (bBtn) bBtn.style.display = 'none';
       dismissSplash();
       swarmActive = false;
       nextSwarmAt = performance.now() + SWARM_INTERVAL_MIN + Math.random() * (SWARM_INTERVAL_MAX - SWARM_INTERVAL_MIN);
@@ -131,16 +140,19 @@
       gameState = 'warmup';
     }
 
-    btnEasy.addEventListener('click', function () { start('easy'); });
-    btnHard.addEventListener('click', function () { start('hard'); });
+    btnStart.addEventListener('click', function () { start('keyboard'); });
+    btnTouch.addEventListener('click', function () { start('touch'); });
+    btnTilt.addEventListener('click',  function () { start('tilt'); });
 
     // ── game state ────────────────────────────────────────────────
     var gameState = 'splash';
     var gameMode  = 'easy';
+    var ctrlMode  = 'touch';
     var score     = 0;
     var timeLeft  = 30000;
-    var highScoreEasy = parseInt(localStorage.getItem('megabat-highscore-easy') || '0', 10);
-    var highScoreHard = parseInt(localStorage.getItem('megabat-highscore-hard') || '0', 10);
+    var highScoreTouch    = parseInt(localStorage.getItem('megabat-highscore-touch')    || '0', 10);
+    var highScoreTilt     = parseInt(localStorage.getItem('megabat-highscore-tilt')     || '0', 10);
+    var highScoreKeyboard = parseInt(localStorage.getItem('megabat-highscore-keyboard') || '0', 10);
 
     var warmupTimer      = 0;
     var warmupBugsCaught = 0;
@@ -152,13 +164,14 @@
 
     var splashBest = document.getElementById('splash-best');
 
-    if (highScoreEasy > 0 || highScoreHard > 0) {
+    (function updateSplashBest() {
       var parts = [];
-      if (highScoreEasy > 0) parts.push('Easy: ' + highScoreEasy);
-      if (highScoreHard > 0) parts.push('Hard: ' + highScoreHard);
-      splashBest.textContent = parts.join('  |  ');
-      splashBest.style.display = 'block';
-    }
+      if (highScoreKeyboard > 0) parts.push('Best: ' + highScoreKeyboard);
+      if (highScoreTouch    > 0) parts.push('Touch: ' + highScoreTouch);
+      if (highScoreTilt     > 0) parts.push('Tilt: '  + highScoreTilt);
+      splashBest.textContent   = parts.join('  |  ');
+      splashBest.style.display = parts.length ? 'block' : 'none';
+    })();
 
     function enterCountdown() {
       countdownPhase = 0;
@@ -176,11 +189,12 @@
 
     function endRound() {
       roundScore = score;
-      var highScore = gameMode === 'easy' ? highScoreEasy : highScoreHard;
+      var highScore = ctrlMode === 'touch' ? highScoreTouch : ctrlMode === 'tilt' ? highScoreTilt : highScoreKeyboard;
       roundIsNewBest = roundScore > highScore;
       if (roundIsNewBest) {
-        if (gameMode === 'easy') { highScoreEasy = roundScore; localStorage.setItem('megabat-highscore-easy', String(roundScore)); }
-        else                     { highScoreHard = roundScore; localStorage.setItem('megabat-highscore-hard', String(roundScore)); }
+        if      (ctrlMode === 'touch')    { highScoreTouch    = roundScore; localStorage.setItem('megabat-highscore-touch',    String(roundScore)); }
+        else if (ctrlMode === 'tilt')     { highScoreTilt     = roundScore; localStorage.setItem('megabat-highscore-tilt',     String(roundScore)); }
+        else                              { highScoreKeyboard = roundScore; localStorage.setItem('megabat-highscore-keyboard', String(roundScore)); }
       }
       roundEndTimer = ROUND_END_DURATION;
       gameState = 'round-end';
@@ -421,6 +435,7 @@
 
       var dt = ts - prev; if (dt > 50) dt = 50; prev = ts;
       var inp = GamePlate.input || {};
+      inp.a = true;
 
       // ── state machine ─────────────────────────────────────────────
       if (gameState === 'warmup') {
