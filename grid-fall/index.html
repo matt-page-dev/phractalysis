@@ -76,7 +76,7 @@
     <p id="splash-hint">click to start</p>
   </div>
 
-  <script src="game-plate.js"></script>
+  <script src="./game-plate.js"></script>
   <script>
     var splash = document.getElementById('splash');
     var choice = document.getElementById('splash-choice');
@@ -118,7 +118,9 @@
 
     function dismissSplash() {
       splash.classList.add('hidden');
-      splash.addEventListener('transitionend', function () { splash.remove(); }, { once: true });
+      splash.addEventListener('transitionend', function () {
+        splash.style.display = 'none';
+      }, { once: true });
     }
 
     function start(controller) {
@@ -156,6 +158,8 @@
     }
 
     function loop() {
+      requestAnimationFrame(loop);
+      if (GamePlate.paused) return;
       var inp = GamePlate.input || {};
 
       var speed = BASE_SPEED;
@@ -229,7 +233,6 @@
         'x:' + camX.toFixed(1) + ' y:' + camY.toFixed(1) + '\n' +
         'A boost:' + +!!inp.a + '  B brake:' + +!!inp.b;
 
-      requestAnimationFrame(loop);
     }
 
     loop();

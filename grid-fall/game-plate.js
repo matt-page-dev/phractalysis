@@ -151,7 +151,9 @@
 
   // ─── Virtual NES Controller ───────────────────────────────────────────────────
 
-  function setupVirtualController() {
+  function setupVirtualController(buttons) {
+    var labelA = (buttons && buttons.a) ? buttons.a : 'A';
+    var labelB = (buttons && buttons.b) ? buttons.b : 'B';
     var style = document.createElement('style');
     style.textContent = [
       '#gp-overlay{',
@@ -222,8 +224,8 @@
         '<div class="gp-arrow right" id="gp-arr-right"></div>',
       '</div>',
       '<div id="gp-buttons">',
-        '<div class="gp-btn gp-btn-b" id="gp-btn-b">B</div>',
-        '<div class="gp-btn gp-btn-a" id="gp-btn-a">A</div>',
+        '<div class="gp-btn gp-btn-b" id="gp-btn-b">' + labelB + '</div>',
+        '<div class="gp-btn gp-btn-a" id="gp-btn-a">' + labelA + '</div>',
       '</div>',
     ].join('');
 
@@ -441,28 +443,140 @@
     btnsContainer.addEventListener('touchcancel', btnsEnd, { passive: false });
   }
 
+  // ─── Pause Menu ──────────────────────────────────────────────────────────────
+
+  function setupPauseMenu(orientation) {
+    var lockValue = orientation === 'landscape' ? 'landscape-primary'
+                  : orientation === 'portrait'  ? 'portrait-primary'
+                  : null;
+
+    var style = document.createElement('style');
+    style.textContent = [
+      '#gp-menu-btn{',
+        'display:none;position:fixed;top:14px;left:14px;',
+        'width:44px;height:44px;border-radius:50%;',
+        'background:rgba(0,0,0,0.45);',
+        'border:2px solid rgba(255,255,255,0.25);',
+        'color:rgba(255,255,255,0.8);font:22px/1 sans-serif;',
+        'align-items:center;justify-content:center;',
+        'cursor:pointer;z-index:10000;',
+        '-webkit-user-select:none;user-select:none;',
+      '}',
+      '#gp-menu-btn.gp-active{display:flex;}',
+      '#gp-pause-overlay{',
+        'display:none;position:fixed;inset:0;z-index:20000;',
+        'background:rgba(0,0,0,0.72);',
+        'align-items:center;justify-content:center;',
+      '}',
+      '#gp-pause-overlay.gp-visible{display:flex;}',
+      '#gp-pause-dialog{',
+        'display:flex;flex-direction:column;align-items:center;',
+        'gap:20px;padding:40px 48px;',
+        'background:rgba(10,10,16,0.97);',
+        'border:2px solid rgba(255,255,255,0.18);border-radius:12px;',
+      '}',
+      '#gp-pause-dialog h2{',
+        'margin:0;font:700 28px/1 sans-serif;',
+        'letter-spacing:0.08em;text-transform:uppercase;',
+        'color:rgba(255,255,255,0.9);',
+      '}',
+      '.gp-pause-btn{',
+        'padding:14px 40px;width:100%;box-sizing:border-box;',
+        'font:600 16px/1 sans-serif;color:rgba(255,255,255,0.85);',
+        'text-transform:uppercase;letter-spacing:0.07em;',
+        'background:rgba(255,255,255,0.08);',
+        'border:2px solid rgba(255,255,255,0.2);',
+        'border-radius:8px;cursor:pointer;',
+      '}',
+      '.gp-pause-btn:hover{background:rgba(255,255,255,0.16);}',
+    ].join('');
+    document.head.appendChild(style);
+
+    var menuBtn = document.createElement('button');
+    menuBtn.id = 'gp-menu-btn';
+    menuBtn.setAttribute('aria-label', 'Menu');
+    menuBtn.innerHTML = '&#9776;';
+
+    var pauseOverlay = document.createElement('div');
+    pauseOverlay.id = 'gp-pause-overlay';
+    pauseOverlay.innerHTML = [
+      '<div id="gp-pause-dialog">',
+        '<h2>Paused</h2>',
+        '<button class="gp-pause-btn" id="gp-btn-resume">Resume</button>',
+        '<button class="gp-pause-btn" id="gp-btn-reset">Reset</button>',
+      '</div>',
+    ].join('');
+
+    var resumeBtn = pauseOverlay.querySelector('#gp-btn-resume');
+    var resetBtn  = pauseOverlay.querySelector('#gp-btn-reset');
+
+    function insert() {
+      document.body.appendChild(menuBtn);
+      document.body.appendChild(pauseOverlay);
+    }
+    if (document.body) { insert(); }
+    else { document.addEventListener('DOMContentLoaded', insert); }
+
+    function showPause() {
+      GamePlate.paused = true;
+      pauseOverlay.classList.add('gp-visible');
+    }
+
+    menuBtn.addEventListener('click', function () {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(function () {});
+      } else {
+        showPause();
+      }
+    });
+
+    resumeBtn.addEventListener('click', function () {
+      pauseOverlay.classList.remove('gp-visible');
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+      if (lockValue) {
+        try { screen.orientation.lock(lockValue).catch(function () {}); } catch (e) {}
+      }
+      GamePlate.paused = false;
+    });
+
+    resetBtn.addEventListener('click', function () {
+      location.reload();
+    });
+
+    document.addEventListener('fullscreenchange', function () {
+      if (!document.fullscreenElement) showPause();
+    });
+
+    menuBtn.classList.add('gp-active');
+  }
+
   // ─── Public API ──────────────────────────────────────────────────────────────
 
   var GamePlate = {
-    input: makeState(),
+    input:  makeState(),
+    paused: false,
 
     init: function (config) {
       config = config || {};
       var orientation = config.orientation !== undefined ? config.orientation : 'landscape';
       var controller  = config.controller  !== undefined ? config.controller  : 'auto';
       var fullscreen  = config.fullscreen  !== undefined ? config.fullscreen  : true;
+      var buttons     = config.buttons     !== undefined ? config.buttons     : {};
 
       if (fullscreen) setupFullscreen();
       setupOrientation(orientation);
       setupKeyboard();
       setupGamepad();
+      setupPauseMenu(orientation);
 
       var hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
       if (controller === 'tilt') {
         setupTilt();
       } else if (controller === 'nes' || (controller === 'auto' && hasTouch)) {
-        setupVirtualController();
+        setupVirtualController(buttons);
       }
     }
   };

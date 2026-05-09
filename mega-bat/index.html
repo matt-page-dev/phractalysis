@@ -20,12 +20,25 @@
       transition: opacity 0.4s ease;
     }
     #splash.hidden { opacity: 0; pointer-events: none; }
-    #splash h1 {
-      margin: 0;
-      font: 700 52px/1 sans-serif;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #d8c0ff;
+    #game-logo {
+      max-width: min(480px, 80vw);
+      max-height: 30vh;
+      object-fit: contain;
+      animation: logo-zoom-in 2.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    #game-logo.floating {
+      animation: logo-float 7s ease-in-out infinite;
+    }
+    @keyframes logo-zoom-in {
+      from { transform: scale(0.25); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+    @keyframes logo-float {
+      0%   { transform: translate(0px,   0px)  rotate(0deg);    }
+      25%  { transform: translate(6px,  -8px)  rotate(0.8deg);  }
+      50%  { transform: translate(-3px, -14px) rotate(-0.5deg); }
+      75%  { transform: translate(-7px, -5px)  rotate(0.6deg);  }
+      100% { transform: translate(0px,   0px)  rotate(0deg);    }
     }
     #splash-mode {
       margin: 0;
@@ -97,7 +110,7 @@
 <body>
   <canvas id="game"></canvas>
   <div id="splash">
-    <h1>MegaBat</h1>
+    <img id="game-logo" src="./assets/game-plate-images/megabat-game-logo.png" alt="MegaBat">
     <p id="splash-mode">How many bugs in 30 seconds?</p>
     <p id="splash-best"></p>
     <div id="ctrl-choice">
@@ -118,6 +131,9 @@
     var canvas = document.getElementById('game');
     var ctx    = canvas.getContext('2d');
     var splash  = document.getElementById('splash');
+    document.getElementById('game-logo').addEventListener('animationend', function () {
+      this.classList.add('floating');
+    }, { once: true });
     var btnEasy = document.getElementById('btn-easy');
     var btnHard = document.getElementById('btn-hard');
 
@@ -146,6 +162,8 @@
         if (bBtn) bBtn.style.display = 'none';
       }
       dismissSplash();
+      swarmActive = false;
+      nextSwarmAt = performance.now() + SWARM_INTERVAL_MIN + Math.random() * (SWARM_INTERVAL_MAX - SWARM_INTERVAL_MIN);
       gameState = 'playing';
     }
 
@@ -184,6 +202,8 @@
       glideAnimFrame = 3; glideAnimTimer = 1500;
       flipX = false; prevB = false; prev = 0;
       gameoverDiv.style.display = 'none';
+      swarmActive = false;
+      nextSwarmAt = performance.now() + SWARM_INTERVAL_MIN + Math.random() * (SWARM_INTERVAL_MAX - SWARM_INTERVAL_MIN);
       gameState = 'playing';
     }
 
@@ -237,7 +257,7 @@
     // ── orbs ─────────────────────────────────────────────────────
     var ORB_RADIUS           = 5;
     var ORB_EAT_DIST         = 50;
-    var ORB_TARGET           = 10;
+    var ORB_TARGET           = 20;
     var ORB_SPAWN_RADIUS_MIN = 300;
     var ORB_SPAWN_RADIUS_MAX = 700;
     var ORB_LIFETIME_MIN     = 3000;
@@ -247,11 +267,20 @@
     var GREEN_CHANCE         = 0.04;
     var GREEN_MAX_SPEED      = 0.35;
     var AUTO_BITE_FPS        = 24;
+    var SWARM_TARGET         = 45;
+    var SWARM_SPAWN_CHANCE   = 0.15;
+    var SWARM_INTERVAL_MIN   = 8000;
+    var SWARM_INTERVAL_MAX   = 15000;
+    var SWARM_DURATION_MIN   = 4000;
+    var SWARM_DURATION_MAX   = 7000;
 
     var orbs        = [];
     var autoBiting  = false;
     var autoBiteOrb = null;
     var chompSound  = new Audio('./assets/sounds/megabat-chomp.mp3');
+    var swarmActive = false;
+    var nextSwarmAt = 0;
+    var swarmEndsAt = 0;
 
     function spawnOrb(ts) {
       var rand = Math.random();
@@ -284,6 +313,10 @@
     var GLIDE_FACTOR  = 0.3;
     var MAX_SPEED     = 0.4;
     var DAMPING       = 0.999;
+    var DIVE_ACCEL    = 0.003;
+    var MAX_DIVE_SPEED = 0.9;
+    var MAX_TILT      = Math.PI * 0.45;
+    var PULLUP_RATE   = 0.003;
 
     // ── cavern background tiles ──────────────────────────────────
     function mulberry32(seed) {
@@ -411,19 +444,28 @@
       if (inp.left)              velX -= ACCEL * dt;
       if (inp.right)             velX += ACCEL * dt;
       if (inp.up && isFlapping)  velY -= ACCEL * dt;
-      if (inp.down)              velY += ACCEL * dt;
+      if (inp.down) velY += (isFlapping ? (2 * FLAP_FORCE + ACCEL) : DIVE_ACCEL) * dt;
 
       // Gravity and lift
       var grav = GRAVITY;
       velY += isFlapping ? -FLAP_FORCE * dt : grav * dt;
 
+      // Pull-up: when flapping out of a dive, bleed descending speed into forward horizontal speed
+      if (isFlapping && !inp.down && velY > 0) {
+        var transfer = Math.min(velY, PULLUP_RATE * dt);
+        velY -= transfer;
+        velX += (flipX ? -1 : 1) * transfer;
+      }
+
       // Clamp, damp, integrate
       velX = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, velX));
-      velY = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, velY));
+      velY = Math.max(-MAX_SPEED, Math.min(MAX_DIVE_SPEED, velY));
       var damp = Math.pow(DAMPING, dt);
       velX *= damp; velY *= damp;
       camX += velX * dt;
       camY += velY * dt;
+
+      var tiltAngle = Math.max(0, velY / MAX_DIVE_SPEED) * MAX_TILT;
 
       // Intermittent wing twitch while coasting
       if (!isAnimatingFlap && !isGliding) {
@@ -464,8 +506,19 @@
         }
       }
 
+      // Swarm timing
+      if (!swarmActive && ts >= nextSwarmAt) {
+        swarmActive = true;
+        swarmEndsAt = ts + SWARM_DURATION_MIN + Math.random() * (SWARM_DURATION_MAX - SWARM_DURATION_MIN);
+      } else if (swarmActive && ts >= swarmEndsAt) {
+        swarmActive = false;
+        nextSwarmAt = ts + SWARM_INTERVAL_MIN + Math.random() * (SWARM_INTERVAL_MAX - SWARM_INTERVAL_MIN);
+      }
+
       // Spawn new orbs to maintain target density
-      if (activeBugCount < ORB_TARGET && Math.random() < 0.04) {
+      var spawnTarget = swarmActive ? SWARM_TARGET : ORB_TARGET;
+      var spawnChance = swarmActive ? SWARM_SPAWN_CHANCE : 0.04;
+      if (activeBugCount < spawnTarget && Math.random() < spawnChance) {
         spawnOrb(ts);
       }
 
@@ -551,6 +604,12 @@
         ctx.fillStyle = 'rgba(180,130,255,0.55)';
         ctx.fillText('best ' + hudBest, canvas.width - 20, 58);
       }
+      if (swarmActive) {
+        ctx.font = 'bold 32px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,' + Math.floor(80 + 80 * Math.sin(ts * 0.008)) + ',20,0.9)';
+        ctx.fillText('SWARM!', 20, 22);
+      }
       ctx.restore();
 
       // Reset animation on glide start so mouth-open starts from frame 0
@@ -604,6 +663,7 @@
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
         if (flipX) ctx.scale(-1, 1);
+        ctx.rotate(tiltAngle);
         ctx.drawImage(activeSprite, srcX, srcY, FRAME_W, FRAME_H,
           -EYE_X * SCALE, -EYE_Y * SCALE, dw, dh);
         ctx.restore();

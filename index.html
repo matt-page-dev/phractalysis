@@ -8,15 +8,15 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0a0f;
-      --card-bg: #12121a;
-      --card-border: #1e1e2e;
-      --cyan: #00e5ff;
-      --purple: #bf5af2;
-      --text: #e2e2f0;
-      --muted: #7070a0;
-      --game-badge: #bf5af2;
-      --demo-badge: #00b8d9;
+      --bg: #0a0a0a;
+      --card-bg: #121210;
+      --card-border: #2a2318;
+      --cyan: #ffb700;
+      --purple: #ff7a00;
+      --text: #f0ede0;
+      --muted: #8a7a50;
+      --game-badge: #ff7a00;
+      --demo-badge: #d49000;
     }
 
     html, body {
@@ -50,18 +50,10 @@
       margin-bottom: 3rem;
     }
 
-    .site-title {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: clamp(2.2rem, 8vw, 4.5rem);
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      background: linear-gradient(135deg, var(--cyan), var(--purple));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      filter: drop-shadow(0 0 18px rgba(0, 229, 255, 0.35));
-      line-height: 1.1;
+    .site-logo {
+      max-width: min(105px, 20vw);
+      height: auto;
+      filter: drop-shadow(0 0 12px rgba(255, 183, 0, 0.45));
     }
 
     .site-tagline {
@@ -100,7 +92,7 @@
     .card:active {
       transform: translateY(-4px);
       border-color: var(--cyan);
-      box-shadow: 0 0 20px rgba(0, 229, 255, 0.2), 0 8px 24px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 20px rgba(255, 183, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.5);
       outline: none;
     }
 
@@ -145,15 +137,15 @@
     }
 
     .badge-game {
-      background: rgba(191, 90, 242, 0.18);
+      background: rgba(255, 122, 0, 0.18);
       color: var(--game-badge);
-      border: 1px solid rgba(191, 90, 242, 0.35);
+      border: 1px solid rgba(255, 122, 0, 0.35);
     }
 
     .badge-demo {
-      background: rgba(0, 184, 217, 0.15);
+      background: rgba(212, 144, 0, 0.18);
       color: var(--demo-badge);
-      border: 1px solid rgba(0, 184, 217, 0.3);
+      border: 1px solid rgba(212, 144, 0, 0.35);
     }
 
     .card-desc {
@@ -184,7 +176,7 @@
 
   <div class="page">
     <header>
-      <div class="site-title">Phractalysis</div>
+      <img class="site-logo" src="sparksware-logo.png" alt="Sparksware" />
       <div class="site-tagline">Interactive demos &amp; games</div>
     </header>
 
@@ -221,18 +213,7 @@
           </div>
         </div>
         <p class="card-desc">Grid-based strategy game built with Unity WebGL.</p>
-      </a>
-
-      <a class="card" href="gridoverlord-new/">
-        <div class="card-top">
-          <span class="card-icon">🗡️</span>
-          <div class="card-meta">
-            <span class="card-title">Grid Overlord New</span>
-            <span class="badge badge-game">Game</span>
-          </div>
-        </div>
-        <p class="card-desc">Updated Grid Overlord build with revised gameplay template.</p>
-      </a>
+      </a>      
 
       <a class="card" href="notebookland/">
         <div class="card-top">
@@ -299,7 +280,7 @@
         for (const s of stars) {
           ctx.beginPath();
           ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(200, 210, 255, ${s.opacity})`;
+          ctx.fillStyle = `rgba(255, 220, 140, ${s.opacity})`;
           ctx.fill();
           s.y += s.speed;
           if (s.y > canvas.height) {
