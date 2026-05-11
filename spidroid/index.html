@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Spidroid – Rotation</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #030308; overflow: hidden; }
+    canvas { display: block; }
+    #splash {
+      position: fixed; inset: 0; z-index: 99999;
+      background: #030308;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 28px;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #game-logo {
+      max-width: min(480px, 80vw);
+      max-height: 30vh;
+      object-fit: contain;
+      animation: logo-zoom-in 2.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    #game-logo.floating {
+      animation: logo-float 7s ease-in-out infinite;
+    }
+    @keyframes logo-zoom-in {
+      from { transform: scale(0.25); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+    @keyframes logo-float {
+      0%   { transform: translate(0px,   0px)  rotate(0deg);    }
+      25%  { transform: translate(6px,  -8px)  rotate(0.8deg);  }
+      50%  { transform: translate(-3px, -14px) rotate(-0.5deg); }
+      75%  { transform: translate(-7px, -5px)  rotate(0.6deg);  }
+      100% { transform: translate(0px,   0px)  rotate(0deg);    }
+    }
+    #splash-tagline {
+      margin: 0;
+      font: 14px/1 sans-serif;
+      color: rgba(0,229,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+    #splash-choice { display: flex; gap: 14px; }
+    .splash-btn {
+      padding: 14px 28px;
+      font: 600 15px/1 sans-serif;
+      color: #00e5ff;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      background: rgba(0,229,255,0.07);
+      border: 1.5px solid rgba(0,229,255,0.35);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .splash-btn:hover { background: rgba(0,229,255,0.16); border-color: rgba(0,229,255,0.7); }
+    #splash-hint {
+      margin: 0;
+      font: 15px/1 sans-serif;
+      color: rgba(0,229,255,0.55);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="splash">
+    <img id="game-logo" src="./assets/images/spidroid-logo.png" alt="Spidroid">
+    <div id="splash-choice">
+      <button class="splash-btn" id="btn-controller">Controller</button>
+    </div>
+    <p id="splash-hint">click anywhere to start</p>
+  </div>
+
+  <script src="./game-plate.js"></script>
+  <script>
+    var splash  = document.getElementById('splash');
+    var canvas  = document.getElementById('game');
+
+    document.getElementById('game-logo').addEventListener('animationend', function () {
+      this.classList.add('floating');
+    }, { once: true });
+    var ctx     = canvas.getContext('2d');
+
+    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (isMobile) {
+      document.getElementById('splash-hint').style.display = 'none';
+    } else {
+      document.getElementById('splash-choice').style.display = 'none';
+    }
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function dismissSplash() {
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function () {
+        splash.style.display = 'none';
+      }, { once: true });
+    }
+
+    var gameStarted = false;
+
+    function start(controller) {
+      GamePlate.init({ orientation: 'portrait', controller: controller, fullscreen: true });
+      dismissSplash();
+      gameStarted = true;
+    }
+
+    document.getElementById('btn-controller').addEventListener('click', function () { start('nes'); });
+    document.getElementById('splash-hint').addEventListener('click', function () { start('keyboard'); });
+
+    // -------------------------------------------------------------------------
+    // Audio
+    // -------------------------------------------------------------------------
+    var sounds = {
+      'bug-capture': new Audio('assets/sounds/bug-capture.mp3'),
+      'twang':       new Audio('assets/sounds/twang.mp3'),
+      'twang2':      new Audio('assets/sounds/twang2.mp3'),
+      'twang3':      new Audio('assets/sounds/twang3.mp3'),
+      'chomp':       new Audio('assets/sounds/chomp.mp3'),
+    };
+    function playSound(name) {
+      var s = sounds[name];
+      if (!s) return;
+      s.currentTime = 0;
+      s.play().catch(function(){});
+    }
+
+    // -------------------------------------------------------------------------
+    // Graph
+    // -------------------------------------------------------------------------
+    var nodes        = [];  // { x, y }
+    var adjacency    = [];  // adjacency[i] = angle-sorted array of neighbor indices
+    var edgeStrength = {};  // 'min_max' → 0–100
+    var originalEdgeCount = 0;
+
+    function edgeKey(a, b) { return Math.min(a, b) + '_' + Math.max(a, b); }
+
+    function jitter(amt) { return (Math.random() - 0.5) * 2 * amt; }
+
+    function pointToSegmentDist(px, py, ax, ay, bx, by) {
+      var dx = bx - ax, dy = by - ay;
+      var lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) return Math.sqrt((px - ax) * (px - ax) + (py - ay) * (py - ay));
+      var t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+      var nx = ax + t * dx, ny = ay + t * dy;
+      return Math.sqrt((px - nx) * (px - nx) + (py - ny) * (py - ny));
+    }
+
+    function jerkNode(id) {
+      var nb = adjacency[id];
+      if (!nb || nb.length === 0) return;
+      var cx = 0, cy = 0;
+      for (var k = 0; k < nb.length; k++) { cx += nodes[nb[k]].x; cy += nodes[nb[k]].y; }
+      nodes[id].targetX = cx / nb.length;
+      nodes[id].targetY = cy / nb.length;
+    }
+
+    function animateNodes() {
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].targetX === undefined) continue;
+        var ddx = nodes[i].targetX - nodes[i].x;
+        var ddy = nodes[i].targetY - nodes[i].y;
+        if (Math.abs(ddx) < 0.5 && Math.abs(ddy) < 0.5) {
+          nodes[i].x = nodes[i].targetX;
+          nodes[i].y = nodes[i].targetY;
+          delete nodes[i].targetX;
+          delete nodes[i].targetY;
+        } else {
+          nodes[i].x += ddx * 0.1;
+          nodes[i].y += ddy * 0.1;
+        }
+      }
+    }
+
+    function pruneDisconnectedNodes() {
+      // BFS from node 0 to find reachable nodes
+      var reachable = [];
+      for (var ri = 0; ri < nodes.length; ri++) reachable.push(false);
+      var queue = [0];
+      reachable[0] = true;
+      while (queue.length > 0) {
+        var cur = queue.shift();
+        var cnb = adjacency[cur];
+        for (var ck = 0; ck < cnb.length; ck++) {
+          if (!reachable[cnb[ck]]) {
+            reachable[cnb[ck]] = true;
+            queue.push(cnb[ck]);
+          }
+        }
+      }
+      // Mark unreachable nodes dead and clean up
+      for (var pi = 0; pi < nodes.length; pi++) {
+        if (reachable[pi] || nodes[pi].dead) continue;
+        nodes[pi].dead = true;
+        for (var bi = 0; bi < bugs.length; bi++) {
+          var bug = bugs[bi];
+          if (bug.landed && bug.nodeId === pi) {
+            bug.landed = false;
+            bug.nodeId = null;
+            bug.heading = Math.random() * Math.PI * 2;
+          }
+        }
+        var dnb = adjacency[pi].slice();
+        for (var dj = 0; dj < dnb.length; dj++) {
+          delete edgeStrength[edgeKey(pi, dnb[dj])];
+          var ia = adjacency[dnb[dj]].indexOf(pi);
+          if (ia >= 0) adjacency[dnb[dj]].splice(ia, 1);
+        }
+        adjacency[pi] = [];
+      }
+      if (!reachable[spider.nodeId]) { gameOver = true; return; }
+      if (spider.state === 'TRAVERSING' && (!reachable[spider.fromId] || !reachable[spider.toId])) {
+        gameOver = true;
+      }
+    }
+
+    function addEdge(a, b) {
+      if (adjacency[a].indexOf(b) < 0) adjacency[a].push(b);
+      if (adjacency[b].indexOf(a) < 0) adjacency[b].push(a);
+      edgeStrength[edgeKey(a, b)] = 100;
+    }
+
+    function removeEdge(a, b) {
+      var ia = adjacency[a].indexOf(b);
+      if (ia >= 0) adjacency[a].splice(ia, 1);
+      var ib = adjacency[b].indexOf(a);
+      if (ib >= 0) adjacency[b].splice(ib, 1);
+      delete edgeStrength[edgeKey(a, b)];
+    }
+
+    function getIntegrity() {
+      return originalEdgeCount > 0 ? Object.keys(edgeStrength).length / originalEdgeCount : 1;
+    }
+
+    function sortAdjacency() {
+      for (var i = 0; i < nodes.length; i++) {
+        var ni = nodes[i];
+        adjacency[i].sort(function (a, b) {
+          var aa = Math.atan2(nodes[a].y - ni.y, nodes[a].x - ni.x);
+          var ab = Math.atan2(nodes[b].y - ni.y, nodes[b].x - ni.x);
+          return aa - ab;
+        });
+      }
+    }
+
+    // --- Orb weaver web (garden spider) ---
+    function buildOrbWeb() {
+      var SCALE = 3200;
+      nodes.push({ x: jitter(30), y: jitter(30) });
+
+      var numSpokes = 8  + Math.floor(Math.random() * 5);
+      var numRings  = 4  + Math.floor(Math.random() * 4);
+
+      var baseSpacing = (Math.PI * 2) / numSpokes;
+      var spokeAngles = [];
+      for (var s = 0; s < numSpokes; s++) {
+        spokeAngles.push(s * baseSpacing + jitter(baseSpacing * 0.12));
+      }
+
+      var ringRadii = [];
+      for (var r = 0; r < numRings; r++) {
+        var t = (r + 1) / numRings;
+        var base = SCALE * 0.12 * Math.pow(1 / 0.12, t);
+        ringRadii.push(base * (1 + jitter(0.08)));
+      }
+
+      var nodeAt = [];
+      for (var r = 0; r < numRings; r++) {
+        nodeAt.push([]);
+        for (var s = 0; s < numSpokes; s++) {
+          var ang = spokeAngles[s];
+          var rad = ringRadii[r];
+          var wobble = jitter(10);
+          nodeAt[r].push(nodes.length);
+          nodes.push({
+            x: Math.cos(ang) * rad + Math.cos(ang + Math.PI / 2) * wobble,
+            y: Math.sin(ang) * rad + Math.sin(ang + Math.PI / 2) * wobble
+          });
+        }
+      }
+
+      for (var i = 0; i < nodes.length; i++) adjacency.push([]);
+
+      for (var s = 0; s < numSpokes; s++) addEdge(0, nodeAt[0][s]);
+
+      for (var r = 0; r < numRings - 1; r++) {
+        for (var s = 0; s < numSpokes; s++) addEdge(nodeAt[r][s], nodeAt[r + 1][s]);
+      }
+
+      for (var r = 1; r < numRings; r++) {
+        for (var s = 0; s < numSpokes; s++) {
+          addEdge(nodeAt[r][s], nodeAt[r][(s + 1) % numSpokes]);
+        }
+      }
+    }
+
+    // --- Cobweb / tangle web (house spider, black widow) ---
+    function buildCobweb() {
+      var SCALE = 3200;
+      nodes.push({ x: jitter(60), y: jitter(60) });
+
+      var numSpokes = 10 + Math.floor(Math.random() * 9);
+      var numRings  =  3 + Math.floor(Math.random() * 3);
+
+      var baseSpacing = (Math.PI * 2) / numSpokes;
+      var spokeAngles = [];
+      for (var s = 0; s < numSpokes; s++) {
+        spokeAngles.push(s * baseSpacing + jitter(baseSpacing * 0.25));
+      }
+
+      var ringRadii = [];
+      for (var r = 0; r < numRings; r++) {
+        var t = (r + 1) / numRings;
+        ringRadii.push(SCALE * (0.15 + 0.85 * t) * (1 + jitter(0.20)));
+      }
+      ringRadii.sort(function (a, b) { return a - b; });
+
+      var nodeAt = [];
+      for (var r = 0; r < numRings; r++) {
+        nodeAt.push([]);
+        for (var s = 0; s < numSpokes; s++) {
+          var ang = spokeAngles[s];
+          var rad = ringRadii[r];
+          nodeAt[r].push(nodes.length);
+          nodes.push({ x: Math.cos(ang) * rad + jitter(25), y: Math.sin(ang) * rad + jitter(25) });
+        }
+      }
+
+      for (var i = 0; i < nodes.length; i++) adjacency.push([]);
+
+      for (var s = 0; s < numSpokes; s++) addEdge(0, nodeAt[0][s]);
+
+      for (var r = 0; r < numRings - 1; r++) {
+        for (var s = 0; s < numSpokes; s++) addEdge(nodeAt[r][s], nodeAt[r + 1][s]);
+      }
+
+      for (var r = 0; r < numRings; r++) {
+        var skipChance = (r === numRings - 1) ? 0 : 0.30;
+        for (var s = 0; s < numSpokes; s++) {
+          if (Math.random() > skipChance) addEdge(nodeAt[r][s], nodeAt[r][(s + 1) % numSpokes]);
+        }
+      }
+
+      var extras = 15 + Math.floor(Math.random() * 10);
+      for (var attempt = 0; attempt < 300 && extras > 0; attempt++) {
+        var ca = 1 + Math.floor(Math.random() * (nodes.length - 1));
+        var cb = 1 + Math.floor(Math.random() * (nodes.length - 1));
+        if (ca === cb) continue;
+        var ddx = nodes[ca].x - nodes[cb].x;
+        var ddy = nodes[ca].y - nodes[cb].y;
+        if (ddx * ddx + ddy * ddy < 200 * 200 && adjacency[ca].indexOf(cb) < 0) {
+          addEdge(ca, cb);
+          extras--;
+        }
+      }
+    }
+
+    // --- Spiral / dense orb web (Leucauge and similar) ---
+    function buildSpiralWeb() {
+      var SCALE = 3200;
+      nodes.push({ x: 0, y: 0 });
+
+      var numSpokes = 7 + Math.floor(Math.random() * 4);
+      var numRings  = 6 + Math.floor(Math.random() * 5);
+
+      var baseSpacing = (Math.PI * 2) / numSpokes;
+      var spokeAngles = [];
+      for (var s = 0; s < numSpokes; s++) {
+        spokeAngles.push(s * baseSpacing + jitter(baseSpacing * 0.08));
+      }
+
+      var ringRadii = [];
+      for (var r = 0; r < numRings; r++) {
+        var t = (r + 1) / numRings;
+        var base = SCALE * (0.08 + 0.92 * Math.pow(t, 1.5));
+        ringRadii.push(base * (1 + jitter(0.05)));
+      }
+
+      var nodeAt = [];
+      for (var r = 0; r < numRings; r++) {
+        nodeAt.push([]);
+        for (var s = 0; s < numSpokes; s++) {
+          var ang = spokeAngles[s];
+          var rad = ringRadii[r];
+          nodeAt[r].push(nodes.length);
+          nodes.push({ x: Math.cos(ang) * rad, y: Math.sin(ang) * rad });
+        }
+      }
+
+      for (var i = 0; i < nodes.length; i++) adjacency.push([]);
+
+      for (var s = 0; s < numSpokes; s++) addEdge(0, nodeAt[0][s]);
+
+      for (var r = 0; r < numRings - 1; r++) {
+        for (var s = 0; s < numSpokes; s++) addEdge(nodeAt[r][s], nodeAt[r + 1][s]);
+      }
+
+      for (var r = 0; r < numRings; r++) {
+        for (var s = 0; s < numSpokes; s++) {
+          addEdge(nodeAt[r][s], nodeAt[r][(s + 1) % numSpokes]);
+        }
+      }
+    }
+
+    function applyLengthBasedStrength() {
+      var keys = Object.keys(edgeStrength);
+      var maxLen = 0;
+      var lengths = {};
+      for (var ki = 0; ki < keys.length; ki++) {
+        var parts = keys[ki].split('_');
+        var a = +parts[0], b = +parts[1];
+        var ldx = nodes[a].x - nodes[b].x, ldy = nodes[a].y - nodes[b].y;
+        var len = Math.sqrt(ldx * ldx + ldy * ldy);
+        lengths[keys[ki]] = len;
+        if (len > maxLen) maxLen = len;
+      }
+      if (maxLen === 0) return;
+      for (var ki = 0; ki < keys.length; ki++) {
+        edgeStrength[keys[ki]] = Math.max(40, Math.min(100, 100 - (lengths[keys[ki]] / maxLen) * 60));
+      }
+    }
+
+    function generateWeb() {
+      nodes        = [];
+      adjacency    = [];
+      edgeStrength = {};
+      var styles = ['orb', 'cobweb', 'spiral'];
+      var style  = styles[Math.floor(Math.random() * styles.length)];
+      if (style === 'orb')    buildOrbWeb();
+      if (style === 'cobweb') buildCobweb();
+      if (style === 'spiral') buildSpiralWeb();
+      sortAdjacency();
+      applyLengthBasedStrength();
+      originalEdgeCount = Object.keys(edgeStrength).length;
+    }
+
+    generateWeb();
+
+    // -------------------------------------------------------------------------
+    // Game state
+    // -------------------------------------------------------------------------
+    var bugs          = [];    // { nodeId, decayRate }
+    var gameOver      = false;
+    var score         = 0;
+    var gameFrame     = 0;
+    var spawnCooldown = 180;   // frames until first bug spawns
+
+    var SPAWN_INTERVAL = 300;  // base frames between spawns (~5s)
+    var MAX_BUGS       = 3;
+    var EAT_RADIUS     = 60;
+
+    function spawnBug() {
+      if (bugs.length >= MAX_BUGS) return;
+      var stage      = Math.floor(gameFrame / (60 * 20));
+      var tierRoll   = Math.random();
+      var tier       = tierRoll < 0.5 ? 0 : tierRoll < 0.8 ? 1 : 2;
+      var tierSize   = [0.7, 1.0, 1.5][tier];
+      var tierDecay  = [0.06, 0.10, 0.16][tier];
+      var spawnAngle = Math.random() * Math.PI * 2;
+      bugs.push({
+        nodeId:    null,
+        tier:      tier,
+        decayRate: tierDecay + stage * 0.02,
+        size:      tierSize,
+        x:         Math.cos(spawnAngle) * 5000,
+        y:         Math.sin(spawnAngle) * 5000,
+        heading:   Math.random() * Math.PI * 2,
+        vx:        0,
+        vy:        0,
+        landed:    false
+      });
+    }
+
+    function updateBugPhysics() {
+      for (var bi = 0; bi < bugs.length; bi++) {
+        var bug = bugs[bi];
+        if (!bug.landed) {
+          // Slowly drift heading — makes the bug curve and zig-zag
+          if (bug.heading === undefined) bug.heading = Math.random() * Math.PI * 2;
+          bug.heading += (Math.random() - 0.5) * 0.22;
+          // Weakly steer heading toward web center when far away
+          var cx = nodes[0].x - bug.x;
+          var cy = nodes[0].y - bug.y;
+          var dist = Math.sqrt(cx * cx + cy * cy);
+          if (dist > 300) {
+            var pullAngle = Math.atan2(cy, cx);
+            var hdiff = pullAngle - bug.heading;
+            while (hdiff >  Math.PI) hdiff -= Math.PI * 2;
+            while (hdiff < -Math.PI) hdiff += Math.PI * 2;
+            bug.heading += hdiff * 0.01;
+          }
+          bug.vx = Math.cos(bug.heading) * 8;
+          bug.vy = Math.sin(bug.heading) * 8;
+          bug.x += bug.vx;
+          bug.y += bug.vy;
+        } else {
+          var target = nodes[bug.nodeId];
+          var tx = target.x - bug.x;
+          var ty = target.y - bug.y;
+          bug.vx = bug.vx * 0.78 + tx * 0.04 + (Math.random() - 0.5) * 20 * bug.size;
+          bug.vy = bug.vy * 0.78 + ty * 0.04 + (Math.random() - 0.5) * 20 * bug.size;
+          bug.x += bug.vx;
+          bug.y += bug.vy;
+        }
+      }
+    }
+
+    function checkBugSnag() {
+      for (var bi = bugs.length - 1; bi >= 0; bi--) {
+        var bug = bugs[bi];
+        if (bug.landed) continue;
+        var caught = false;
+        for (var i = 0; i < nodes.length && !caught; i++) {
+          var nbArr = adjacency[i];
+          for (var j = 0; j < nbArr.length && !caught; j++) {
+            var n2 = nbArr[j];
+            if (n2 <= i) continue;
+            var d = pointToSegmentDist(bug.x, bug.y, nodes[i].x, nodes[i].y, nodes[n2].x, nodes[n2].y);
+            if (d < 40) {
+              var d1 = (bug.x - nodes[i].x) * (bug.x - nodes[i].x) + (bug.y - nodes[i].y) * (bug.y - nodes[i].y);
+              var d2 = (bug.x - nodes[n2].x) * (bug.x - nodes[n2].x) + (bug.y - nodes[n2].y) * (bug.y - nodes[n2].y);
+              bug.nodeId = d1 < d2 ? i : n2;
+              bug.landed = true;
+              playSound('bug-capture');
+              bug.vx *= 0.1;
+              bug.vy *= 0.1;
+              caught = true;
+            }
+          }
+        }
+      }
+    }
+
+    function updateBugs() {
+      var broken = [];
+      for (var bi = 0; bi < bugs.length; bi++) {
+        var bug = bugs[bi];
+        if (!bug.landed) continue;
+        var nb = adjacency[bug.nodeId];
+        for (var j = 0; j < nb.length; j++) {
+          var key = edgeKey(bug.nodeId, nb[j]);
+          if (edgeStrength[key] !== undefined) {
+            edgeStrength[key] -= bug.decayRate;
+            if (edgeStrength[key] <= 0) broken.push([bug.nodeId, nb[j]]);
+          }
+        }
+      }
+      var anyBroken = false;
+      for (var k = 0; k < broken.length; k++) {
+        var ea = broken[k][0], eb = broken[k][1];
+        if (edgeStrength[edgeKey(ea, eb)] !== undefined) {
+          removeEdge(ea, eb);
+          playSound(['twang', 'twang2', 'twang3'][Math.floor(Math.random() * 3)]);
+          jerkNode(ea);
+          jerkNode(eb);
+          anyBroken = true;
+        }
+      }
+      if (anyBroken) {
+        pruneDisconnectedNodes();
+        if (gameOver) return;
+        sortAdjacency();
+        if (spider.state === 'AT_NODE') {
+          var nbl = adjacency[spider.nodeId].length;
+          if (nbl > 0) spider.selIdx = bestForwardIdx(spider.nodeId, spider.fromId);
+          else spider.selIdx = 0;
+        }
+      }
+      // Remove wandering bugs that drifted off screen
+      for (var bi2 = bugs.length - 1; bi2 >= 0; bi2--) {
+        if (!bugs[bi2].landed) {
+          var bx = bugs[bi2].x, by = bugs[bi2].y;
+          if (bx * bx + by * by > 8000 * 8000) bugs.splice(bi2, 1);
+        }
+      }
+    }
+
+    function checkSpiderEatsBugs() {
+      var sp = spiderWorldPos();
+      for (var bi = bugs.length - 1; bi >= 0; bi--) {
+        var bug = bugs[bi];
+        var ddx = bug.x - sp.x, ddy = bug.y - sp.y;
+        if (ddx * ddx + ddy * ddy < EAT_RADIUS * EAT_RADIUS) {
+          bugs.splice(bi, 1);
+          score++;
+          playSound('chomp');
+        }
+      }
+    }
+
+    function edgeColorForStrength(s) {
+      if (s > 60) {
+        var t = (100 - s) / 40;
+        return 'rgba(' + Math.round(t * 255) + ',' + Math.round(150 - t * 80) + ',' + Math.round(185 - t * 185) + ',0.55)';
+      } else {
+        var t2 = (60 - s) / 60;
+        return 'rgba(255,' + Math.round((1 - t2) * 170) + ',0,' + (0.55 + t2 * 0.45).toFixed(2) + ')';
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Spider state
+    // -------------------------------------------------------------------------
+    var spider = {
+      state:  'AT_NODE',
+      nodeId: 0,
+      fromId: 0,
+      toId:   0,
+      t:      0,
+      selIdx: 0
+    };
+
+    function spiderWorldPos() {
+      if (spider.state === 'AT_NODE') return nodes[spider.nodeId];
+      var f = nodes[spider.fromId], to = nodes[spider.toId];
+      return { x: f.x + (to.x - f.x) * spider.t, y: f.y + (to.y - f.y) * spider.t };
+    }
+
+    function angleDiff(a, b) {
+      var d = a - b;
+      while (d >  Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      return d;
+    }
+
+    function bestForwardIdx(atId, fromId) {
+      var neighbors   = adjacency[atId];
+      var travelAngle = Math.atan2(nodes[atId].y - nodes[fromId].y, nodes[atId].x - nodes[fromId].x);
+      var bestIdx = 0, bestScore = Infinity;
+      for (var k = 0; k < neighbors.length; k++) {
+        if (neighbors[k] === fromId) continue;
+        var na   = Math.atan2(nodes[neighbors[k]].y - nodes[atId].y, nodes[neighbors[k]].x - nodes[atId].x);
+        var diff = Math.abs(angleDiff(na, travelAngle));
+        if (diff < bestScore) { bestScore = diff; bestIdx = k; }
+      }
+      return bestIdx;
+    }
+
+    // -------------------------------------------------------------------------
+    // Camera
+    // -------------------------------------------------------------------------
+    function targetCameraAngle() {
+      var fromNode, toNode;
+      if (spider.state === 'AT_NODE') {
+        var nb = adjacency[spider.nodeId];
+        if (!nb.length) return cameraAngle;
+        fromNode = nodes[spider.nodeId];
+        toNode   = nodes[nb[spider.selIdx]];
+      } else {
+        fromNode = nodes[spider.fromId];
+        toNode   = nodes[spider.toId];
+      }
+      return -Math.PI / 2 - Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x);
+    }
+
+    var initNeighbor = adjacency[0][0];
+    var cameraAngle  = -Math.PI / 2 - Math.atan2(
+      nodes[initNeighbor].y - nodes[0].y,
+      nodes[initNeighbor].x - nodes[0].x
+    );
+
+    var cameraScale = 1.0;
+
+    var ROTATION_LERP  = 0.03;
+    var TRAVERSE_SPEED = 0.07;
+    var HOLD_DELAY     = 10;
+    var HOLD_REPEAT    = 5;
+    var NODE_DWELL     = 0;
+
+    var leftHoldFrames  = 0;
+    var rightHoldFrames = 0;
+    var downHoldFrames  = 0;
+    var nodeDwellFrames = 0;
+
+    var rotationEnabled = false;
+
+    function startOverview() {
+      var maxDist = 0;
+      for (var i = 0; i < nodes.length; i++) {
+        var ddx = nodes[i].x - nodes[0].x, ddy = nodes[i].y - nodes[0].y;
+        maxDist = Math.max(maxDist, Math.sqrt(ddx * ddx + ddy * ddy));
+      }
+      cameraScale = Math.min(canvas.width, canvas.height) * 0.45 / maxDist;
+    }
+
+    function resetGame() {
+      bugs          = [];
+      gameOver      = false;
+      score         = 0;
+      gameFrame     = 0;
+      spawnCooldown = 180;
+      generateWeb();
+      spider.state  = 'AT_NODE';
+      spider.nodeId = 0;
+      spider.fromId = 0;
+      spider.toId   = 0;
+      spider.t      = 0;
+      spider.selIdx = 0;
+      leftHoldFrames = rightHoldFrames = downHoldFrames = nodeDwellFrames = 0;
+      var initNb = adjacency[0][0];
+      cameraAngle = -Math.PI / 2 - Math.atan2(nodes[initNb].y - nodes[0].y, nodes[initNb].x - nodes[0].x);
+      startOverview();
+    }
+
+    function resetWeb() {
+      generateWeb();
+      spider.state  = 'AT_NODE';
+      spider.nodeId = 0;
+      spider.fromId = 0;
+      spider.toId   = 0;
+      spider.t      = 0;
+      spider.selIdx = 0;
+      leftHoldFrames = rightHoldFrames = downHoldFrames = nodeDwellFrames = 0;
+      var initNb = adjacency[0][0];
+      cameraAngle = -Math.PI / 2 - Math.atan2(nodes[initNb].y - nodes[0].y, nodes[initNb].x - nodes[0].x);
+      startOverview();
+    }
+
+    startOverview();
+
+    document.addEventListener('keydown', function (e) {
+      if (gameOver) { resetGame(); return; }
+      if (e.key === 'r' || e.key === 'R') rotationEnabled = !rotationEnabled;
+      if (e.key === 'n' || e.key === 'N') resetWeb();
+    });
+
+    // -------------------------------------------------------------------------
+    // Draw helpers
+    // -------------------------------------------------------------------------
+    function drawEdge(ax, ay, bx, by, color, width, glow) {
+      if (glow) {
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.strokeStyle = glow;
+        ctx.lineWidth   = width * 4;
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = width;
+      ctx.stroke();
+    }
+
+    function drawNode(x, y, radius, color, glowColor, glowRadius) {
+      var g = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+      g.addColorStop(0, glowColor);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // -------------------------------------------------------------------------
+    // Main loop
+    // -------------------------------------------------------------------------
+    function loop() {
+      requestAnimationFrame(loop);
+      if (!gameStarted || GamePlate.paused) return;
+      var inp = GamePlate.input || {};
+
+      // --- Game over screen ---
+      if (gameOver) {
+        if (inp.a || inp.b || inp.up || inp.down || inp.left || inp.right) resetGame();
+        ctx.fillStyle = '#030308';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 42px sans-serif';
+        ctx.fillStyle = '#ff4444';
+        ctx.fillText('WEB COLLAPSED', canvas.width / 2, canvas.height / 2 - 40);
+        ctx.font = '22px monospace';
+        ctx.fillStyle = 'rgba(0,229,255,0.8)';
+        ctx.fillText('Score: ' + score, canvas.width / 2, canvas.height / 2 + 10);
+        ctx.font = '15px sans-serif';
+        ctx.fillStyle = 'rgba(0,229,255,0.4)';
+        ctx.fillText('press any key to restart', canvas.width / 2, canvas.height / 2 + 52);
+        ctx.textAlign = 'left';
+        return;
+      }
+
+      // --- Advance frame ---
+      gameFrame++;
+
+      // --- Spawn bugs ---
+      spawnCooldown--;
+      if (spawnCooldown <= 0) {
+        spawnBug();
+        var stage = Math.floor(gameFrame / (60 * 20));
+        spawnCooldown = Math.max(120, SPAWN_INTERVAL - stage * 30);
+      }
+
+      // --- Animate node repositioning ---
+      animateNodes();
+
+      // --- Move bugs + degrade strands ---
+      updateBugPhysics();
+      checkBugSnag();
+      updateBugs();
+      checkSpiderEatsBugs();
+
+      // --- Check web integrity ---
+      if (getIntegrity() < 0.40) gameOver = true;
+
+      // --- Update spider ---
+      if (spider.state === 'AT_NODE') {
+        var nb = adjacency[spider.nodeId];
+        if (nb.length > 0) {
+          spider.selIdx = ((spider.selIdx % nb.length) + nb.length) % nb.length;
+
+          if (inp.left) {
+            leftHoldFrames++;
+            if (leftHoldFrames === 1 || (leftHoldFrames > HOLD_DELAY && (leftHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
+              spider.selIdx = (spider.selIdx - 1 + nb.length) % nb.length;
+          } else { leftHoldFrames = 0; }
+
+          if (inp.right) {
+            rightHoldFrames++;
+            if (rightHoldFrames === 1 || (rightHoldFrames > HOLD_DELAY && (rightHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
+              spider.selIdx = (spider.selIdx + 1) % nb.length;
+          } else { rightHoldFrames = 0; }
+
+          nodeDwellFrames++;
+          if (inp.up && nodeDwellFrames >= NODE_DWELL) {
+            spider.fromId = spider.nodeId;
+            spider.toId   = nb[spider.selIdx];
+            spider.t      = 0;
+            spider.state  = 'TRAVERSING';
+          }
+          if (inp.down) {
+            downHoldFrames++;
+            if (downHoldFrames === 1) {
+              var curNeighbor  = nb[spider.selIdx];
+              var curAngle     = Math.atan2(nodes[curNeighbor].y - nodes[spider.nodeId].y,
+                                            nodes[curNeighbor].x - nodes[spider.nodeId].x);
+              var targetAngle  = curAngle + Math.PI;
+              var bestOppIdx   = spider.selIdx;
+              var bestOppDiff  = Infinity;
+              for (var k = 0; k < nb.length; k++) {
+                var na   = Math.atan2(nodes[nb[k]].y - nodes[spider.nodeId].y,
+                                      nodes[nb[k]].x - nodes[spider.nodeId].x);
+                var diff = Math.abs(angleDiff(na, targetAngle));
+                if (diff < bestOppDiff) { bestOppDiff = diff; bestOppIdx = k; }
+              }
+              spider.selIdx = bestOppIdx;
+            }
+          } else { downHoldFrames = 0; }
+        }
+      } else {
+        spider.t += TRAVERSE_SPEED;
+        if (spider.t >= 1) {
+          var prevFrom  = spider.fromId;
+          spider.state  = 'AT_NODE';
+          spider.nodeId = spider.toId;
+          nodeDwellFrames = 0;
+          leftHoldFrames  = 0;
+          rightHoldFrames = 0;
+          var nb2 = adjacency[spider.nodeId];
+          spider.selIdx = nb2.length > 0 ? bestForwardIdx(spider.nodeId, prevFrom) : 0;
+        }
+      }
+
+      // --- Update camera ---
+      if (rotationEnabled) {
+        var target = targetCameraAngle();
+        cameraAngle += angleDiff(target, cameraAngle) * ROTATION_LERP;
+      }
+
+      // --- Spider world position ---
+      var sp = spiderWorldPos();
+
+      // --- Identify highlighted edges ---
+      var selA = -1, selB = -1;
+      if (spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0) {
+        selA = spider.nodeId;
+        selB = adjacency[spider.nodeId][spider.selIdx];
+        if (selA > selB) { var tmp = selA; selA = selB; selB = tmp; }
+      }
+      var travA = -1, travB = -1;
+      if (spider.state === 'TRAVERSING') {
+        travA = Math.min(spider.fromId, spider.toId);
+        travB = Math.max(spider.fromId, spider.toId);
+      }
+
+      // --- Draw background ---
+      ctx.fillStyle = '#030308';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.lineCap = 'round';
+
+      // --- Apply camera transform ---
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.scale(cameraScale, cameraScale);
+      ctx.rotate(cameraAngle);
+      var dx = -sp.x;
+      var dy = -sp.y;
+      var invScale = 1 / Math.max(cameraScale, 0.001);
+
+      // Build bug position lookup (landed bugs pull strands to their wiggled position)
+      var bugPos = {};
+      for (var bi = 0; bi < bugs.length; bi++) {
+        if (bugs[bi].landed) bugPos[bugs[bi].nodeId] = bugs[bi];
+      }
+
+      // --- Draw edges ---
+      for (var i = 0; i < nodes.length; i++) {
+        var nbArr = adjacency[i];
+        for (var j = 0; j < nbArr.length; j++) {
+          var nb2 = nbArr[j];
+          if (nb2 <= i) continue;
+
+          var posA = bugPos[i]   || nodes[i];
+          var posB = bugPos[nb2] || nodes[nb2];
+          var ax = posA.x + dx, ay = posA.y + dy;
+          var bx = posB.x + dx, by = posB.y + dy;
+
+          var lo = Math.min(i, nb2), hi = Math.max(i, nb2);
+          var isSel  = (lo === selA  && hi === selB);
+          var isTrav = (lo === travA && hi === travB);
+
+          if (isSel) {
+            drawEdge(ax, ay, bx, by, 'rgba(255,220,0,0.95)', 2 * invScale, 'rgba(255,200,0,0.12)');
+          } else if (isTrav) {
+            drawEdge(ax, ay, bx, by, 'rgba(0,229,255,0.85)', 2 * invScale, 'rgba(0,229,255,0.1)');
+          } else {
+            var str = edgeStrength[edgeKey(i, nb2)];
+            var ec  = str !== undefined ? edgeColorForStrength(str) : 'rgba(0,150,185,0.28)';
+            var thick = str !== undefined ? (0.4 + (str / 100) * 1.6) * invScale : 0.5 * invScale;
+            drawEdge(ax, ay, bx, by, ec, thick, null);
+          }
+        }
+      }
+
+      // --- Draw bugs (before nodes so nodes sit on top) ---
+      var bugPulse = 0.5 + 0.5 * Math.sin(gameFrame * 0.12);
+      var BUG_COLORS = [
+        { r: '255,140,0',  glow: '255,80,0'  },
+        { r: '180,50,255', glow: '140,0,220' },
+        { r: '50,220,80',  glow: '0,180,40'  }
+      ];
+      for (var bi = 0; bi < bugs.length; bi++) {
+        var bug  = bugs[bi];
+        var bx2  = bug.x + dx, by2 = bug.y + dy;
+        var baseR = 8 * invScale;
+        var col  = BUG_COLORS[bug.tier] || BUG_COLORS[0];
+        if (bug.landed) {
+          ctx.beginPath();
+          ctx.arc(bx2, by2, baseR * (2 + bugPulse), 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(' + col.glow + ',' + (0.06 + bugPulse * 0.10).toFixed(2) + ')';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(bx2, by2, baseR, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(' + col.r + ',0.92)';
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.arc(bx2, by2, baseR * 0.6, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(' + col.r + ',0.5)';
+          ctx.fill();
+        }
+      }
+
+      // --- Draw nodes ---
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].dead) continue;
+        if (bugPos[i]) continue;
+        var nx = nodes[i].x + dx;
+        var ny = nodes[i].y + dy;
+
+        var isHub     = i === 0;
+        var isCurr    = spider.state === 'AT_NODE' && i === spider.nodeId;
+        var isNextN   = spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0
+                        && i === adjacency[spider.nodeId][spider.selIdx];
+        var isTravDst = spider.state === 'TRAVERSING' && i === spider.toId;
+
+        var r, color, glowColor, glowR;
+        if (isCurr) {
+          r = 6; color = '#ffffff'; glowColor = 'rgba(255,255,255,0.28)'; glowR = 18;
+        } else if (isNextN || isTravDst) {
+          r = 5; color = '#ffdc00'; glowColor = 'rgba(255,220,0,0.22)'; glowR = 15;
+        } else if (isHub) {
+          r = 8; color = '#00e5ff'; glowColor = 'rgba(0,229,255,0.18)'; glowR = 20;
+        } else {
+          r = 4; color = '#007a96'; glowColor = 'rgba(0,122,150,0.12)'; glowR = 10;
+        }
+
+        drawNode(nx, ny, r * invScale, color, glowColor, glowR * invScale);
+      }
+
+      ctx.restore();
+
+      // --- Spider triangle (screen-space) ---
+      var cx = canvas.width  / 2;
+      var cy = canvas.height / 2;
+      var ts = 11;
+
+      ctx.beginPath();
+      ctx.moveTo(cx,             cy - ts);
+      ctx.lineTo(cx + ts * 0.78, cy + ts * 0.65);
+      ctx.lineTo(cx - ts * 0.78, cy + ts * 0.65);
+      ctx.closePath();
+      ctx.fillStyle   = '#e8f8ff';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,229,255,0.7)';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+
+      // --- HUD ---
+      var integrity = Math.round(getIntegrity() * 100);
+      var hudColor  = integrity > 60 ? 'rgba(0,229,255,0.75)' : integrity > 40 ? 'rgba(255,170,0,0.85)' : 'rgba(255,60,60,0.9)';
+      ctx.font      = '13px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = hudColor;
+      ctx.fillText('WEB ' + integrity + '%', 14, 24);
+      ctx.fillStyle = 'rgba(0,229,255,0.6)';
+      ctx.fillText('SCORE ' + score, 14, 44);
+
+      ctx.fillStyle = 'rgba(0,229,255,0.3)';
+      ctx.fillText('← →  steer   ↑  run   [R]  rotation: ' + (rotationEnabled ? 'ON' : 'OFF') + '   [N]  new web', 14, canvas.height - 14);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
