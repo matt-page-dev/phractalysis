@@ -115,6 +115,7 @@
     var gameStarted = false;
 
     function start(controller) {
+      try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
       GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
       dismissSplash();
       gameStarted = true;
