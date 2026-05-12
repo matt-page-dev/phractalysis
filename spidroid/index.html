@@ -76,7 +76,10 @@
   <div id="splash">
     <img id="game-logo" src="./assets/images/spidroid-logo.png" alt="Spidroid">
     <div id="splash-choice">
-      <button class="splash-btn" id="btn-controller">START</button>
+      <button class="splash-btn" id="btn-touch-static">Touch - Static</button>
+      <button class="splash-btn" id="btn-touch-rotate">Touch - Rotate</button>
+      <button class="splash-btn" id="btn-tilt-static">Tilt - Static</button>
+      <button class="splash-btn" id="btn-tilt-rotate">Tilt - Rotate</button>
     </div>
     <p id="splash-hint">click anywhere to start</p>
   </div>
@@ -114,7 +117,8 @@
 
     var gameStarted = false;
 
-    function start(controller) {
+    function start(controller, rotation) {
+      rotationEnabled = !!rotation;
       if (document.fullscreenEnabled && !document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(function () {});
       }
@@ -124,7 +128,10 @@
       gameStarted = true;
     }
 
-    document.getElementById('btn-controller').addEventListener('click', function () { start('nes'); });
+    document.getElementById('btn-touch-static').addEventListener('click', function () { start('nes', false); });
+    document.getElementById('btn-touch-rotate').addEventListener('click', function () { start('nes', true); });
+    document.getElementById('btn-tilt-static').addEventListener('click', function () { start('tilt', false); });
+    document.getElementById('btn-tilt-rotate').addEventListener('click', function () { start('tilt', true); });
     document.getElementById('splash-hint').addEventListener('click', function () { start('keyboard'); });
 
     // -------------------------------------------------------------------------
@@ -688,7 +695,6 @@
 
     var leftHoldFrames  = 0;
     var rightHoldFrames = 0;
-    var downHoldFrames  = 0;
     var nodeDwellFrames = 0;
 
     var rotationEnabled = false;
@@ -847,30 +853,12 @@
           } else { rightHoldFrames = 0; }
 
           nodeDwellFrames++;
-          if (inp.up && nodeDwellFrames >= NODE_DWELL) {
+          if (inp.a && nodeDwellFrames >= NODE_DWELL) {
             spider.fromId = spider.nodeId;
             spider.toId   = nb[spider.selIdx];
             spider.t      = 0;
             spider.state  = 'TRAVERSING';
           }
-          if (inp.down) {
-            downHoldFrames++;
-            if (downHoldFrames === 1) {
-              var curNeighbor  = nb[spider.selIdx];
-              var curAngle     = Math.atan2(nodes[curNeighbor].y - nodes[spider.nodeId].y,
-                                            nodes[curNeighbor].x - nodes[spider.nodeId].x);
-              var targetAngle  = curAngle + Math.PI;
-              var bestOppIdx   = spider.selIdx;
-              var bestOppDiff  = Infinity;
-              for (var k = 0; k < nb.length; k++) {
-                var na   = Math.atan2(nodes[nb[k]].y - nodes[spider.nodeId].y,
-                                      nodes[nb[k]].x - nodes[spider.nodeId].x);
-                var diff = Math.abs(angleDiff(na, targetAngle));
-                if (diff < bestOppDiff) { bestOppDiff = diff; bestOppIdx = k; }
-              }
-              spider.selIdx = bestOppIdx;
-            }
-          } else { downHoldFrames = 0; }
         }
       } else {
         spider.t += TRAVERSE_SPEED;
@@ -1042,7 +1030,7 @@
       ctx.fillText('SCORE ' + score, 14, 44);
 
       ctx.fillStyle = 'rgba(0,229,255,0.3)';
-      ctx.fillText('← →  steer   ↑  run   [R]  rotation: ' + (rotationEnabled ? 'ON' : 'OFF') + '   [N]  new web', 14, canvas.height - 14);
+      ctx.fillText('← →  steer   [A]  run   [R]  rotation: ' + (rotationEnabled ? 'ON' : 'OFF') + '   [N]  new web', 14, canvas.height - 14);
     }
 
     loop();
