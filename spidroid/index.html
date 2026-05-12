@@ -76,7 +76,7 @@
   <div id="splash">
     <img id="game-logo" src="./assets/images/spidroid-logo.png" alt="Spidroid">
     <div id="splash-choice">
-      <button class="splash-btn" id="btn-controller">Controller</button>
+      <button class="splash-btn" id="btn-controller">START</button>
     </div>
     <p id="splash-hint">click anywhere to start</p>
   </div>
@@ -115,6 +115,9 @@
     var gameStarted = false;
 
     function start(controller) {
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
       GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
       dismissSplash();
