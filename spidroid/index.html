@@ -76,12 +76,8 @@
   <div id="splash">
     <img id="game-logo" src="./assets/images/spidroid-logo.png" alt="Spidroid">
     <div id="splash-choice">
-      <button class="splash-btn" id="btn-touch-static">Touch - Static</button>
-      <button class="splash-btn" id="btn-touch-rotate">Touch - Rotate</button>
-      <button class="splash-btn" id="btn-tilt-static">Tilt - Static</button>
-      <button class="splash-btn" id="btn-tilt-rotate">Tilt - Rotate</button>
+      <button class="splash-btn" id="btn-start">Start</button>
     </div>
-    <p id="splash-hint">click anywhere to start</p>
   </div>
 
   <script src="./game-plate.js"></script>
@@ -95,11 +91,6 @@
     var ctx     = canvas.getContext('2d');
 
     var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-    if (isMobile) {
-      document.getElementById('splash-hint').style.display = 'none';
-    } else {
-      document.getElementById('splash-choice').style.display = 'none';
-    }
 
     function resize() {
       canvas.width  = window.innerWidth;
@@ -128,11 +119,7 @@
       gameStarted = true;
     }
 
-    document.getElementById('btn-touch-static').addEventListener('click', function () { start('nes', false); });
-    document.getElementById('btn-touch-rotate').addEventListener('click', function () { start('nes', true); });
-    document.getElementById('btn-tilt-static').addEventListener('click', function () { start('tilt', false); });
-    document.getElementById('btn-tilt-rotate').addEventListener('click', function () { start('tilt', true); });
-    document.getElementById('splash-hint').addEventListener('click', function () { start('keyboard'); });
+    document.getElementById('btn-start').addEventListener('click', function () { start(isMobile ? 'nes' : 'keyboard', false); });
 
     // -------------------------------------------------------------------------
     // Audio
@@ -473,7 +460,7 @@
 
     var SPAWN_INTERVAL = 300;  // base frames between spawns (~5s)
     var MAX_BUGS       = 3;
-    var EAT_RADIUS     = 60;
+    var EAT_RADIUS     = 100;
 
     function spawnBug() {
       if (bugs.length >= MAX_BUGS) return;
@@ -659,6 +646,8 @@
         var diff = Math.abs(angleDiff(na, travelAngle));
         if (diff < bestScore) { bestScore = diff; bestIdx = k; }
       }
+      // Dead end: all neighbors are fromId — fall back to index 0 so spider can go back
+      if (bestScore === Infinity && neighbors.length > 0) bestIdx = 0;
       return bestIdx;
     }
 
@@ -686,6 +675,10 @@
     );
 
     var cameraScale = 1.0;
+    var baseScale   = 1.0;
+    var webRadius   = 1.0;
+    var MAX_ZOOM    = 2.5;
+    var ZOOM_LERP   = 0.04;
 
     var ROTATION_LERP  = 0.03;
     var TRAVERSE_SPEED = 0.07;
@@ -705,7 +698,9 @@
         var ddx = nodes[i].x - nodes[0].x, ddy = nodes[i].y - nodes[0].y;
         maxDist = Math.max(maxDist, Math.sqrt(ddx * ddx + ddy * ddy));
       }
-      cameraScale = Math.min(canvas.width, canvas.height) * 0.45 / maxDist;
+      webRadius   = maxDist;
+      baseScale   = Math.min(canvas.width, canvas.height) * 0.45 / maxDist;
+      cameraScale = baseScale;
     }
 
     function resetGame() {
@@ -829,7 +824,6 @@
       updateBugPhysics();
       checkBugSnag();
       updateBugs();
-      checkSpiderEatsBugs();
 
       // --- Check web integrity ---
       if (getIntegrity() < 0.40) gameOver = true;
@@ -859,6 +853,14 @@
             spider.t      = 0;
             spider.state  = 'TRAVERSING';
           }
+        } else {
+          // Node became isolated — rescue spider by sending it back toward fromId
+          var rescueId = (adjacency[spider.fromId] && adjacency[spider.fromId].length > 0)
+            ? spider.fromId : 0;
+          spider.toId   = rescueId;
+          spider.fromId = spider.nodeId;
+          spider.t      = 0;
+          spider.state  = 'TRAVERSING';
         }
       } else {
         spider.t += TRAVERSE_SPEED;
@@ -871,8 +873,19 @@
           rightHoldFrames = 0;
           var nb2 = adjacency[spider.nodeId];
           spider.selIdx = nb2.length > 0 ? bestForwardIdx(spider.nodeId, prevFrom) : 0;
+          // Eat bugs sitting on the node we just landed on
+          for (var eatBi = bugs.length - 1; eatBi >= 0; eatBi--) {
+            if (bugs[eatBi].nodeId === spider.nodeId) {
+              bugs.splice(eatBi, 1);
+              score++;
+              playSound('chomp');
+            }
+          }
         }
       }
+
+      // --- Eat bugs near spider (using updated position) ---
+      checkSpiderEatsBugs();
 
       // --- Update camera ---
       if (rotationEnabled) {
@@ -882,6 +895,13 @@
 
       // --- Spider world position ---
       var sp = spiderWorldPos();
+
+      // --- Dynamic zoom: zoom in as spider approaches center ---
+      var spDx = sp.x - nodes[0].x, spDy = sp.y - nodes[0].y;
+      var spDist = Math.sqrt(spDx * spDx + spDy * spDy);
+      var zoomFraction = 1 - Math.min(spDist / webRadius, 1);
+      var targetScale  = baseScale * (1 + (MAX_ZOOM - 1) * zoomFraction);
+      cameraScale += (targetScale - cameraScale) * ZOOM_LERP;
 
       // --- Identify highlighted edges ---
       var selA = -1, selB = -1;
