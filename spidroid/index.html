@@ -256,6 +256,135 @@
       }
     }
 
+    // -------------------------------------------------------------------------
+    // Node merging + 2-segment collapse
+    // -------------------------------------------------------------------------
+    function isOccupied(id) {
+      if (spider.state === 'AT_NODE'   && spider.nodeId === id) return true;
+      if (spider.state === 'TRAVERSING' && (spider.fromId === id || spider.toId === id)) return true;
+      for (var bi = 0; bi < bugs.length; bi++)
+        if (bugs[bi].landed && bugs[bi].nodeId === id) return true;
+      return false;
+    }
+
+    function mergeTwoNodes(survivor, absorbed) {
+      // Average position into survivor
+      nodes[survivor].x = (nodes[survivor].x + nodes[absorbed].x) / 2;
+      nodes[survivor].y = (nodes[survivor].y + nodes[absorbed].y) / 2;
+
+      var bNb = adjacency[absorbed].slice();
+      for (var k = 0; k < bNb.length; k++) {
+        var nb = bNb[k];
+        if (nb === survivor) continue;
+        var oldStr = edgeStrength[edgeKey(absorbed, nb)] || 0;
+        var newKey = edgeKey(survivor, nb);
+        // Remove absorbed from neighbour's list
+        var ib = adjacency[nb].indexOf(absorbed);
+        if (ib >= 0) adjacency[nb].splice(ib, 1);
+        delete edgeStrength[edgeKey(absorbed, nb)];
+        if (edgeStrength[newKey] !== undefined) {
+          // Edge already exists — keep the stronger of the two
+          edgeStrength[newKey] = Math.min(100, Math.max(edgeStrength[newKey], oldStr));
+        } else {
+          if (adjacency[survivor].indexOf(nb) < 0) adjacency[survivor].push(nb);
+          if (adjacency[nb].indexOf(survivor) < 0) adjacency[nb].push(survivor);
+          edgeStrength[newKey] = oldStr;
+        }
+      }
+      removeEdge(survivor, absorbed); // clean up direct link if it existed
+
+      // Remap bugs
+      for (var bi2 = 0; bi2 < bugs.length; bi2++)
+        if (bugs[bi2].nodeId === absorbed) bugs[bi2].nodeId = survivor;
+
+      // Remap spider
+      if (spider.nodeId === absorbed) spider.nodeId = survivor;
+      if (spider.fromId === absorbed) spider.fromId = survivor;
+      if (spider.toId   === absorbed) spider.toId   = survivor;
+
+      nodes[absorbed].dead = true;
+      adjacency[absorbed]  = [];
+    }
+
+    function mergeCloseNodes() {
+      var anyMerged = false;
+      var changed   = true;
+      while (changed) {
+        changed = false;
+        outer: for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].dead) continue;
+          for (var j = i + 1; j < nodes.length; j++) {
+            if (nodes[j].dead) continue;
+            var ddx = nodes[i].x - nodes[j].x;
+            var ddy = nodes[i].y - nodes[j].y;
+            if (ddx * ddx + ddy * ddy >= MERGE_DIST * MERGE_DIST) continue;
+
+            // Both occupied by spider at AT_NODE → skip
+            var iHasSpider = (spider.state === 'AT_NODE' && spider.nodeId === i) ||
+                             (spider.state === 'TRAVERSING' && (spider.fromId === i || spider.toId === i));
+            var jHasSpider = (spider.state === 'AT_NODE' && spider.nodeId === j) ||
+                             (spider.state === 'TRAVERSING' && (spider.fromId === j || spider.toId === j));
+            if (iHasSpider && jHasSpider) continue;
+
+            // Pick survivor: spider's node > bug's node > more connections > lower index
+            var survivor, absorbed;
+            if (iHasSpider) { survivor = i; absorbed = j; }
+            else if (jHasSpider) { survivor = j; absorbed = i; }
+            else {
+              var iBug = isOccupied(i), jBug = isOccupied(j);
+              if (iBug && !jBug) { survivor = i; absorbed = j; }
+              else if (jBug && !iBug) { survivor = j; absorbed = i; }
+              else if (adjacency[j].length > adjacency[i].length) { survivor = j; absorbed = i; }
+              else { survivor = i; absorbed = j; }
+            }
+
+            mergeTwoNodes(survivor, absorbed);
+            anyMerged = true;
+            changed   = true;
+            break outer;
+          }
+        }
+      }
+      if (anyMerged) sortAdjacency();
+    }
+
+    function collapseShortEdges() {
+      var anyCollapsed = false;
+      var changed      = true;
+      while (changed) {
+        changed = false;
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].dead) continue;
+          if (adjacency[i].length !== 2) continue;
+          if (isOccupied(i)) continue;
+
+          var na = adjacency[i][0], nb = adjacency[i][1];
+          var strA = edgeStrength[edgeKey(i, na)] || 0;
+          var strB = edgeStrength[edgeKey(i, nb)] || 0;
+          var newStr = Math.min(100, (strA + strB) / 2 + 20);
+
+          removeEdge(i, na);
+          removeEdge(i, nb);
+
+          var existKey = edgeKey(na, nb);
+          if (edgeStrength[existKey] !== undefined) {
+            edgeStrength[existKey] = Math.min(100, edgeStrength[existKey] + 20);
+          } else {
+            if (adjacency[na].indexOf(nb) < 0) adjacency[na].push(nb);
+            if (adjacency[nb].indexOf(na) < 0) adjacency[nb].push(na);
+            edgeStrength[existKey] = newStr;
+          }
+
+          nodes[i].dead = true;
+          adjacency[i]  = [];
+          anyCollapsed  = true;
+          changed       = true;
+          break;
+        }
+      }
+      if (anyCollapsed) sortAdjacency();
+    }
+
     // --- Orb weaver web (garden spider) ---
     function buildOrbWeb() {
       var SCALE = 3200;
@@ -573,6 +702,8 @@
         pruneDisconnectedNodes();
         if (gameOver) return;
         sortAdjacency();
+        mergeCloseNodes();
+        collapseShortEdges();
         if (spider.state === 'AT_NODE') {
           var nbl = adjacency[spider.nodeId].length;
           if (nbl > 0) spider.selIdx = bestForwardIdx(spider.nodeId, spider.fromId);
@@ -602,13 +733,12 @@
     }
 
     function edgeColorForStrength(s) {
-      if (s > 60) {
-        var t = (100 - s) / 40;
-        return 'rgba(' + Math.round(t * 255) + ',' + Math.round(150 - t * 80) + ',' + Math.round(185 - t * 185) + ',0.55)';
-      } else {
-        var t2 = (60 - s) / 60;
-        return 'rgba(255,' + Math.round((1 - t2) * 170) + ',0,' + (0.55 + t2 * 0.45).toFixed(2) + ')';
-      }
+      var t = s / 100; // 1 = strong (blue), 0 = weak (red)
+      var r = Math.round((1 - t) * 255 + t * 40);
+      var g = Math.round((1 - t) * 20  + t * 80);
+      var b = Math.round((1 - t) * 20  + t * 255);
+      var a = (0.3 + t * 0.65).toFixed(2);
+      return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
     }
 
     // -------------------------------------------------------------------------
@@ -680,6 +810,9 @@
     var MAX_ZOOM    = 2.5;
     var ZOOM_LERP   = 0.04;
 
+    var MERGE_DIST      = 55;  // world-px; nodes closer than this merge
+    var DASH_THRESHOLD  = 20;  // strength below this renders dashed
+
     var ROTATION_LERP  = 0.03;
     var TRAVERSE_SPEED = 0.07;
     var HOLD_DELAY     = 10;
@@ -747,7 +880,7 @@
     // -------------------------------------------------------------------------
     // Draw helpers
     // -------------------------------------------------------------------------
-    function drawEdge(ax, ay, bx, by, color, width, glow) {
+    function drawEdge(ax, ay, bx, by, color, width, glow, dashed) {
       if (glow) {
         ctx.beginPath();
         ctx.moveTo(ax, ay);
@@ -756,12 +889,14 @@
         ctx.lineWidth   = width * 4;
         ctx.stroke();
       }
+      if (dashed) ctx.setLineDash([width * 3, width * 3]);
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.lineTo(bx, by);
       ctx.strokeStyle = color;
       ctx.lineWidth   = width;
       ctx.stroke();
+      if (dashed) ctx.setLineDash([]);
     }
 
     function drawNode(x, y, radius, color, glowColor, glowRadius) {
@@ -881,6 +1016,8 @@
               playSound('chomp');
             }
           }
+          // Previous node may now be an unoccupied 2-segment pass-through — collapse it
+          collapseShortEdges();
         }
       }
 
@@ -959,8 +1096,9 @@
           } else {
             var str = edgeStrength[edgeKey(i, nb2)];
             var ec  = str !== undefined ? edgeColorForStrength(str) : 'rgba(0,150,185,0.28)';
-            var thick = str !== undefined ? (0.4 + (str / 100) * 1.6) * invScale : 0.5 * invScale;
-            drawEdge(ax, ay, bx, by, ec, thick, null);
+            var thick = str !== undefined ? (0.4 + (str / 100) * 2.6) * invScale : 0.5 * invScale;
+            var dashed = str !== undefined && str < DASH_THRESHOLD;
+            drawEdge(ax, ay, bx, by, ec, thick, null, dashed);
           }
         }
       }
