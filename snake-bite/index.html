@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Snake Bite</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #080c10; overflow: hidden; }
+    canvas { display: block; }
+    #splash {
+      position: fixed; inset: 0; z-index: 99999; background: #080c10;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash h1 {
+      margin: 0; font: 700 52px/1 sans-serif; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #44ff88;
+    }
+    #splash-choice { display: flex; gap: 14px; }
+    .splash-btn {
+      padding: 14px 24px; font: 600 16px/1 sans-serif; color: #dbe9ff;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 8px; cursor: pointer;
+    }
+    .splash-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.45); }
+    #splash-hint {
+      margin: 0; font: 17px/1 sans-serif; color: rgba(255,255,255,0.6);
+      text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.95; } }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="splash">
+    <h1>Snake Bite</h1>
+    <div id="splash-choice">
+      <button class="splash-btn" id="btn-controller">Controller</button>
+    </div>
+    <p id="splash-hint">click to start</p>
+  </div>
+
+  <script src="./game-plate.js"></script>
+  <script>
+    var splash = document.getElementById('splash');
+    var choice = document.getElementById('splash-choice');
+    var hint   = document.getElementById('splash-hint');
+    var canvas = document.getElementById('game');
+    var ctx    = canvas.getContext('2d');
+
+    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (isMobile) { hint.style.display = 'none'; }
+    else          { choice.style.display = 'none'; }
+
+    var COLS = 50;
+    var blockSize, ROWS, offsetX, offsetY;
+
+    var STEP_MS  = 140;
+    var lastStep = -Infinity;
+    var started  = false;
+
+    var dirX, dirY, segments;
+    var INITIAL_SNAKE_LEN = 12;
+    var snakeLen;
+    var gameOver = false;
+    var gameOverTime = -Infinity;
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      blockSize = Math.floor(canvas.width / COLS);
+      ROWS    = Math.floor(canvas.height / blockSize);
+      offsetX = Math.floor((canvas.width  - COLS * blockSize) / 2);
+      offsetY = Math.floor((canvas.height - ROWS * blockSize) / 2);
+    }
+
+    function initGame() {
+      dirX = 0; dirY = 0;
+      lastStep = -Infinity;
+      gameOver = false;
+      snakeLen = INITIAL_SNAKE_LEN;
+      segments = [];
+      var startX = Math.floor(COLS / 2);
+      var startY = Math.floor(ROWS / 2);
+      for (var i = 0; i < snakeLen; i++) {
+        segments.push({ x: Math.max(1, startX - i), y: startY });
+      }
+    }
+
+    function px(gx) { return offsetX + gx * blockSize; }
+    function py(gy) { return offsetY + gy * blockSize; }
+
+    function fillCell(gx, gy) {
+      ctx.fillRect(px(gx) + 1, py(gy) + 1, blockSize - 2, blockSize - 2);
+    }
+
+    function step(now) {
+      if (now - lastStep < STEP_MS) return;
+      lastStep = now;
+
+      var inp = GamePlate.input || {};
+      var dx = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+      var dy = (inp.down  ? 1 : 0) - (inp.up   ? 1 : 0);
+      if (dx !== 0 || dy !== 0) {
+        dirX = dx; dirY = dy;
+      }
+
+      if (dirX === 0 && dirY === 0) return;
+
+      var headX = segments[0].x;
+      var headY = segments[0].y;
+      var rawNextX = headX + dirX;
+      var rawNextY = headY + dirY;
+      var hitX  = rawNextX <= 0 || rawNextX >= COLS - 1;
+      var hitY  = rawNextY <= 0 || rawNextY >= ROWS - 1;
+
+      if (hitX) dirX = -dirX;
+      if (hitY) dirY = -dirY;
+
+      var nextX = Math.max(1, Math.min(COLS - 2, headX + dirX));
+      var nextY = Math.max(1, Math.min(ROWS - 2, headY + dirY));
+      var oldTailX = segments[segments.length - 1].x;
+      var oldTailY = segments[segments.length - 1].y;
+      var bite = segments.length > 1 && nextX === oldTailX && nextY === oldTailY;
+
+      segments.unshift({ x: nextX, y: nextY });
+      if (bite) {
+        snakeLen--;
+        segments.pop();
+        segments.pop();
+        console.log('tail bite! snake size:', segments.length);
+      } else if (segments.length > snakeLen) {
+        segments.pop();
+      }
+    }
+
+    function draw() {
+      ctx.fillStyle = '#080c10';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Wall perimeter
+      ctx.fillStyle = '#8b2a18';
+      for (var gx = 0; gx < COLS; gx++) {
+        fillCell(gx, 0);
+        fillCell(gx, ROWS - 1);
+      }
+      for (var gy = 1; gy < ROWS - 1; gy++) {
+        fillCell(0, gy);
+        fillCell(COLS - 1, gy);
+      }
+
+      // Body (middle segments)
+      ctx.fillStyle = '#1f9950';
+      for (var i = 1; i < segments.length - 1; i++) {
+        fillCell(segments[i].x, segments[i].y);
+      }
+
+      // Tail (last segment, distinct from head)
+      if (segments.length > 1) {
+        ctx.fillStyle = '#9933cc';
+        fillCell(segments[segments.length - 1].x, segments[segments.length - 1].y);
+      }
+
+      // Head
+      ctx.fillStyle = '#44ff88';
+      fillCell(segments[0].x, segments[0].y);
+
+      // Game over overlay
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold ' + Math.floor(blockSize * 2.8) + 'px sans-serif';
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - blockSize);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = Math.floor(blockSize * 1.1) + 'px sans-serif';
+        ctx.fillText('press any direction to restart', canvas.width / 2, canvas.height / 2 + blockSize * 1.5);
+      }
+    }
+
+    function loop(now) {
+      requestAnimationFrame(loop);
+      if (GamePlate.paused) return;
+      if (started) {
+        if (gameOver) {
+          if (now - gameOverTime > 1000) {
+            var inp = GamePlate.input || {};
+            if (inp.up || inp.down || inp.left || inp.right || inp.a || inp.b) {
+              initGame();
+            }
+          }
+        } else {
+          step(now);
+        }
+      }
+      draw();
+    }
+
+    function dismissSplash() {
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function() {
+        splash.style.display = 'none';
+      }, { once: true });
+    }
+
+    function start(controller) {
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function() {});
+      }
+      try { screen.orientation.lock('landscape-primary').catch(function() {}); } catch(e) {}
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
+      resize();
+      initGame();
+      started = true;
+      dismissSplash();
+    }
+
+    document.getElementById('btn-controller').addEventListener('click', function() { start('nes'); });
+    hint.addEventListener('click', function() { start('keyboard'); });
+
+    window.addEventListener('resize', function() {
+      resize();
+      if (started) initGame();
+    });
+
+    resize();
+    initGame();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

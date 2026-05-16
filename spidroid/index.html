@@ -68,6 +68,7 @@
       0%, 100% { opacity: 0.4; }
       50% { opacity: 1; }
     }
+    #gp-dpad .gp-arm-v, #gp-arr-up, #gp-arr-down { display: none; }
   </style>
 </head>
 <body>
@@ -114,7 +115,7 @@
         document.documentElement.requestFullscreen().catch(function () {});
       }
       try { screen.orientation.lock('landscape-primary').catch(function () {}); } catch (e) {}
-      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true, buttons: { a: 'Move', b: 'Sling' } });
       dismissSplash();
       gameStarted = true;
     }
@@ -130,6 +131,8 @@
       'twang2':      new Audio('assets/sounds/twang2.mp3'),
       'twang3':      new Audio('assets/sounds/twang3.mp3'),
       'chomp':       new Audio('assets/sounds/chomp.mp3'),
+      'web-sling':   new Audio('assets/sounds/web-sling.mp3'),
+      'no-silk':     new Audio('assets/sounds/no-silk.mp3'),
     };
     function playSound(name) {
       var s = sounds[name];
@@ -157,6 +160,23 @@
       var t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
       var nx = ax + t * dx, ny = ay + t * dy;
       return Math.sqrt((px - nx) * (px - nx) + (py - ny) * (py - ny));
+    }
+
+    function closestPointOnSegment(px, py, ax, ay, bx, by) {
+      var dx = bx - ax, dy = by - ay;
+      var lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) return { x: ax, y: ay };
+      var t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+      return { x: ax + t * dx, y: ay + t * dy };
+    }
+
+    function segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+      var d1x = bx-ax, d1y = by-ay, d2x = dx-cx, d2y = dy-cy;
+      var denom = d1x*d2y - d1y*d2x;
+      if (denom === 0) return false;
+      var t = ((cx-ax)*d2y - (cy-ay)*d2x) / denom;
+      var u = ((cx-ax)*d1y - (cy-ay)*d1x) / denom;
+      return t > 0 && t < 1 && u > 0 && u < 1;
     }
 
     function jerkNode(id) {
@@ -221,9 +241,9 @@
         }
         adjacency[pi] = [];
       }
-      if (!reachable[spider.nodeId]) { gameOver = true; return; }
+      if (!reachable[spider.nodeId]) { startCollapse(); return; }
       if (spider.state === 'TRAVERSING' && (!reachable[spider.fromId] || !reachable[spider.toId])) {
-        gameOver = true;
+        startCollapse();
       }
     }
 
@@ -231,6 +251,18 @@
       if (adjacency[a].indexOf(b) < 0) adjacency[a].push(b);
       if (adjacency[b].indexOf(a) < 0) adjacency[b].push(a);
       edgeStrength[edgeKey(a, b)] = 100;
+    }
+
+    function hasEdge(a, b) {
+      return adjacency[a] && adjacency[a].indexOf(b) >= 0;
+    }
+
+    function hasPendingSlingEdge(a, b) {
+      for (var i = 0; i < slingStrands.length; i++) {
+        var strand = slingStrands[i];
+        if ((strand.fromId === a && strand.toId === b) || (strand.fromId === b && strand.toId === a)) return true;
+      }
+      return false;
     }
 
     function removeEdge(a, b) {
@@ -354,6 +386,7 @@
       while (changed) {
         changed = false;
         for (var i = 0; i < nodes.length; i++) {
+          if (i === 0) continue;
           if (nodes[i].dead) continue;
           if (adjacency[i].length !== 2) continue;
           if (isOccupied(i)) continue;
@@ -566,7 +599,7 @@
       nodes        = [];
       adjacency    = [];
       edgeStrength = {};
-      var styles = ['orb', 'cobweb', 'spiral'];
+      var styles = ['orb', 'spiral'];
       var style  = styles[Math.floor(Math.random() * styles.length)];
       if (style === 'orb')    buildOrbWeb();
       if (style === 'cobweb') buildCobweb();
@@ -582,34 +615,59 @@
     // Game state
     // -------------------------------------------------------------------------
     var bugs          = [];    // { nodeId, decayRate }
-    var gameOver      = false;
+    var gamePhase     = 'INTRO'; // 'INTRO' | 'PLAYING' | 'COLLAPSE' | 'NIGHTFALL'
+    var phaseFrame    = 0;
+    var collapseSpinAngle = 0;
+    var collapseCanvas = document.createElement('canvas');
+    var bgDawnT       = 0;
+    var bgDayT        = 0;
+    var introCamX     = 0;
+    var introCamY     = 0;
+    var overlayAlpha  = 1;
     var score         = 0;
-    var gameFrame     = 0;
-    var spawnCooldown = 180;   // frames until first bug spawns
+    var gameFrame            = 0;
+    var levelFrame           = 0;
+    var level                = 1;
+    var silkUnlimited        = false;
+    var levelAnnounceFrames  = 0;
+    var LEVEL_ANNOUNCE_DURATION = 180;
+    var spawnCooldown = 90;    // frames until first bug spawns
+    var bugSpawnCount = 0;
 
-    var SPAWN_INTERVAL = 300;  // base frames between spawns (~5s)
-    var MAX_BUGS       = 3;
+    var SPAWN_INTERVAL  = 300;  // base frames between spawns (~5s)
+    var LEVEL_DURATION  = 60 * 60; // 60 seconds per level
+    var DAY_BREAK_FRAMES = 15 * 60; // 15 second repair window
+    var MAX_BUGS        = 6;
     var EAT_RADIUS     = 100;
+    var BUG_SCORES     = [1, 5, 10]; // orange, purple, green
+    var COLLAPSE_FRAMES = 150;
+    var NIGHTFALL_FRAMES = 48;
+    var INTRO_FRAMES = 190;
 
     function spawnBug() {
       if (bugs.length >= MAX_BUGS) return;
       var stage      = Math.floor(gameFrame / (60 * 20));
       var tierRoll   = Math.random();
-      var tier       = tierRoll < 0.5 ? 0 : tierRoll < 0.8 ? 1 : 2;
+      var forceEarlyPurple = bugSpawnCount === 0 || bugSpawnCount === 2;
+      var tier       = forceEarlyPurple ? 1 : tierRoll < 0.45 ? 0 : tierRoll < 0.82 ? 1 : 2;
       var tierSize   = [0.7, 1.0, 1.5][tier];
       var tierDecay  = [0.06, 0.10, 0.16][tier];
+      var tierSpeed  = [8, 10.5, 20][tier];
       var spawnAngle = Math.random() * Math.PI * 2;
+      bugSpawnCount++;
       bugs.push({
         nodeId:    null,
         tier:      tier,
         decayRate: tierDecay + stage * 0.02,
         size:      tierSize,
+        speed:     tierSpeed,
         x:         Math.cos(spawnAngle) * 5000,
         y:         Math.sin(spawnAngle) * 5000,
         heading:   Math.random() * Math.PI * 2,
         vx:        0,
         vy:        0,
-        landed:    false
+        landed:    false,
+        spinDir:   (Math.random() < 0.5 ? 1 : -1)
       });
     }
 
@@ -617,22 +675,43 @@
       for (var bi = 0; bi < bugs.length; bi++) {
         var bug = bugs[bi];
         if (!bug.landed) {
-          // Slowly drift heading — makes the bug curve and zig-zag
+          // Heading drift — green is much more erratic
           if (bug.heading === undefined) bug.heading = Math.random() * Math.PI * 2;
-          bug.heading += (Math.random() - 0.5) * 0.22;
-          // Weakly steer heading toward web center when far away
+          bug.heading += (Math.random() - 0.5) * (bug.tier === 2 ? 0.7 : bug.tier === 1 ? 0.28 : 0.22);
+          // Steer toward web center
           var cx = nodes[0].x - bug.x;
           var cy = nodes[0].y - bug.y;
           var dist = Math.sqrt(cx * cx + cy * cy);
-          if (dist > 300) {
-            var pullAngle = Math.atan2(cy, cx);
-            var hdiff = pullAngle - bug.heading;
-            while (hdiff >  Math.PI) hdiff -= Math.PI * 2;
-            while (hdiff < -Math.PI) hdiff += Math.PI * 2;
-            bug.heading += hdiff * 0.01;
+          if (bug.tier === 1) {
+            // Purple: pressure the outer ring by spiraling inward instead of orbiting it.
+            if (dist < 5600 && dist > 0.001) {
+              var nx = cx / dist;
+              var ny = cy / dist;
+              var tx = -ny * bug.spinDir;
+              var ty = nx * bug.spinDir;
+              var inwardWeight = dist > 2600 ? 0.52 : 0.72;
+              var tangentWeight = dist > 2600 ? 0.94 : 0.68;
+              var desiredAngle = Math.atan2(
+                ny * inwardWeight + ty * tangentWeight,
+                nx * inwardWeight + tx * tangentWeight
+              );
+              var hdiff = desiredAngle - bug.heading;
+              while (hdiff >  Math.PI) hdiff -= Math.PI * 2;
+              while (hdiff < -Math.PI) hdiff += Math.PI * 2;
+              bug.heading += hdiff * 0.085;
+            }
+          } else {
+            var pullGate = 300;
+            if (dist > pullGate) {
+              var pullAngle = Math.atan2(cy, cx);
+              var hdiff = pullAngle - bug.heading;
+              while (hdiff >  Math.PI) hdiff -= Math.PI * 2;
+              while (hdiff < -Math.PI) hdiff += Math.PI * 2;
+              bug.heading += hdiff * 0.01;
+            }
           }
-          bug.vx = Math.cos(bug.heading) * 8;
-          bug.vy = Math.sin(bug.heading) * 8;
+          bug.vx = Math.cos(bug.heading) * bug.speed;
+          bug.vy = Math.sin(bug.heading) * bug.speed;
           bug.x += bug.vx;
           bug.y += bug.vy;
         } else {
@@ -652,21 +731,70 @@
         var bug = bugs[bi];
         if (bug.landed) continue;
         var caught = false;
-        for (var i = 0; i < nodes.length && !caught; i++) {
-          var nbArr = adjacency[i];
-          for (var j = 0; j < nbArr.length && !caught; j++) {
-            var n2 = nbArr[j];
-            if (n2 <= i) continue;
-            var d = pointToSegmentDist(bug.x, bug.y, nodes[i].x, nodes[i].y, nodes[n2].x, nodes[n2].y);
-            if (d < 40) {
-              var d1 = (bug.x - nodes[i].x) * (bug.x - nodes[i].x) + (bug.y - nodes[i].y) * (bug.y - nodes[i].y);
-              var d2 = (bug.x - nodes[n2].x) * (bug.x - nodes[n2].x) + (bug.y - nodes[n2].y) * (bug.y - nodes[n2].y);
-              bug.nodeId = d1 < d2 ? i : n2;
+
+        if (bug.tier === 1) {
+          // Purple: passes over strands, only snags near a node directly
+          var NODE_SNAG_RADIUS = 100;
+          for (var ni = 0; ni < nodes.length && !caught; ni++) {
+            if (nodes[ni].dead) continue;
+            var ndx = bug.x - nodes[ni].x, ndy = bug.y - nodes[ni].y;
+            if (ndx * ndx + ndy * ndy < NODE_SNAG_RADIUS * NODE_SNAG_RADIUS) {
+              bug.nodeId = ni;
               bug.landed = true;
               playSound('bug-capture');
               bug.vx *= 0.1;
               bug.vy *= 0.1;
               caught = true;
+            }
+          }
+        } else if (bug.tier === 2) {
+          // Green: hits a strand and creates a new node at the exact hit point
+          for (var i = 0; i < nodes.length && !caught; i++) {
+            if (nodes[i].dead) continue;
+            var nbArr = adjacency[i];
+            for (var j = 0; j < nbArr.length && !caught; j++) {
+              var n2 = nbArr[j];
+              if (n2 <= i) continue;
+              var d = pointToSegmentDist(bug.x, bug.y, nodes[i].x, nodes[i].y, nodes[n2].x, nodes[n2].y);
+              if (d < 40) {
+                var pt = closestPointOnSegment(bug.x, bug.y, nodes[i].x, nodes[i].y, nodes[n2].x, nodes[n2].y);
+                var newId = nodes.length;
+                nodes.push({ x: pt.x, y: pt.y });
+                adjacency.push([]);
+                var oldStr = edgeStrength[edgeKey(i, n2)];
+                removeEdge(i, n2);
+                addEdge(i, newId);    edgeStrength[edgeKey(i, newId)]   = oldStr;
+                addEdge(newId, n2);   edgeStrength[edgeKey(newId, n2)]  = oldStr;
+                originalEdgeCount++;
+                sortAdjacency();
+                bug.nodeId = newId;
+                bug.landed = true;
+                playSound('bug-capture');
+                bug.vx *= 0.1;
+                bug.vy *= 0.1;
+                caught = true;
+              }
+            }
+          }
+        } else {
+          // Orange: snaps to nearest node endpoint on any strand hit
+          for (var i = 0; i < nodes.length && !caught; i++) {
+            if (nodes[i].dead) continue;
+            var nbArr = adjacency[i];
+            for (var j = 0; j < nbArr.length && !caught; j++) {
+              var n2 = nbArr[j];
+              if (n2 <= i) continue;
+              var d = pointToSegmentDist(bug.x, bug.y, nodes[i].x, nodes[i].y, nodes[n2].x, nodes[n2].y);
+              if (d < 40) {
+                var d1 = (bug.x - nodes[i].x) * (bug.x - nodes[i].x) + (bug.y - nodes[i].y) * (bug.y - nodes[i].y);
+                var d2 = (bug.x - nodes[n2].x) * (bug.x - nodes[n2].x) + (bug.y - nodes[n2].y) * (bug.y - nodes[n2].y);
+                bug.nodeId = d1 < d2 ? i : n2;
+                bug.landed = true;
+                playSound('bug-capture');
+                bug.vx *= 0.1;
+                bug.vy *= 0.1;
+                caught = true;
+              }
             }
           }
         }
@@ -700,7 +828,7 @@
       }
       if (anyBroken) {
         pruneDisconnectedNodes();
-        if (gameOver) return;
+        if (gamePhase === 'COLLAPSE') return;
         sortAdjacency();
         mergeCloseNodes();
         collapseShortEdges();
@@ -725,8 +853,10 @@
         var bug = bugs[bi];
         var ddx = bug.x - sp.x, ddy = bug.y - sp.y;
         if (ddx * ddx + ddy * ddy < EAT_RADIUS * EAT_RADIUS) {
+          var val = BUG_SCORES[bug.tier] || 1;
           bugs.splice(bi, 1);
-          score++;
+          score += val;
+          silk = Math.min(SILK_MAX, silk + val);
           playSound('chomp');
         }
       }
@@ -781,12 +911,93 @@
       return bestIdx;
     }
 
+    function slingTargets(fromId) {
+      var targets = [];
+      var fromNode = nodes[fromId];
+      if (!fromNode || fromNode.dead) return targets;
+      for (var i = 0; i < nodes.length; i++) {
+        if (i === fromId || nodes[i].dead || hasEdge(fromId, i) || hasPendingSlingEdge(fromId, i)) continue;
+        var fn = nodes[fromId], cn = nodes[i];
+        var crosses = false;
+        for (var j = 0; j < nodes.length && !crosses; j++) {
+          if (!adjacency[j]) continue;
+          for (var k = 0; k < adjacency[j].length && !crosses; k++) {
+            var nb = adjacency[j][k];
+            if (nb <= j) continue;
+            if (j === fromId || nb === fromId || j === i || nb === i) continue;
+            crosses = segmentsIntersect(fn.x, fn.y, cn.x, cn.y,
+                                        nodes[j].x, nodes[j].y, nodes[nb].x, nodes[nb].y);
+          }
+        }
+        if (crosses) continue;
+        targets.push(i);
+      }
+      targets.sort(function (a, b) {
+        var aa = Math.atan2(nodes[a].y - fromNode.y, nodes[a].x - fromNode.x);
+        var ab = Math.atan2(nodes[b].y - fromNode.y, nodes[b].x - fromNode.x);
+        return aa - ab;
+      });
+      return targets;
+    }
+
+    function syncSlingTarget() {
+      if (!slingActive || spider.state !== 'AT_NODE') {
+        slingTargetId = null;
+        return [];
+      }
+      var targets = slingTargets(spider.nodeId);
+      if (targets.length === 0) {
+        slingTargetId = null;
+        return targets;
+      }
+      if (slingTargetId !== null) {
+        var existing = targets.indexOf(slingTargetId);
+        if (existing >= 0) slingAimIdx = existing;
+      }
+      slingAimIdx = ((slingAimIdx % targets.length) + targets.length) % targets.length;
+      slingTargetId = targets[slingAimIdx];
+      return targets;
+    }
+
+    function startSlingStrand(fromId, toId) {
+      if (fromId === toId || !nodes[fromId] || !nodes[toId] || nodes[fromId].dead || nodes[toId].dead || hasEdge(fromId, toId) || hasPendingSlingEdge(fromId, toId)) return;
+      slingStrands.push({ fromId: fromId, toId: toId, t: 0 });
+      playSound('web-sling');
+    }
+
+    function updateSlingStrands() {
+      for (var i = slingStrands.length - 1; i >= 0; i--) {
+        var strand = slingStrands[i];
+        if (!nodes[strand.fromId] || !nodes[strand.toId] || nodes[strand.fromId].dead || nodes[strand.toId].dead || hasEdge(strand.fromId, strand.toId)) {
+          slingStrands.splice(i, 1);
+          continue;
+        }
+        strand.t += SLING_BUILD_SPEED;
+        if (strand.t >= 1) {
+          addEdge(strand.fromId, strand.toId);
+          sortAdjacency();
+          if (spider.state === 'AT_NODE' && spider.nodeId === strand.fromId) {
+            var slingNb = adjacency[strand.fromId];
+            var slingIdx = slingNb ? slingNb.indexOf(strand.toId) : -1;
+            if (slingIdx >= 0) spider.selIdx = slingIdx;
+          }
+          slingStrands.splice(i, 1);
+          playSound('twang');
+        }
+      }
+    }
+
     // -------------------------------------------------------------------------
     // Camera
     // -------------------------------------------------------------------------
     function targetCameraAngle() {
       var fromNode, toNode;
       if (spider.state === 'AT_NODE') {
+        if (slingActive && slingTargetId !== null && nodes[slingTargetId]) {
+          fromNode = nodes[spider.nodeId];
+          toNode = nodes[slingTargetId];
+          return -Math.PI / 2 - Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x);
+        }
         var nb = adjacency[spider.nodeId];
         if (!nb.length) return cameraAngle;
         fromNode = nodes[spider.nodeId];
@@ -815,6 +1026,8 @@
 
     var ROTATION_LERP  = 0.03;
     var TRAVERSE_SPEED = 0.07;
+    var REPAIR_PER_FRAME = 0.45;
+    var SLING_BUILD_SPEED = 0.08;
     var HOLD_DELAY     = 10;
     var HOLD_REPEAT    = 5;
     var NODE_DWELL     = 0;
@@ -822,6 +1035,15 @@
     var leftHoldFrames  = 0;
     var rightHoldFrames = 0;
     var nodeDwellFrames = 0;
+    var slingActive     = false;
+    var slingAimIdx     = 0;
+    var slingTargetId   = null;
+    var wasBDown        = false;
+    var slingStrands    = [];
+
+    var SILK_MAX  = 15;
+    var SILK_COST = 5;
+    var silk      = SILK_MAX;
 
     var rotationEnabled = false;
 
@@ -836,12 +1058,15 @@
       cameraScale = baseScale;
     }
 
-    function resetGame() {
-      bugs          = [];
-      gameOver      = false;
-      score         = 0;
-      gameFrame     = 0;
-      spawnCooldown = 180;
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function resetWebState() {
       generateWeb();
       spider.state  = 'AT_NODE';
       spider.nodeId = 0;
@@ -849,30 +1074,77 @@
       spider.toId   = 0;
       spider.t      = 0;
       spider.selIdx = 0;
-      leftHoldFrames = rightHoldFrames = downHoldFrames = nodeDwellFrames = 0;
+      slingActive = false;
+      slingAimIdx = 0;
+      slingTargetId = null;
+      wasBDown = false;
+      slingStrands = [];
+      silk = SILK_MAX;
+      leftHoldFrames = rightHoldFrames = nodeDwellFrames = 0;
       var initNb = adjacency[0][0];
       cameraAngle = -Math.PI / 2 - Math.atan2(nodes[initNb].y - nodes[0].y, nodes[initNb].x - nodes[0].x);
       startOverview();
+    }
+
+    function beginIntroPan() {
+      var safeScale = Math.max(baseScale, 0.001);
+      introCamX = Math.max(2200, canvas.width / safeScale * 0.72);
+      introCamY = -Math.max(650, canvas.height / safeScale * 0.18);
+      bgDawnT = 0;
+      overlayAlpha = 1;
+    }
+
+    function resetGame() {
+      bugs          = [];
+      score         = 0;
+      gameFrame     = 0;
+      spawnCooldown = 90;
+      bugSpawnCount = 0;
+      resetWebState();
     }
 
     function resetWeb() {
-      generateWeb();
-      spider.state  = 'AT_NODE';
-      spider.nodeId = 0;
-      spider.fromId = 0;
-      spider.toId   = 0;
-      spider.t      = 0;
-      spider.selIdx = 0;
-      leftHoldFrames = rightHoldFrames = downHoldFrames = nodeDwellFrames = 0;
-      var initNb = adjacency[0][0];
-      cameraAngle = -Math.PI / 2 - Math.atan2(nodes[initNb].y - nodes[0].y, nodes[initNb].x - nodes[0].x);
-      startOverview();
+      resetWebState();
+      beginIntroPan();
+      phaseFrame = 0;
+      gamePhase = 'INTRO';
     }
 
     startOverview();
+    beginIntroPan();
+
+    function startCollapse() {
+      if (gamePhase === 'COLLAPSE') return;
+      collapseCanvas.width = canvas.width;
+      collapseCanvas.height = canvas.height;
+      collapseCanvas.getContext('2d').drawImage(canvas, 0, 0);
+      gamePhase = 'COLLAPSE';
+      phaseFrame = 0;
+      collapseSpinAngle = 0;
+      bgDawnT = 0;
+      overlayAlpha = 0;
+    }
+
+    function startDayBreak() {
+      gamePhase = 'DAY_BREAK';
+      phaseFrame = 0;
+      silkUnlimited = true;
+      bugs = [];
+    }
+
+    function startNextLevel() {
+      level++;
+      MAX_BUGS += 2;
+      levelFrame = 0;
+      silkUnlimited = false;
+      bgDayT = 0;
+      levelAnnounceFrames = LEVEL_ANNOUNCE_DURATION;
+      gamePhase = 'PLAYING';
+      phaseFrame = 0;
+    }
 
     document.addEventListener('keydown', function (e) {
-      if (gameOver) { resetGame(); return; }
+      if (gamePhase !== 'PLAYING') return;
       if (e.key === 'r' || e.key === 'R') rotationEnabled = !rotationEnabled;
       if (e.key === 'n' || e.key === 'N') resetWeb();
     });
@@ -899,6 +1171,25 @@
       if (dashed) ctx.setLineDash([]);
     }
 
+    function drawRepairSegment(ax, ay, bx, by, t, width) {
+      var sx = ax + (bx - ax) * Math.max(0, Math.min(t, 1));
+      var sy = ay + (by - ay) * Math.max(0, Math.min(t, 1));
+
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(sx, sy);
+      ctx.strokeStyle = 'rgba(120,255,210,0.18)';
+      ctx.lineWidth = width * 5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(sx, sy);
+      ctx.strokeStyle = 'rgba(170,255,230,0.95)';
+      ctx.lineWidth = width;
+      ctx.stroke();
+    }
+
     function drawNode(x, y, radius, color, glowColor, glowRadius) {
       var g = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
       g.addColorStop(0, glowColor);
@@ -914,6 +1205,32 @@
       ctx.fill();
     }
 
+    function drawCollapseAway() {
+      var t = Math.min(phaseFrame / COLLAPSE_FRAMES, 1);
+      var pull = easeOutCubic(t);
+      var scale = 1 - pull * 0.84;
+      var alpha = Math.max(0, 1 - Math.pow(t, 1.55));
+      var driftX = canvas.width * 0.05 * pull;
+      var driftY = -canvas.height * 0.04 * pull;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(canvas.width / 2 + driftX, canvas.height / 2 + driftY);
+      ctx.rotate(collapseSpinAngle);
+      ctx.scale(scale, scale);
+      ctx.drawImage(collapseCanvas, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+      ctx.restore();
+
+      var vignette = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.12,
+        canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.78
+      );
+      vignette.addColorStop(0, 'rgba(3,3,8,0)');
+      vignette.addColorStop(1, 'rgba(3,3,8,' + (0.7 * pull).toFixed(3) + ')');
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
     // -------------------------------------------------------------------------
     // Main loop
     // -------------------------------------------------------------------------
@@ -922,110 +1239,227 @@
       if (!gameStarted || GamePlate.paused) return;
       var inp = GamePlate.input || {};
 
-      // --- Game over screen ---
-      if (gameOver) {
-        if (inp.a || inp.b || inp.up || inp.down || inp.left || inp.right) resetGame();
-        ctx.fillStyle = '#030308';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 42px sans-serif';
-        ctx.fillStyle = '#ff4444';
-        ctx.fillText('WEB COLLAPSED', canvas.width / 2, canvas.height / 2 - 40);
-        ctx.font = '22px monospace';
-        ctx.fillStyle = 'rgba(0,229,255,0.8)';
-        ctx.fillText('Score: ' + score, canvas.width / 2, canvas.height / 2 + 10);
-        ctx.font = '15px sans-serif';
-        ctx.fillStyle = 'rgba(0,229,255,0.4)';
-        ctx.fillText('press any key to restart', canvas.width / 2, canvas.height / 2 + 52);
-        ctx.textAlign = 'left';
-        return;
+      // --- Phase state machine ---
+      phaseFrame++;
+
+      if (gamePhase === 'COLLAPSE') {
+        collapseSpinAngle += 0.012 + phaseFrame * 0.00011;
+        bgDawnT = 0;
+        if (phaseFrame >= COLLAPSE_FRAMES) {
+          gamePhase = 'NIGHTFALL';
+          phaseFrame = 0;
+          overlayAlpha = 0;
+        }
+      } else if (gamePhase === 'NIGHTFALL') {
+        overlayAlpha = Math.min(phaseFrame / NIGHTFALL_FRAMES, 1);
+        if (phaseFrame >= NIGHTFALL_FRAMES) {
+          bugs = [];
+          score = 0;
+          gameFrame = 0;
+          levelFrame = 0;
+          level = 1;
+          MAX_BUGS = 6;
+          silkUnlimited = false;
+          bgDayT = 0;
+          spawnCooldown = 90;
+          bugSpawnCount = 0;
+          resetWebState();
+          collapseSpinAngle = 0;
+          collapseCanvas.width = 0;
+          collapseCanvas.height = 0;
+          beginIntroPan();
+          gamePhase = 'INTRO';
+          phaseFrame = 0;
+        }
+      } else if (gamePhase === 'DAY_BREAK') {
+        var FADE_IN_END = DAY_BREAK_FRAMES * 0.25;
+        if (phaseFrame < FADE_IN_END) {
+          bgDayT = phaseFrame / FADE_IN_END;
+        } else {
+          bgDayT = 1 - (phaseFrame - FADE_IN_END) / (DAY_BREAK_FRAMES - FADE_IN_END);
+        }
+        bgDayT = Math.max(0, bgDayT);
+        animateNodes();
+        updateSlingStrands();
+        if (phaseFrame >= DAY_BREAK_FRAMES) {
+          startNextLevel();
+        }
+      } else if (gamePhase === 'INTRO') {
+        var introT = Math.min(phaseFrame / INTRO_FRAMES, 1);
+        var panT = easeInOutCubic(introT);
+        introCamX *= 1 - 0.035 * (0.25 + panT);
+        introCamY *= 1 - 0.032 * (0.25 + panT);
+        bgDawnT = introT < 0.28
+          ? introT / 0.28
+          : Math.max(0, 1 - (introT - 0.28) / 0.72);
+        overlayAlpha = Math.max(1 - introT / 0.36, 0);
+        cameraScale += (baseScale - cameraScale) * 0.025;
+        if (phaseFrame >= INTRO_FRAMES) {
+          introCamX = 0;
+          introCamY = 0;
+          overlayAlpha = 0;
+          bgDawnT = 0;
+          gamePhase = 'PLAYING';
+          phaseFrame = 0;
+        }
+      } else {
+        // PLAYING
+
+        // --- Advance frame ---
+        gameFrame++;
+        levelFrame++;
+        if (levelAnnounceFrames > 0) levelAnnounceFrames--;
+
+        // --- Level end check ---
+        if (levelFrame >= LEVEL_DURATION) {
+          startDayBreak();
+        } else {
+
+        // --- Spawn bugs ---
+        spawnCooldown--;
+        if (spawnCooldown <= 0) {
+          spawnBug();
+          var stage = Math.floor(gameFrame / (60 * 20));
+          spawnCooldown = Math.max(120, SPAWN_INTERVAL - stage * 30);
+        }
+
+        // --- Animate node repositioning ---
+        animateNodes();
+        updateSlingStrands();
+
+        // --- Move bugs + degrade strands ---
+        updateBugPhysics();
+        checkBugSnag();
+        updateBugs();
+
+        // --- Check web integrity ---
+        if (getIntegrity() < 0.40) startCollapse();
+        } // end else (not day break)
       }
 
-      // --- Advance frame ---
-      gameFrame++;
+      // --- Update spider (PLAYING and DAY_BREAK) ---
+      if (gamePhase === 'PLAYING' || gamePhase === 'DAY_BREAK') {
+        var bDown = !!inp.b;
+        var releasedSling = false;
+        if (spider.state === 'AT_NODE') {
+          if (!bDown && wasBDown && slingActive) {
+            syncSlingTarget();
+            var releaseTargetId = slingTargetId;
+            var releaseFromId = spider.nodeId;
+            slingActive = false;
+            slingTargetId = null;
+            if (releaseTargetId !== null && (silkUnlimited || silk >= SILK_COST)) {
+              if (!silkUnlimited) silk -= SILK_COST;
+              startSlingStrand(releaseFromId, releaseTargetId);
+              releasedSling = true;
+            } else if (releaseTargetId !== null && !silkUnlimited) {
+              playSound('no-silk');
+            }
+          }
 
-      // --- Spawn bugs ---
-      spawnCooldown--;
-      if (spawnCooldown <= 0) {
-        spawnBug();
-        var stage = Math.floor(gameFrame / (60 * 20));
-        spawnCooldown = Math.max(120, SPAWN_INTERVAL - stage * 30);
-      }
+          if (bDown) {
+            if (!slingActive) {
+              slingActive = true;
+              slingAimIdx = 0;
+              slingTargetId = null;
+            }
+            var slingList = syncSlingTarget();
 
-      // --- Animate node repositioning ---
-      animateNodes();
+            if (slingList.length > 0) {
+              if (inp.left) {
+                leftHoldFrames++;
+                if (leftHoldFrames === 1 || (leftHoldFrames > HOLD_DELAY && (leftHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
+                  slingAimIdx = (slingAimIdx - 1 + slingList.length) % slingList.length;
+              } else { leftHoldFrames = 0; }
 
-      // --- Move bugs + degrade strands ---
-      updateBugPhysics();
-      checkBugSnag();
-      updateBugs();
+              if (inp.right) {
+                rightHoldFrames++;
+                if (rightHoldFrames === 1 || (rightHoldFrames > HOLD_DELAY && (rightHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
+                  slingAimIdx = (slingAimIdx + 1) % slingList.length;
+              } else { rightHoldFrames = 0; }
 
-      // --- Check web integrity ---
-      if (getIntegrity() < 0.40) gameOver = true;
+              slingAimIdx = ((slingAimIdx % slingList.length) + slingList.length) % slingList.length;
+              slingTargetId = slingList[slingAimIdx];
+            } else {
+              leftHoldFrames = 0;
+              rightHoldFrames = 0;
+            }
+            nodeDwellFrames = 0;
+          } else if (releasedSling) {
+            nodeDwellFrames = 0;
+          } else {
+          var nb = adjacency[spider.nodeId];
+          if (nb.length > 0) {
+            spider.selIdx = ((spider.selIdx % nb.length) + nb.length) % nb.length;
 
-      // --- Update spider ---
-      if (spider.state === 'AT_NODE') {
-        var nb = adjacency[spider.nodeId];
-        if (nb.length > 0) {
-          spider.selIdx = ((spider.selIdx % nb.length) + nb.length) % nb.length;
+            if (inp.left) {
+              leftHoldFrames++;
+              if (leftHoldFrames === 1 || (leftHoldFrames > HOLD_DELAY && (leftHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
+                spider.selIdx = (spider.selIdx - 1 + nb.length) % nb.length;
+            } else { leftHoldFrames = 0; }
 
-          if (inp.left) {
-            leftHoldFrames++;
-            if (leftHoldFrames === 1 || (leftHoldFrames > HOLD_DELAY && (leftHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
-              spider.selIdx = (spider.selIdx - 1 + nb.length) % nb.length;
-          } else { leftHoldFrames = 0; }
+            if (inp.right) {
+              rightHoldFrames++;
+              if (rightHoldFrames === 1 || (rightHoldFrames > HOLD_DELAY && (rightHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
+                spider.selIdx = (spider.selIdx + 1) % nb.length;
+            } else { rightHoldFrames = 0; }
 
-          if (inp.right) {
-            rightHoldFrames++;
-            if (rightHoldFrames === 1 || (rightHoldFrames > HOLD_DELAY && (rightHoldFrames - HOLD_DELAY) % HOLD_REPEAT === 0))
-              spider.selIdx = (spider.selIdx + 1) % nb.length;
-          } else { rightHoldFrames = 0; }
-
-          nodeDwellFrames++;
-          if (inp.a && nodeDwellFrames >= NODE_DWELL) {
+            nodeDwellFrames++;
+            if (inp.a && nodeDwellFrames >= NODE_DWELL) {
+              spider.fromId = spider.nodeId;
+              spider.toId   = nb[spider.selIdx];
+              spider.t      = 0;
+              spider.state  = 'TRAVERSING';
+            }
+          } else {
+            // Node became isolated — rescue spider by sending it back toward fromId
+            var rescueId = (adjacency[spider.fromId] && adjacency[spider.fromId].length > 0)
+              ? spider.fromId : 0;
+            spider.toId   = rescueId;
             spider.fromId = spider.nodeId;
-            spider.toId   = nb[spider.selIdx];
             spider.t      = 0;
             spider.state  = 'TRAVERSING';
           }
-        } else {
-          // Node became isolated — rescue spider by sending it back toward fromId
-          var rescueId = (adjacency[spider.fromId] && adjacency[spider.fromId].length > 0)
-            ? spider.fromId : 0;
-          spider.toId   = rescueId;
-          spider.fromId = spider.nodeId;
-          spider.t      = 0;
-          spider.state  = 'TRAVERSING';
-        }
-      } else {
-        spider.t += TRAVERSE_SPEED;
-        if (spider.t >= 1) {
-          var prevFrom  = spider.fromId;
-          spider.state  = 'AT_NODE';
-          spider.nodeId = spider.toId;
-          nodeDwellFrames = 0;
-          leftHoldFrames  = 0;
-          rightHoldFrames = 0;
-          var nb2 = adjacency[spider.nodeId];
-          spider.selIdx = nb2.length > 0 ? bestForwardIdx(spider.nodeId, prevFrom) : 0;
-          // Eat bugs sitting on the node we just landed on
-          for (var eatBi = bugs.length - 1; eatBi >= 0; eatBi--) {
-            if (bugs[eatBi].nodeId === spider.nodeId) {
-              bugs.splice(eatBi, 1);
-              score++;
-              playSound('chomp');
-            }
           }
-          // Previous node may now be an unoccupied 2-segment pass-through — collapse it
-          collapseShortEdges();
+        } else {
+          slingActive = false;
+          slingTargetId = null;
+          spider.t += TRAVERSE_SPEED;
+          var repairKey = edgeKey(spider.fromId, spider.toId);
+          if (edgeStrength[repairKey] !== undefined) {
+            edgeStrength[repairKey] = Math.min(100, edgeStrength[repairKey] + REPAIR_PER_FRAME);
+          }
+          if (spider.t >= 1) {
+            var prevFrom  = spider.fromId;
+            spider.state  = 'AT_NODE';
+            spider.nodeId = spider.toId;
+            nodeDwellFrames = 0;
+            leftHoldFrames  = 0;
+            rightHoldFrames = 0;
+            var nb2 = adjacency[spider.nodeId];
+            spider.selIdx = nb2.length > 0 ? bestForwardIdx(spider.nodeId, prevFrom) : 0;
+            // Eat bugs sitting on the node we just landed on
+            for (var eatBi = bugs.length - 1; eatBi >= 0; eatBi--) {
+              if (bugs[eatBi].nodeId === spider.nodeId) {
+                var eatVal = BUG_SCORES[bugs[eatBi].tier] || 1;
+                bugs.splice(eatBi, 1);
+                score += eatVal;
+                silk = Math.min(SILK_MAX, silk + eatVal);
+                playSound('chomp');
+              }
+            }
+            // Previous node may now be an unoccupied 2-segment pass-through — collapse it
+            collapseShortEdges();
+          }
         }
+
+        // --- Eat bugs near spider (using updated position) ---
+        checkSpiderEatsBugs();
+        wasBDown = bDown;
       }
 
-      // --- Eat bugs near spider (using updated position) ---
-      checkSpiderEatsBugs();
-
       // --- Update camera ---
-      if (rotationEnabled) {
+      if (gamePhase === 'PLAYING' && rotationEnabled) {
         var target = targetCameraAngle();
         cameraAngle += angleDiff(target, cameraAngle) * ROTATION_LERP;
       }
@@ -1033,16 +1467,18 @@
       // --- Spider world position ---
       var sp = spiderWorldPos();
 
-      // --- Dynamic zoom: zoom in as spider approaches center ---
-      var spDx = sp.x - nodes[0].x, spDy = sp.y - nodes[0].y;
-      var spDist = Math.sqrt(spDx * spDx + spDy * spDy);
-      var zoomFraction = 1 - Math.min(spDist / webRadius, 1);
-      var targetScale  = baseScale * (1 + (MAX_ZOOM - 1) * zoomFraction);
-      cameraScale += (targetScale - cameraScale) * ZOOM_LERP;
+      // --- Dynamic zoom: only during PLAYING ---
+      if (gamePhase === 'PLAYING') {
+        var spDx = sp.x - nodes[0].x, spDy = sp.y - nodes[0].y;
+        var spDist = Math.sqrt(spDx * spDx + spDy * spDy);
+        var zoomFraction = 1 - Math.min(spDist / webRadius, 1);
+        var targetScale  = baseScale * (1 + (MAX_ZOOM - 1) * zoomFraction);
+        cameraScale += (targetScale - cameraScale) * ZOOM_LERP;
+      }
 
       // --- Identify highlighted edges ---
       var selA = -1, selB = -1;
-      if (spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0) {
+      if (!slingActive && spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0) {
         selA = spider.nodeId;
         selB = adjacency[spider.nodeId][spider.selIdx];
         if (selA > selB) { var tmp = selA; selA = selB; selB = tmp; }
@@ -1056,15 +1492,47 @@
       // --- Draw background ---
       ctx.fillStyle = '#030308';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (bgDawnT > 0) {
+        var gradR = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
+        var grad  = ctx.createRadialGradient(0, 0, 0, 0, 0, gradR);
+        grad.addColorStop(0,   'rgba(10,32,80,'  + bgDawnT.toFixed(3) + ')');
+        grad.addColorStop(0.4, 'rgba(7,18,50,'   + (bgDawnT * 0.45).toFixed(3) + ')');
+        grad.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      if (bgDayT > 0) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        var diagLen = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
+        var dayGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, diagLen);
+        dayGrad.addColorStop(0,   'rgba(135,206,235,' + bgDayT.toFixed(3) + ')');
+        dayGrad.addColorStop(0.6, 'rgba(100,180,220,' + (bgDayT * 0.7).toFixed(3) + ')');
+        dayGrad.addColorStop(1,   'rgba(60,120,180,'  + (bgDayT * 0.3).toFixed(3) + ')');
+        ctx.fillStyle = dayGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+      if (gamePhase === 'COLLAPSE') {
+        drawCollapseAway();
+        return;
+      }
+      if (gamePhase === 'NIGHTFALL') {
+        if (overlayAlpha > 0) {
+          ctx.fillStyle = 'rgba(0,0,0,' + overlayAlpha.toFixed(3) + ')';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        return;
+      }
       ctx.lineCap = 'round';
 
       // --- Apply camera transform ---
       ctx.save();
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.scale(cameraScale, cameraScale);
-      ctx.rotate(cameraAngle);
-      var dx = -sp.x;
-      var dy = -sp.y;
+      ctx.rotate(cameraAngle + collapseSpinAngle);
+      var dx = -sp.x + introCamX;
+      var dy = -sp.y + introCamY;
       var invScale = 1 / Math.max(cameraScale, 0.001);
 
       // Build bug position lookup (landed bugs pull strands to their wiggled position)
@@ -1092,15 +1560,52 @@
           if (isSel) {
             drawEdge(ax, ay, bx, by, 'rgba(255,220,0,0.95)', 2 * invScale, 'rgba(255,200,0,0.12)');
           } else if (isTrav) {
-            drawEdge(ax, ay, bx, by, 'rgba(0,229,255,0.85)', 2 * invScale, 'rgba(0,229,255,0.1)');
+            var travStr = edgeStrength[edgeKey(i, nb2)];
+            var travWidth = travStr !== undefined ? (0.8 + (travStr / 100) * 2.8) * invScale : 2 * invScale;
+            drawEdge(ax, ay, bx, by, 'rgba(0,229,255,0.72)', travWidth, 'rgba(0,229,255,0.08)');
+            var repairT = i === spider.fromId ? spider.t : 1 - spider.t;
+            drawRepairSegment(ax, ay, bx, by, repairT, 2.5 * invScale);
           } else {
             var str = edgeStrength[edgeKey(i, nb2)];
             var ec  = str !== undefined ? edgeColorForStrength(str) : 'rgba(0,150,185,0.28)';
             var thick = str !== undefined ? (0.4 + (str / 100) * 2.6) * invScale : 0.5 * invScale;
+            if (gamePhase === 'COLLAPSE') thick = Math.max(thick, invScale);
             var dashed = str !== undefined && str < DASH_THRESHOLD;
             drawEdge(ax, ay, bx, by, ec, thick, null, dashed);
           }
         }
+      }
+
+      // --- Draw sling aim + newly spun strands ---
+      for (var si = 0; si < slingStrands.length; si++) {
+        var strand = slingStrands[si];
+        if (!nodes[strand.fromId] || !nodes[strand.toId] || nodes[strand.fromId].dead || nodes[strand.toId].dead) continue;
+        var sFrom = nodes[strand.fromId];
+        var sTo = nodes[strand.toId];
+        var st = Math.max(0, Math.min(strand.t, 1));
+        var sx = sFrom.x + dx;
+        var sy = sFrom.y + dy;
+        var ex = sFrom.x + (sTo.x - sFrom.x) * st + dx;
+        var ey = sFrom.y + (sTo.y - sFrom.y) * st + dy;
+        drawEdge(sx, sy, ex, ey, 'rgba(145,245,255,0.95)', 2.4 * invScale, 'rgba(0,229,255,0.18)');
+      }
+
+      if (slingActive && slingTargetId !== null && spider.state === 'AT_NODE' && nodes[slingTargetId] && !nodes[slingTargetId].dead) {
+        var aimFrom = nodes[spider.nodeId];
+        var aimTo = bugPos[slingTargetId] || nodes[slingTargetId];
+        var canSling = silkUnlimited || silk >= SILK_COST;
+        var aimColor = canSling ? 'rgba(120,220,255,0.46)' : 'rgba(255,80,80,0.46)';
+        var aimGlow  = canSling ? 'rgba(0,229,255,0.10)'   : 'rgba(255,40,40,0.10)';
+        ctx.setLineDash([16 * invScale, 12 * invScale]);
+        drawEdge(
+          aimFrom.x + dx, aimFrom.y + dy,
+          aimTo.x + dx, aimTo.y + dy,
+          aimColor,
+          2 * invScale,
+          aimGlow,
+          true
+        );
+        ctx.setLineDash([]);
       }
 
       // --- Draw bugs (before nodes so nodes sit on top) ---
@@ -1143,11 +1648,14 @@
         var isCurr    = spider.state === 'AT_NODE' && i === spider.nodeId;
         var isNextN   = spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0
                         && i === adjacency[spider.nodeId][spider.selIdx];
+        var isSlingTarget = slingActive && i === slingTargetId;
         var isTravDst = spider.state === 'TRAVERSING' && i === spider.toId;
 
         var r, color, glowColor, glowR;
         if (isCurr) {
           r = 6; color = '#ffffff'; glowColor = 'rgba(255,255,255,0.28)'; glowR = 18;
+        } else if (isSlingTarget) {
+          r = 5; color = '#91f5ff'; glowColor = 'rgba(0,229,255,0.24)'; glowR = 15;
         } else if (isNextN || isTravDst) {
           r = 5; color = '#ffdc00'; glowColor = 'rgba(255,220,0,0.22)'; glowR = 15;
         } else if (isHub) {
@@ -1159,36 +1667,119 @@
         drawNode(nx, ny, r * invScale, color, glowColor, glowR * invScale);
       }
 
-      ctx.restore();
-
-      // --- Spider triangle (screen-space) ---
-      var cx = canvas.width  / 2;
-      var cy = canvas.height / 2;
-      var ts = 11;
-
+      // --- Spider triangle (world-space, scales with camera) ---
+      var ssx = sp.x + dx, ssy = sp.y + dy;
+      var ts  = 11 * invScale;
+      var facingAngle = 0;
+      if (slingActive && slingTargetId !== null && nodes[slingTargetId]) {
+        var slingN = nodes[slingTargetId];
+        facingAngle = Math.atan2(slingN.y + dy - ssy, slingN.x + dx - ssx) + Math.PI / 2;
+      } else if (spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0) {
+        var nextN = nodes[adjacency[spider.nodeId][spider.selIdx]];
+        facingAngle = Math.atan2(nextN.y + dy - ssy, nextN.x + dx - ssx) + Math.PI / 2;
+      } else if (spider.state === 'TRAVERSING') {
+        var toN = nodes[spider.toId];
+        facingAngle = Math.atan2(toN.y + dy - ssy, toN.x + dx - ssx) + Math.PI / 2;
+      }
+      ctx.save();
+      ctx.translate(ssx, ssy);
+      ctx.rotate(facingAngle);
       ctx.beginPath();
-      ctx.moveTo(cx,             cy - ts);
-      ctx.lineTo(cx + ts * 0.78, cy + ts * 0.65);
-      ctx.lineTo(cx - ts * 0.78, cy + ts * 0.65);
+      ctx.moveTo(0,           -ts);
+      ctx.lineTo(ts * 0.78,   ts * 0.65);
+      ctx.lineTo(-ts * 0.78,  ts * 0.65);
       ctx.closePath();
       ctx.fillStyle   = '#e8f8ff';
       ctx.fill();
       ctx.strokeStyle = 'rgba(0,229,255,0.7)';
-      ctx.lineWidth   = 1.5;
+      ctx.lineWidth   = 1.5 * invScale;
       ctx.stroke();
+      ctx.restore();
 
-      // --- HUD ---
-      var integrity = Math.round(getIntegrity() * 100);
-      var hudColor  = integrity > 60 ? 'rgba(0,229,255,0.75)' : integrity > 40 ? 'rgba(255,170,0,0.85)' : 'rgba(255,60,60,0.9)';
-      ctx.font      = '13px monospace';
+      ctx.restore();
+
+      // --- Fade overlay (nightfall / dawn) ---
+      if (overlayAlpha > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,' + overlayAlpha.toFixed(3) + ')';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // --- HUD bars (always visible during active gameplay) ---
+      var barW = 120, barH = 9;
+      var barX = canvas.width - 14 - barW;
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'right';
+
+      // SILK bar (only during PLAYING and DAY_BREAK)
+      if (gamePhase === 'PLAYING' || gamePhase === 'DAY_BREAK') {
+        if (silkUnlimited) {
+          var flash = Math.sin(phaseFrame * 0.18) > 0;
+          if (flash) {
+            ctx.fillStyle = 'rgba(255,255,120,0.95)';
+            ctx.font = 'bold 11px monospace';
+            ctx.fillText('UNLIMITED SILK', barX + barW, 23);
+            ctx.font = '11px monospace';
+          }
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(barX, 14, barW, barH);
+          ctx.fillStyle = flash ? 'rgba(255,255,120,0.85)' : 'rgba(255,220,80,0.5)';
+          ctx.fillRect(barX, 14, barW, barH);
+        } else {
+          ctx.fillStyle = 'rgba(0,229,255,0.55)';
+          ctx.fillText('SILK', barX - 6, 23);
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(barX, 14, barW, barH);
+          ctx.fillStyle = silk < SILK_COST ? 'rgba(255,80,80,0.8)' : 'rgba(0,229,255,0.75)';
+          ctx.fillRect(barX, 14, barW * (silk / SILK_MAX), barH);
+        }
+      }
+
+      // WEB integrity bar (always visible)
+      var webIntegrity = getIntegrity();
+      var webBarColor = webIntegrity > 0.6 ? 'rgba(0,229,255,0.75)' : webIntegrity > 0.4 ? 'rgba(255,170,0,0.85)' : 'rgba(255,60,60,0.9)';
+      ctx.fillStyle = 'rgba(0,229,255,0.55)';
+      ctx.font = '11px monospace';
+      ctx.fillText('WEB', barX - 6, 40);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(barX, 31, barW, barH);
+      ctx.fillStyle = webBarColor;
+      ctx.fillRect(barX, 31, barW * webIntegrity, barH);
+
+      // LVL indicator (always visible, below WEB bar)
+      ctx.fillStyle = 'rgba(0,229,255,0.55)';
+      ctx.fillText('LEVEL', barX - 6, 57);
+      ctx.fillStyle = 'rgba(0,229,255,0.9)';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText(level, barX + barW, 57);
+      ctx.font = '11px monospace';
+
+      // Bottom hint and level announcement (PLAYING and DAY_BREAK only)
+      if (gamePhase === 'PLAYING' || gamePhase === 'DAY_BREAK') {
+        ctx.font = '13px monospace';
+        ctx.textAlign = 'left';
+        if (gamePhase === 'PLAYING') {
+          ctx.fillStyle = 'rgba(0,229,255,0.3)';
+          ctx.fillText('left/right  steer   [A]  move   [B]  sling   [R]  rotation: ' + (rotationEnabled ? 'ON' : 'OFF') + '   [N]  new web', 14, canvas.height - 14);
+        } else {
+          var repairSecsLeft = Math.ceil((DAY_BREAK_FRAMES - phaseFrame) / 60);
+          ctx.fillStyle = 'rgba(255,255,120,0.6)';
+          ctx.fillText('REPAIR PHASE — ' + repairSecsLeft + 's', 14, canvas.height - 14);
+        }
+
+        // Level announcement
+        if (levelAnnounceFrames > 0) {
+          var announceFade = Math.min(1, levelAnnounceFrames / 30);
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.textAlign = 'center';
+          ctx.font = 'bold 22px monospace';
+          ctx.fillStyle = 'rgba(255,255,180,' + announceFade.toFixed(3) + ')';
+          ctx.fillText('LEVEL ' + level, canvas.width / 2, 40);
+          ctx.restore();
+        }
+      }
+
       ctx.textAlign = 'left';
-      ctx.fillStyle = hudColor;
-      ctx.fillText('WEB ' + integrity + '%', 14, 24);
-      ctx.fillStyle = 'rgba(0,229,255,0.6)';
-      ctx.fillText('SCORE ' + score, 14, 44);
-
-      ctx.fillStyle = 'rgba(0,229,255,0.3)';
-      ctx.fillText('← →  steer   [A]  run   [R]  rotation: ' + (rotationEnabled ? 'ON' : 'OFF') + '   [N]  new web', 14, canvas.height - 14);
     }
 
     loop();
