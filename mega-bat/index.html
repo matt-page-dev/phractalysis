@@ -186,7 +186,18 @@
       score = 0;
       timeLeft = ROUND_DURATION;
       swarmActive = false;
-      nextSwarmAt = performance.now() + SWARM_INTERVAL_MIN + Math.random() * (SWARM_INTERVAL_MAX - SWARM_INTERVAL_MIN);
+      swarmPreActive = false;
+      nextSwarmAt = 0;
+      timeMoth = null;
+      timeBonusDisplay = null;
+      var spawnMoth = mothSkippedLastRound || Math.random() < 0.5;
+      if (spawnMoth) {
+        mothSkippedLastRound = false;
+        timeMothSpawnAtTimeLeft = 25000 - Math.random() * 17000;
+      } else {
+        mothSkippedLastRound = true;
+        timeMothSpawnAtTimeLeft = -1;
+      }
       gameState = 'playing';
     }
 
@@ -200,6 +211,8 @@
         else                              { highScoreKeyboard = roundScore; localStorage.setItem('megabat-highscore-keyboard', String(roundScore)); }
       }
       roundEndTimer = ROUND_END_DURATION;
+      timeMoth = null;
+      timeMothSpawnAtTimeLeft = -1;
       gameState = 'round-end';
     }
 
@@ -227,6 +240,24 @@
 
     var biteSprite = new Image();
     biteSprite.src = './assets/spritesheets/megabat-biting.png';
+
+    var mothSprite = new Image();
+    mothSprite.src = './assets/spritesheets/time-moth-flapping.png';
+    var MOTH_COLS         = 2;
+    var MOTH_ROWS         = 2;
+    var MOTH_FRAMES_COUNT = 4;
+    var MOTH_FPS          = 8;
+    var MOTH_SCALE        = 0.12;
+    var MOTH_SPEED        = 0.35;    // px/ms — bat max is 0.4, catchable
+    var MOTH_ZIGZAG_AMP   = 28;      // fixed px amplitude — slight vertical wobble
+    var MOTH_ZIGZAG_FREQ  = 0.004;   // rad/ms
+    var MOTH_EAT_DIST     = 60;
+    var TIME_BONUS_MS     = 10000;
+
+    var timeMoth                = null;
+    var mothSkippedLastRound    = false;
+    var timeMothSpawnAtTimeLeft = -1;
+    var timeBonusDisplay        = null;
 
     var prevB = false;
 
@@ -304,6 +335,23 @@
         vy:        type !== 'bug' ? (Math.random() - 0.5) * 0.2 : 0,
         consumed:  false
       });
+    }
+
+    function spawnTimeMoth() {
+      var fw = mothSprite.naturalWidth / MOTH_COLS;
+      var fh = mothSprite.naturalHeight / MOTH_ROWS;
+      var goRight = Math.random() < 0.5;
+      var margin = fw * MOTH_SCALE / 2 + 60;
+      timeMoth = {
+        x:           camX + (goRight ? -(canvas.width / 2 + margin) : (canvas.width / 2 + margin)),
+        baseY:       camY + (Math.random() - 0.5) * canvas.height * 0.35,
+        y:           0,
+        vx:          goRight ? MOTH_SPEED : -MOTH_SPEED,
+        zigzagPhase: Math.random() * Math.PI * 2,
+        animFrame:   0,
+        animElapsed: 0,
+        consumed:    false
+      };
     }
 
     // ── physics ──────────────────────────────────────────────────
@@ -646,6 +694,31 @@
         nextSwarmAt     = ts + SWARM_INTERVAL_MIN + Math.random() * (SWARM_INTERVAL_MAX - SWARM_INTERVAL_MIN);
       }
 
+      // Time-moth spawn check
+      if (timeMothSpawnAtTimeLeft > 0 && timeLeft <= timeMothSpawnAtTimeLeft && !timeMoth) {
+        spawnTimeMoth();
+        timeMothSpawnAtTimeLeft = -1;
+      }
+
+      // Time-moth update
+      if (timeMoth && !timeMoth.consumed) {
+        var mfw = mothSprite.naturalWidth / MOTH_COLS;
+        var mfh = mothSprite.naturalHeight / MOTH_ROWS;
+        timeMoth.x += timeMoth.vx * dt;
+        timeMoth.zigzagPhase += MOTH_ZIGZAG_FREQ * dt;
+        timeMoth.y = timeMoth.baseY + Math.sin(timeMoth.zigzagPhase) * MOTH_ZIGZAG_AMP;
+        timeMoth.animElapsed += dt;
+        if (timeMoth.animElapsed >= 1000 / MOTH_FPS) {
+          timeMoth.animFrame = (timeMoth.animFrame + 1) % MOTH_FRAMES_COUNT;
+          timeMoth.animElapsed -= 1000 / MOTH_FPS;
+        }
+        var mothScreenX = canvas.width / 2 + (timeMoth.x - camX);
+        var mothOffEdge = mfw * MOTH_SCALE / 2 + 60;
+        if (mothScreenX < -mothOffEdge || mothScreenX > canvas.width + mothOffEdge) {
+          timeMoth = null;
+        }
+      }
+
       // Spawn new orbs — density varies by state
       var spawnTarget, spawnChance;
       if (gameState === 'round-end') {
@@ -705,6 +778,19 @@
         }
       }
 
+      // Time-moth collision — proximity only, no facing check (special rare item)
+      if (timeMoth && !timeMoth.consumed && gameState === 'playing') {
+        var mdx = timeMoth.x - batEffX;
+        var mdy = timeMoth.y - batEffY;
+        if (Math.sqrt(mdx * mdx + mdy * mdy) < MOTH_EAT_DIST) {
+          timeMoth.consumed = true;
+          timeLeft += TIME_BONUS_MS;
+          timeBonusDisplay = { timer: 1500, x: timeMoth.x, y: timeMoth.y };
+          playChomp();
+          if (navigator.vibrate) navigator.vibrate([60, 30, 80, 30, 80]);
+        }
+      }
+
       // Advance sprite animation when flapping or auto-biting
       if (isAnimatingFlap || autoBiting || figure8Active) {
         animElapsed += dt;
@@ -747,6 +833,20 @@
         ctx.fillStyle = timeLeft < 10000 ? 'rgba(255,80,80,0.9)' : 'rgba(255,255,255,0.8)';
         ctx.textAlign = 'center';
         ctx.fillText(Math.ceil(timeLeft / 1000), canvas.width / 2, 16);
+      }
+
+      // +10s bonus flash
+      if (timeBonusDisplay) {
+        var bsx = canvas.width / 2 + (timeBonusDisplay.x - camX);
+        var bsy = canvas.height / 2 + (timeBonusDisplay.y - camY);
+        var balpha = Math.min(1, timeBonusDisplay.timer / 400);
+        var brise  = (1500 - timeBonusDisplay.timer) * 0.06;
+        ctx.font = 'bold 36px monospace';
+        ctx.fillStyle = 'rgba(100,210,255,' + balpha + ')';
+        ctx.textAlign = 'center';
+        ctx.fillText('+10s', bsx, bsy - brise);
+        timeBonusDisplay.timer -= dt;
+        if (timeBonusDisplay.timer <= 0) timeBonusDisplay = null;
       }
 
       // Score (top-right) — playing only
@@ -863,6 +963,30 @@
         ctx.arc(sx, sy, dr * 2.5, 0, Math.PI * 2);
         ctx.fillStyle = grd;
         ctx.fill();
+      }
+
+      // Time-moth sprite
+      if (timeMoth && !timeMoth.consumed && mothSprite.complete && mothSprite.naturalWidth) {
+        var mfw = mothSprite.naturalWidth / MOTH_COLS;
+        var mfh = mothSprite.naturalHeight / MOTH_ROWS;
+        var msx = canvas.width / 2 + (timeMoth.x - camX);
+        var msy = canvas.height / 2 + (timeMoth.y - camY);
+        var mdw = mfw * MOTH_SCALE;
+        var mdh = mfh * MOTH_SCALE;
+        var mgrd = ctx.createRadialGradient(msx, msy, 0, msx, msy, mdw * 0.65);
+        mgrd.addColorStop(0, 'rgba(160,220,255,0.45)');
+        mgrd.addColorStop(1, 'rgba(160,220,255,0)');
+        ctx.beginPath();
+        ctx.arc(msx, msy, mdw * 0.65, 0, Math.PI * 2);
+        ctx.fillStyle = mgrd;
+        ctx.fill();
+        var msrcX = (timeMoth.animFrame % MOTH_COLS) * mfw;
+        var msrcY = Math.floor(timeMoth.animFrame / MOTH_COLS) * mfh;
+        ctx.save();
+        ctx.translate(msx, msy);
+        if (timeMoth.vx < 0) ctx.scale(-1, 1);
+        ctx.drawImage(mothSprite, msrcX, msrcY, mfw, mfh, -mdw / 2, -mdh / 2, mdw, mdh);
+        ctx.restore();
       }
 
       // Bat: centered on eye, flipped when moving left
