@@ -96,6 +96,20 @@
     function resize() {
       canvas.width  = window.innerWidth;
       canvas.height = window.innerHeight;
+      if (gameStarted && nodes && nodes.length > 0) {
+        var maxDist = 0;
+        for (var i = 0; i < nodes.length; i++) {
+          var ddx = nodes[i].x - nodes[0].x, ddy = nodes[i].y - nodes[0].y;
+          maxDist = Math.max(maxDist, Math.sqrt(ddx * ddx + ddy * ddy));
+        }
+        if (maxDist > 0) {
+          webRadius = maxDist;
+          baseScale = Math.min(canvas.width, canvas.height) * 0.45 / maxDist;
+          if (gamePhase !== 'PLAYING' && gamePhase !== 'DAY_BREAK') {
+            cameraScale = baseScale;
+          }
+        }
+      }
     }
     window.addEventListener('resize', resize);
     resize();
@@ -130,7 +144,7 @@
       'twang':       new Audio('assets/sounds/twang.mp3'),
       'twang2':      new Audio('assets/sounds/twang2.mp3'),
       'twang3':      new Audio('assets/sounds/twang3.mp3'),
-      'chomp':       new Audio('assets/sounds/chomp.mp3'),
+      'chomp':       Object.assign(new Audio('assets/sounds/chomp.mp3'), { volume: 0.5 }),
       'web-sling':   new Audio('assets/sounds/web-sling.mp3'),
       'no-silk':     new Audio('assets/sounds/no-silk.mp3'),
     };
@@ -242,7 +256,7 @@
         adjacency[pi] = [];
       }
       if (!reachable[spider.nodeId]) { startCollapse(); return; }
-      if (spider.state === 'TRAVERSING' && (!reachable[spider.fromId] || !reachable[spider.toId])) {
+      if (spider.state === 'TRAVERSING' && !reachable[spider.toId]) {
         startCollapse();
       }
     }
@@ -278,6 +292,11 @@
     }
 
     function sortAdjacency() {
+      var savedTarget = -1;
+      if (spider && spider.state === 'AT_NODE' && adjacency[spider.nodeId] && adjacency[spider.nodeId].length > 0) {
+        savedTarget = adjacency[spider.nodeId][spider.selIdx];
+      }
+
       for (var i = 0; i < nodes.length; i++) {
         var ni = nodes[i];
         adjacency[i].sort(function (a, b) {
@@ -285,6 +304,11 @@
           var ab = Math.atan2(nodes[b].y - ni.y, nodes[b].x - ni.x);
           return aa - ab;
         });
+      }
+
+      if (savedTarget >= 0) {
+        var newIdx = adjacency[spider.nodeId].indexOf(savedTarget);
+        if (newIdx >= 0) spider.selIdx = newIdx;
       }
     }
 
@@ -647,13 +671,31 @@
     function spawnBug() {
       if (bugs.length >= MAX_BUGS) return;
       var stage      = Math.floor(gameFrame / (60 * 20));
+      var spawnAngle = Math.random() * Math.PI * 2;
+      if (level >= 2 && Math.random() < 0.30) {
+        bugs.push({
+          type: 'canyon',
+          nodeId: null,
+          decayRate: 0.16 + stage * 0.02,
+          size: 1.5,
+          speed: 20,
+          x: Math.cos(spawnAngle) * 5000,
+          y: Math.sin(spawnAngle) * 5000,
+          heading: Math.random() * Math.PI * 2,
+          vx: 0, vy: 0,
+          landed: false,
+          hit: false,
+          animFrame: 0, animTimer: 0
+        });
+        bugSpawnCount++;
+        return;
+      }
       var tierRoll   = Math.random();
       var forceEarlyPurple = bugSpawnCount === 0 || bugSpawnCount === 2;
       var tier       = forceEarlyPurple ? 1 : tierRoll < 0.45 ? 0 : tierRoll < 0.82 ? 1 : 2;
       var tierSize   = [0.7, 1.0, 1.5][tier];
       var tierDecay  = [0.06, 0.10, 0.16][tier];
       var tierSpeed  = [8, 10.5, 20][tier];
-      var spawnAngle = Math.random() * Math.PI * 2;
       bugSpawnCount++;
       bugs.push({
         nodeId:    null,
@@ -674,10 +716,17 @@
     function updateBugPhysics() {
       for (var bi = 0; bi < bugs.length; bi++) {
         var bug = bugs[bi];
+        if (bug.type === 'canyon') {
+          bug.animTimer++;
+          if (bug.animTimer >= CANYON_FRAME_RATE) {
+            bug.animTimer = 0;
+            bug.animFrame = (bug.animFrame + 1) % CANYON_FRAME_TOTAL;
+          }
+        }
         if (!bug.landed) {
           // Heading drift — green is much more erratic
           if (bug.heading === undefined) bug.heading = Math.random() * Math.PI * 2;
-          bug.heading += (Math.random() - 0.5) * (bug.tier === 2 ? 0.7 : bug.tier === 1 ? 0.28 : 0.22);
+          bug.heading += (Math.random() - 0.5) * (bug.type === 'canyon' || bug.tier === 2 ? 0.7 : bug.tier === 1 ? 0.28 : 0.22);
           // Steer toward web center
           var cx = nodes[0].x - bug.x;
           var cy = nodes[0].y - bug.y;
@@ -732,7 +781,34 @@
         if (bug.landed) continue;
         var caught = false;
 
-        if (bug.tier === 1) {
+        if (bug.type === 'canyon') {
+          // CanyonCritter: snaps instantly to first node touched, severing all connected strands
+          var NODE_SNAG_RADIUS = 100;
+          for (var ni = 0; ni < nodes.length && !caught; ni++) {
+            if (nodes[ni].dead) continue;
+            var ndx = bug.x - nodes[ni].x, ndy = bug.y - nodes[ni].y;
+            if (ndx * ndx + ndy * ndy < NODE_SNAG_RADIUS * NODE_SNAG_RADIUS) {
+              caught = true;
+              if (!bug.hit) {
+                var neighbors = adjacency[ni].slice();
+                for (var sni = 0; sni < neighbors.length; sni++) {
+                  removeEdge(ni, neighbors[sni]);
+                  playSound(['twang', 'twang2', 'twang3'][Math.floor(Math.random() * 3)]);
+                }
+                nodes[ni].dead = true;
+                playSound('bug-capture');
+                bug.hit = true;
+              } else {
+                bug.nodeId = ni;
+                bug.landed = true;
+                bug.vx *= 0.1;
+                bug.vy *= 0.1;
+                playSound('bug-capture');
+              }
+            }
+          }
+          continue;
+        } else if (bug.tier === 1) {
           // Purple: passes over strands, only snags near a node directly
           var NODE_SNAG_RADIUS = 100;
           for (var ni = 0; ni < nodes.length && !caught; ni++) {
@@ -853,11 +929,12 @@
         var bug = bugs[bi];
         var ddx = bug.x - sp.x, ddy = bug.y - sp.y;
         if (ddx * ddx + ddy * ddy < EAT_RADIUS * EAT_RADIUS) {
-          var val = BUG_SCORES[bug.tier] || 1;
+          var val = bug.type === 'canyon' ? 10 : (BUG_SCORES[bug.tier] || 1);
           bugs.splice(bi, 1);
           score += val;
           silk = Math.min(SILK_MAX, silk + val);
           playSound('chomp');
+          triggerEatAnim();
         }
       }
     }
@@ -882,6 +959,57 @@
       t:      0,
       selIdx: 0
     };
+
+    var spiderImg = new Image();
+    spiderImg.src = 'assets/images/spidroid-walking.png';
+    var SPIDER_FRAME_COUNT = 8;
+    var spiderAnimFrame = 0;
+    var spiderAnimTimer = 0;
+    var SPIDER_FRAME_RATE = 4;
+    var spiderFrameOrbs = null;
+
+    var eatAnimTimer = 0;
+    var EAT_ANIM_FRAMES = 20;
+    var eatAnimStyle = 0;
+
+    function triggerEatAnim() {
+      eatAnimTimer = EAT_ANIM_FRAMES;
+      eatAnimStyle = Math.random() < 0.5 ? 0 : 1;
+    }
+
+    function detectSpiderOrbs() {
+      var tmpC = document.createElement('canvas');
+      tmpC.width = spiderImg.naturalWidth;
+      tmpC.height = spiderImg.naturalHeight;
+      var tmpCtx = tmpC.getContext('2d');
+      tmpCtx.drawImage(spiderImg, 0, 0);
+      var data = tmpCtx.getImageData(0, 0, tmpC.width, tmpC.height).data;
+      var W = tmpC.width, H = tmpC.height;
+      var slotW = Math.floor(W / SPIDER_FRAME_COUNT);
+      spiderFrameOrbs = [];
+      for (var f = 0; f < SPIDER_FRAME_COUNT; f++) {
+        var x0 = f * slotW;
+        var x1 = f === SPIDER_FRAME_COUNT - 1 ? W : x0 + slotW;
+        var sumX = 0, sumY = 0, n = 0;
+        for (var y = 0; y < H; y++) {
+          for (var x = x0; x < x1; x++) {
+            var idx = (y * W + x) * 4;
+            var r = data[idx], g = data[idx+1], b = data[idx+2], a = data[idx+3];
+            if (a > 100 && b > 180 && b > r + 60) { sumX += x; sumY += y; n++; }
+          }
+        }
+        spiderFrameOrbs.push(n > 0 ? { cx: sumX/n, cy: sumY/n } : { cx: x0 + slotW/2, cy: H/2 });
+      }
+    }
+
+    spiderImg.onload = detectSpiderOrbs;
+    if (spiderImg.complete && spiderImg.naturalWidth > 0) detectSpiderOrbs();
+
+    var canyonImg = new Image();
+    canyonImg.src = 'assets/images/CanyonCritter.png';
+    var CANYON_COLS = 4, CANYON_ROWS = 3;
+    var CANYON_FRAME_TOTAL = 11;
+    var CANYON_FRAME_RATE = 5;
 
     function spiderWorldPos() {
       if (spider.state === 'AT_NODE') return nodes[spider.nodeId];
@@ -943,31 +1071,83 @@
     function syncSlingTarget() {
       if (!slingActive || spider.state !== 'AT_NODE') {
         slingTargetId = null;
+        slingTargetBug = null;
         return [];
       }
-      var targets = slingTargets(spider.nodeId);
-      if (targets.length === 0) {
+      var nodeTgts = slingTargets(spider.nodeId);
+      var combined = [];
+      for (var ni = 0; ni < nodeTgts.length; ni++) combined.push({ type: 'node', id: nodeTgts[ni] });
+      var fromNode = nodes[spider.nodeId];
+      for (var bi = 0; bi < bugs.length; bi++) {
+        var bug = bugs[bi];
+        if (bug.type === 'canyon' ? !bug.landed : bug.landed) continue;
+        var bugCrosses = false;
+        for (var j = 0; j < nodes.length && !bugCrosses; j++) {
+          if (!adjacency[j]) continue;
+          for (var k = 0; k < adjacency[j].length && !bugCrosses; k++) {
+            var nbb = adjacency[j][k];
+            if (nbb <= j) continue;
+            if (j === spider.nodeId || nbb === spider.nodeId) continue;
+            bugCrosses = segmentsIntersect(fromNode.x, fromNode.y, bug.x, bug.y,
+                                           nodes[j].x, nodes[j].y, nodes[nbb].x, nodes[nbb].y);
+          }
+        }
+        if (!bugCrosses) combined.push({ type: 'bug', id: bi });
+      }
+      if (combined.length === 0) {
         slingTargetId = null;
-        return targets;
+        slingTargetBug = null;
+        return combined;
       }
-      if (slingTargetId !== null) {
-        var existing = targets.indexOf(slingTargetId);
-        if (existing >= 0) slingAimIdx = existing;
+      // Preserve current target position in combined list
+      for (var ci = 0; ci < combined.length; ci++) {
+        var ct = combined[ci];
+        if (slingTargetId !== null && ct.type === 'node' && ct.id === slingTargetId) { slingAimIdx = ci; break; }
+        if (slingTargetBug !== null && ct.type === 'bug'  && ct.id === slingTargetBug) { slingAimIdx = ci; break; }
       }
-      slingAimIdx = ((slingAimIdx % targets.length) + targets.length) % targets.length;
-      slingTargetId = targets[slingAimIdx];
-      return targets;
+      slingAimIdx = ((slingAimIdx % combined.length) + combined.length) % combined.length;
+      var cur = combined[slingAimIdx];
+      if (cur.type === 'node') { slingTargetId = cur.id; slingTargetBug = null; }
+      else                     { slingTargetId = null;   slingTargetBug = cur.id; }
+      return combined;
     }
 
     function startSlingStrand(fromId, toId) {
       if (fromId === toId || !nodes[fromId] || !nodes[toId] || nodes[fromId].dead || nodes[toId].dead || hasEdge(fromId, toId) || hasPendingSlingEdge(fromId, toId)) return;
-      slingStrands.push({ fromId: fromId, toId: toId, t: 0 });
       playSound('web-sling');
+      slingStrands.push({ fromId: fromId, toId: toId, t: 0 });
+    }
+
+    function startBugSlingStrand(fromId, bugRef) {
+      if (!bugRef || bugs.indexOf(bugRef) < 0) return;
+      if (bugRef.type === 'canyon' ? !bugRef.landed : bugRef.landed) return;
+      playSound('web-sling');
+      slingStrands.push({ fromId: fromId, toBugRef: bugRef, t: 0 });
     }
 
     function updateSlingStrands() {
       for (var i = slingStrands.length - 1; i >= 0; i--) {
         var strand = slingStrands[i];
+
+        if (strand.toBugRef !== undefined) {
+          var bugRef = strand.toBugRef;
+          var bugIdx = bugs.indexOf(bugRef);
+          var isCanyonStrand = bugRef.type === 'canyon';
+          var shouldCancel = bugIdx < 0 || (isCanyonStrand ? !bugRef.landed : bugRef.landed);
+          if (shouldCancel) { slingStrands.splice(i, 1); continue; }
+          strand.t += SLING_BUILD_SPEED;
+          if (strand.t >= 1) {
+            var eatVal = isCanyonStrand ? 10 : (BUG_SCORES[bugRef.tier] || 1);
+            score += eatVal;
+            silk = Math.min(SILK_MAX, silk + eatVal);
+            playSound('chomp');
+            triggerEatAnim();
+            bugs.splice(bugIdx, 1);
+            slingStrands.splice(i, 1);
+          }
+          continue;
+        }
+
         if (!nodes[strand.fromId] || !nodes[strand.toId] || nodes[strand.fromId].dead || nodes[strand.toId].dead || hasEdge(strand.fromId, strand.toId)) {
           slingStrands.splice(i, 1);
           continue;
@@ -981,8 +1161,7 @@
             var slingIdx = slingNb ? slingNb.indexOf(strand.toId) : -1;
             if (slingIdx >= 0) spider.selIdx = slingIdx;
           }
-          slingStrands.splice(i, 1);
-          playSound('twang');
+          slingStrands.splice(i, 1);      
         }
       }
     }
@@ -997,6 +1176,11 @@
           fromNode = nodes[spider.nodeId];
           toNode = nodes[slingTargetId];
           return -Math.PI / 2 - Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x);
+        }
+        if (slingActive && slingTargetBug !== null && bugs[slingTargetBug] && !bugs[slingTargetBug].landed) {
+          fromNode = nodes[spider.nodeId];
+          var bugTgt = bugs[slingTargetBug];
+          return -Math.PI / 2 - Math.atan2(bugTgt.y - fromNode.y, bugTgt.x - fromNode.x);
         }
         var nb = adjacency[spider.nodeId];
         if (!nb.length) return cameraAngle;
@@ -1035,9 +1219,11 @@
     var leftHoldFrames  = 0;
     var rightHoldFrames = 0;
     var nodeDwellFrames = 0;
+    var traversalInputBuffer = null; // 'left' | 'right' | null
     var slingActive     = false;
     var slingAimIdx     = 0;
     var slingTargetId   = null;
+    var slingTargetBug  = null; // flying bug index when B-sling aims at a bug
     var wasBDown        = false;
     var slingStrands    = [];
 
@@ -1077,6 +1263,7 @@
       slingActive = false;
       slingAimIdx = 0;
       slingTargetId = null;
+      slingTargetBug = null;
       wasBDown = false;
       slingStrands = [];
       silk = SILK_MAX;
@@ -1229,6 +1416,21 @@
       vignette.addColorStop(1, 'rgba(3,3,8,' + (0.7 * pull).toFixed(3) + ')');
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      var textAlpha = Math.max(0, (t - 0.3) / 0.4);
+      if (textAlpha > 0) {
+        var fontSize = Math.round(canvas.width * 0.09);
+        ctx.save();
+        ctx.globalAlpha = textAlpha;
+        ctx.font = 'bold ' + fontSize + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = fontSize * 0.4;
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+      }
     }
 
     // -------------------------------------------------------------------------
@@ -1241,6 +1443,7 @@
 
       // --- Phase state machine ---
       phaseFrame++;
+      if (eatAnimTimer > 0) eatAnimTimer--;
 
       if (gamePhase === 'COLLAPSE') {
         collapseSpinAngle += 0.012 + phaseFrame * 0.00011;
@@ -1345,14 +1548,21 @@
           if (!bDown && wasBDown && slingActive) {
             syncSlingTarget();
             var releaseTargetId = slingTargetId;
-            var releaseFromId = spider.nodeId;
+            var releaseBugId    = slingTargetBug;
+            var releaseFromId   = spider.nodeId;
             slingActive = false;
             slingTargetId = null;
-            if (releaseTargetId !== null && (silkUnlimited || silk >= SILK_COST)) {
+            slingTargetBug = null;
+            var hasTarget = releaseTargetId !== null || releaseBugId !== null;
+            if (hasTarget && (silkUnlimited || silk >= SILK_COST)) {
               if (!silkUnlimited) silk -= SILK_COST;
-              startSlingStrand(releaseFromId, releaseTargetId);
+              if (releaseTargetId !== null) {
+                startSlingStrand(releaseFromId, releaseTargetId);
+              } else {
+                startBugSlingStrand(releaseFromId, bugs[releaseBugId]);
+              }
               releasedSling = true;
-            } else if (releaseTargetId !== null && !silkUnlimited) {
+            } else if (hasTarget && !silkUnlimited) {
               playSound('no-silk');
             }
           }
@@ -1362,6 +1572,7 @@
               slingActive = true;
               slingAimIdx = 0;
               slingTargetId = null;
+              slingTargetBug = null;
             }
             var slingList = syncSlingTarget();
 
@@ -1379,7 +1590,9 @@
               } else { rightHoldFrames = 0; }
 
               slingAimIdx = ((slingAimIdx % slingList.length) + slingList.length) % slingList.length;
-              slingTargetId = slingList[slingAimIdx];
+              var slingCur = slingList[slingAimIdx];
+              if (slingCur.type === 'node') { slingTargetId = slingCur.id; slingTargetBug = null; }
+              else                          { slingTargetId = null; slingTargetBug = slingCur.id; }
             } else {
               leftHoldFrames = 0;
               rightHoldFrames = 0;
@@ -1410,6 +1623,7 @@
               spider.toId   = nb[spider.selIdx];
               spider.t      = 0;
               spider.state  = 'TRAVERSING';
+              traversalInputBuffer = null;
             }
           } else {
             // Node became isolated — rescue spider by sending it back toward fromId
@@ -1419,11 +1633,15 @@
             spider.fromId = spider.nodeId;
             spider.t      = 0;
             spider.state  = 'TRAVERSING';
+            traversalInputBuffer = null;
           }
           }
         } else {
           slingActive = false;
           slingTargetId = null;
+          slingTargetBug = null;
+          if (inp.left && !inp.right)      traversalInputBuffer = 'left';
+          else if (inp.right && !inp.left) traversalInputBuffer = 'right';
           spider.t += TRAVERSE_SPEED;
           var repairKey = edgeKey(spider.fromId, spider.toId);
           if (edgeStrength[repairKey] !== undefined) {
@@ -1438,14 +1656,21 @@
             rightHoldFrames = 0;
             var nb2 = adjacency[spider.nodeId];
             spider.selIdx = nb2.length > 0 ? bestForwardIdx(spider.nodeId, prevFrom) : 0;
+            if (traversalInputBuffer !== null && nb2.length > 0) {
+              spider.selIdx = traversalInputBuffer === 'left'
+                ? (spider.selIdx - 1 + nb2.length) % nb2.length
+                : (spider.selIdx + 1) % nb2.length;
+              traversalInputBuffer = null;
+            }
             // Eat bugs sitting on the node we just landed on
             for (var eatBi = bugs.length - 1; eatBi >= 0; eatBi--) {
               if (bugs[eatBi].nodeId === spider.nodeId) {
-                var eatVal = BUG_SCORES[bugs[eatBi].tier] || 1;
+                var eatVal = bugs[eatBi].type === 'canyon' ? 10 : (BUG_SCORES[bugs[eatBi].tier] || 1);
                 bugs.splice(eatBi, 1);
                 score += eatVal;
                 silk = Math.min(SILK_MAX, silk + eatVal);
                 playSound('chomp');
+                triggerEatAnim();
               }
             }
             // Previous node may now be an unoccupied 2-segment pass-through — collapse it
@@ -1579,6 +1804,22 @@
       // --- Draw sling aim + newly spun strands ---
       for (var si = 0; si < slingStrands.length; si++) {
         var strand = slingStrands[si];
+        if (strand.toBugRef !== undefined) {
+          var strandBug = strand.toBugRef;
+          var strandBugIdx = bugs.indexOf(strandBug);
+          var strandInvalid = strandBugIdx < 0 || (strandBug.type === 'canyon' ? !strandBug.landed : strandBug.landed);
+          if (strandInvalid) continue;
+          var sFromB = nodes[strand.fromId];
+          if (!sFromB) continue;
+          var stB = Math.max(0, Math.min(strand.t, 1));
+          drawEdge(
+            sFromB.x + dx, sFromB.y + dy,
+            sFromB.x + (strandBug.x - sFromB.x) * stB + dx,
+            sFromB.y + (strandBug.y - sFromB.y) * stB + dy,
+            'rgba(255,200,80,0.95)', 2.4 * invScale, 'rgba(255,150,0,0.18)'
+          );
+          continue;
+        }
         if (!nodes[strand.fromId] || !nodes[strand.toId] || nodes[strand.fromId].dead || nodes[strand.toId].dead) continue;
         var sFrom = nodes[strand.fromId];
         var sTo = nodes[strand.toId];
@@ -1608,6 +1849,24 @@
         ctx.setLineDash([]);
       }
 
+      if (slingActive && slingTargetBug !== null && spider.state === 'AT_NODE') {
+        var aimBug = bugs[slingTargetBug];
+        var aimBugValid = aimBug && (aimBug.type === 'canyon' ? aimBug.landed : !aimBug.landed);
+        if (aimBugValid) {
+          var aimFromB = nodes[spider.nodeId];
+          var canSlingB = silkUnlimited || silk >= SILK_COST;
+          var aimColorB = canSlingB ? 'rgba(255,200,80,0.46)' : 'rgba(255,80,80,0.46)';
+          var aimGlowB  = canSlingB ? 'rgba(255,150,0,0.10)'  : 'rgba(255,40,40,0.10)';
+          ctx.setLineDash([16 * invScale, 12 * invScale]);
+          drawEdge(
+            aimFromB.x + dx, aimFromB.y + dy,
+            aimBug.x + dx, aimBug.y + dy,
+            aimColorB, 2 * invScale, aimGlowB, true
+          );
+          ctx.setLineDash([]);
+        }
+      }
+
       // --- Draw bugs (before nodes so nodes sit on top) ---
       var bugPulse = 0.5 + 0.5 * Math.sin(gameFrame * 0.12);
       var BUG_COLORS = [
@@ -1619,6 +1878,27 @@
         var bug  = bugs[bi];
         var bx2  = bug.x + dx, by2 = bug.y + dy;
         var baseR = 8 * invScale;
+        if (bug.type === 'canyon' && canyonImg.complete && canyonImg.naturalWidth > 0) {
+          var fW = canyonImg.naturalWidth / CANYON_COLS;
+          var fH = canyonImg.naturalHeight / CANYON_ROWS;
+          var fi = bug.animFrame;
+          var srcX = (fi % CANYON_COLS) * fW;
+          var srcY = Math.floor(fi / CANYON_COLS) * fH;
+          var drawSize = (bug.hit ? 28 : 56) * invScale;
+          ctx.save();
+          ctx.translate(bx2, by2);
+          ctx.rotate(-Math.PI / 2);
+          ctx.drawImage(canyonImg, srcX, srcY, fW, fH, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+          ctx.restore();
+          if (slingActive && slingTargetBug === bi) {
+            ctx.beginPath();
+            ctx.arc(bx2, by2, drawSize * 0.8, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,200,80,0.7)';
+            ctx.lineWidth = 1.5 * invScale;
+            ctx.stroke();
+          }
+          continue;
+        }
         var col  = BUG_COLORS[bug.tier] || BUG_COLORS[0];
         if (bug.landed) {
           ctx.beginPath();
@@ -1630,6 +1910,14 @@
           ctx.fillStyle = 'rgba(' + col.r + ',0.92)';
           ctx.fill();
         } else {
+          // Amber targeting ring for the bug currently in sling aim
+          if (slingActive && slingTargetBug === bi) {
+            ctx.beginPath();
+            ctx.arc(bx2, by2, baseR * 1.8, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,200,80,0.7)';
+            ctx.lineWidth = 1.5 * invScale;
+            ctx.stroke();
+          }
           ctx.beginPath();
           ctx.arc(bx2, by2, baseR * 0.6, 0, Math.PI * 2);
           ctx.fillStyle = 'rgba(' + col.r + ',0.5)';
@@ -1648,7 +1936,7 @@
         var isCurr    = spider.state === 'AT_NODE' && i === spider.nodeId;
         var isNextN   = spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0
                         && i === adjacency[spider.nodeId][spider.selIdx];
-        var isSlingTarget = slingActive && i === slingTargetId;
+        var isSlingTarget = slingActive && slingTargetId !== null && i === slingTargetId;
         var isTravDst = spider.state === 'TRAVERSING' && i === spider.toId;
 
         var r, color, glowColor, glowR;
@@ -1671,7 +1959,10 @@
       var ssx = sp.x + dx, ssy = sp.y + dy;
       var ts  = 11 * invScale;
       var facingAngle = 0;
-      if (slingActive && slingTargetId !== null && nodes[slingTargetId]) {
+      if (slingActive && slingTargetBug !== null && bugs[slingTargetBug] && !bugs[slingTargetBug].landed) {
+        var slingBugN = bugs[slingTargetBug];
+        facingAngle = Math.atan2(slingBugN.y + dy - ssy, slingBugN.x + dx - ssx) + Math.PI / 2;
+      } else if (slingActive && slingTargetId !== null && nodes[slingTargetId]) {
         var slingN = nodes[slingTargetId];
         facingAngle = Math.atan2(slingN.y + dy - ssy, slingN.x + dx - ssx) + Math.PI / 2;
       } else if (spider.state === 'AT_NODE' && adjacency[spider.nodeId].length > 0) {
@@ -1681,19 +1972,64 @@
         var toN = nodes[spider.toId];
         facingAngle = Math.atan2(toN.y + dy - ssy, toN.x + dx - ssx) + Math.PI / 2;
       }
+      var spiderAnimating = spider.state === 'TRAVERSING'
+        || slingActive
+        || (spider.state === 'AT_NODE' && (inp.left || inp.right));
+      if (spiderAnimating) {
+        spiderAnimTimer++;
+        if (spiderAnimTimer >= SPIDER_FRAME_RATE) {
+          spiderAnimTimer = 0;
+          spiderAnimFrame = (spiderAnimFrame + 1) % SPIDER_FRAME_COUNT;
+        }
+      } else {
+        spiderAnimFrame = 0;
+        spiderAnimTimer = 0;
+      }
+
       ctx.save();
       ctx.translate(ssx, ssy);
-      ctx.rotate(facingAngle);
-      ctx.beginPath();
-      ctx.moveTo(0,           -ts);
-      ctx.lineTo(ts * 0.78,   ts * 0.65);
-      ctx.lineTo(-ts * 0.78,  ts * 0.65);
-      ctx.closePath();
-      ctx.fillStyle   = '#e8f8ff';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,229,255,0.7)';
-      ctx.lineWidth   = 1.5 * invScale;
-      ctx.stroke();
+      ctx.rotate(facingAngle + Math.PI);
+      if (eatAnimTimer > 0) {
+        var ep = eatAnimTimer / EAT_ANIM_FRAMES; // 1→0 as animation plays
+        var esx, esy;
+        if (eatAnimStyle === 0) {
+          var es = 1 + 0.5 * Math.sin(ep * Math.PI);
+          esx = es; esy = es;
+        } else {
+          if (ep > 0.7) {
+            var t0 = (1.0 - ep) / 0.3; // 0→1 as ep goes 1.0→0.7
+            esx = 1 - 0.3 * t0; esy = 1 + 0.5 * t0; // normal→stretched tall
+          } else if (ep > 0.35) {
+            var t1 = (0.7 - ep) / 0.35; // 0→1 as ep goes 0.7→0.35
+            esx = 0.7 + 0.7 * t1; esy = 1.5 - 0.8 * t1; // stretched tall→squished wide
+          } else {
+            var t2 = (0.35 - ep) / 0.35; // 0→1 as ep goes 0.35→0
+            esx = 1.4 - 0.4 * t2; esy = 0.7 + 0.3 * t2; // squished wide→normal
+          }
+        }
+        ctx.scale(esx, esy);
+      }
+      if (spiderImg.complete && spiderImg.naturalWidth > 0 && spiderFrameOrbs) {
+        var imgW = spiderImg.naturalWidth, imgH = spiderImg.naturalHeight;
+        var drawH = ts * 24.75;
+        var scale = drawH / imgH;
+        var slotW = (imgW / SPIDER_FRAME_COUNT) * scale;
+        var orb = spiderFrameOrbs[spiderAnimFrame];
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-slotW / 2, -drawH / 2, slotW, drawH);
+        ctx.clip();
+        ctx.drawImage(spiderImg, -orb.cx * scale, -orb.cy * scale, imgW * scale, imgH * scale);
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(0,           -ts);
+        ctx.lineTo(ts * 0.78,   ts * 0.65);
+        ctx.lineTo(-ts * 0.78,  ts * 0.65);
+        ctx.closePath();
+        ctx.fillStyle   = '#e8f8ff';
+        ctx.fill();
+      }
       ctx.restore();
 
       ctx.restore();
