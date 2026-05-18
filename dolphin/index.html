@@ -262,7 +262,7 @@
       // Dolphin
       var img = frames[currentDir][frameIndex];
       if (img && img.complete && img.naturalWidth) {
-        var size = Math.min(canvas.width, canvas.height) * 0.42;
+        var size = Math.min(canvas.width, canvas.height) * 1.0;
         var dx   = (canvas.width  - size) / 2;
         var dy   = (canvas.height - size) / 2;
         ctx.drawImage(img, dx, dy, size, size);
