@@ -135,8 +135,8 @@
         document.documentElement.requestFullscreen().catch(function() {});
       }
       try { screen.orientation.lock('landscape-primary').catch(function() {}); } catch(e) {}
-      var controller = mode === 'tilt' ? 'tilt' : mode === 'keyboard' ? 'keyboard' : 'nes';
-      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
+      controllerMode = mode === 'tilt' ? 'tilt' : mode === 'keyboard' ? 'keyboard' : 'nes';
+      GamePlate.init({ orientation: 'landscape', controller: controllerMode, fullscreen: true });
       dismissSplash();
     }
 
@@ -209,6 +209,9 @@
       }
     }
 
+    // ── controller mode ────────────────────────────────────────────
+    var controllerMode = 'keyboard';
+
     // ── animation state ────────────────────────────────────────────
     var currentDir  = 4;   // index into DIR_FOLDERS; 4 = 5-center
     var frameIndex  = 0;
@@ -236,6 +239,7 @@
 
       var dt  = ts - prev; if (dt > 50) dt = 50; prev = ts;
       var inp = GamePlate.input || {};
+      if (controllerMode === 'tilt') inp = { up: inp.down, down: inp.up, left: inp.left, right: inp.right };
 
       currentDir = getDir(inp);
 
