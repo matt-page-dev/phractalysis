@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dolphin</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #03045e; overflow: hidden; }
+    canvas { display: block; }
+    #splash {
+      position: fixed; inset: 0; z-index: 99999;
+      background: #03045e;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash-title {
+      font: bold 56px/1 sans-serif;
+      color: #90e0ef;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    #load-wrap {
+      width: min(280px, 65vw);
+      height: 5px;
+      background: rgba(144, 224, 239, 0.18);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    #load-bar {
+      height: 100%;
+      background: #90e0ef;
+      width: 0%;
+      transition: width 0.08s linear;
+      border-radius: 3px;
+    }
+    #ctrl-choice { display: flex; gap: 14px; }
+    .ctrl-btn {
+      padding: 13px 30px;
+      font: 600 15px/1 sans-serif;
+      color: #caf0f8;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      background: rgba(0, 119, 182, 0.2);
+      border: 2px solid rgba(0, 119, 182, 0.5);
+      border-radius: 8px;
+      cursor: pointer;
+      display: none;
+    }
+    .ctrl-btn:hover { background: rgba(0, 119, 182, 0.38); }
+    .btn-touch { border-color: rgba(0, 180, 150, 0.5); }
+    .btn-touch:hover { background: rgba(0, 180, 150, 0.22); }
+    .btn-tilt  { border-color: rgba(80, 160, 255, 0.5); }
+    .btn-tilt:hover  { background: rgba(80, 160, 255, 0.2); }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="splash">
+    <div id="splash-title">Dolphin</div>
+    <div id="load-wrap"><div id="load-bar"></div></div>
+    <div id="ctrl-choice">
+      <button class="ctrl-btn btn-key"   id="btn-start">Start</button>
+      <button class="ctrl-btn btn-touch" id="btn-touch">Touch</button>
+      <button class="ctrl-btn btn-tilt"  id="btn-tilt">Tilt</button>
+    </div>
+  </div>
+
+  <script src="./game-plate.js"></script>
+  <script>
+    var canvas   = document.getElementById('game');
+    var ctx      = canvas.getContext('2d');
+    var splash   = document.getElementById('splash');
+    var loadBar  = document.getElementById('load-bar');
+    var loadWrap = document.getElementById('load-wrap');
+    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    var btnStart = document.getElementById('btn-start');
+    var btnTouch = document.getElementById('btn-touch');
+    var btnTilt  = document.getElementById('btn-tilt');
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      buildBg();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ── pre-load all 63 frames ─────────────────────────────────────
+    var DIR_FOLDERS  = ['1-upleft','2-up','3-upright','4-left','5-center','6-right','7-downleft','8-down','9-downright'];
+    var FRAME_FILES  = ['frame_0000','frame_0006','frame_0012','frame_0018','frame_0024','frame_0030','frame_0036'];
+    var FRAME_COUNT  = FRAME_FILES.length;
+    var DIR_COUNT    = DIR_FOLDERS.length;
+    var TOTAL_IMAGES = DIR_COUNT * FRAME_COUNT;
+    var loadedCount  = 0;
+    var frames       = [];   // frames[dirIdx][frameIdx]
+
+    for (var d = 0; d < DIR_COUNT; d++) {
+      frames[d] = [];
+      for (var f = 0; f < FRAME_COUNT; f++) {
+        var img = new Image();
+        img.onload = onImageLoad;
+        img.src = './assets/sprite-sheets/dolphin/swim-cycle/' + DIR_FOLDERS[d] + '/' + FRAME_FILES[f] + '.png';
+        frames[d][f] = img;
+      }
+    }
+
+    function onImageLoad() {
+      loadedCount++;
+      loadBar.style.width = (loadedCount / TOTAL_IMAGES * 100) + '%';
+      if (loadedCount === TOTAL_IMAGES) onAllLoaded();
+    }
+
+    function onAllLoaded() {
+      loadWrap.style.display = 'none';
+      if (isMobile) {
+        btnTouch.style.display = 'inline-block';
+        btnTilt.style.display  = 'inline-block';
+      } else {
+        btnStart.style.display = 'inline-block';
+      }
+    }
+
+    // ── splash ─────────────────────────────────────────────────────
+    function dismissSplash() {
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function() {
+        splash.style.display = 'none';
+      }, { once: true });
+    }
+
+    function start(mode) {
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function() {});
+      }
+      try { screen.orientation.lock('landscape-primary').catch(function() {}); } catch(e) {}
+      var controller = mode === 'tilt' ? 'tilt' : mode === 'keyboard' ? 'keyboard' : 'nes';
+      GamePlate.init({ orientation: 'landscape', controller: controller, fullscreen: true });
+      dismissSplash();
+    }
+
+    btnStart.addEventListener('click', function() { start('keyboard'); });
+    btnTouch.addEventListener('click', function() { start('touch'); });
+    btnTilt.addEventListener('click',  function() { start('tilt'); });
+
+    // ── ocean background ───────────────────────────────────────────
+    var bgGradient = null;
+    function buildBg() {
+      var cx = canvas.width / 2;
+      var cy = canvas.height * 0.42;
+      var r  = Math.hypot(cx, cy) * 1.15;
+      bgGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      bgGradient.addColorStop(0,    '#023e8a');
+      bgGradient.addColorStop(0.35, '#022a6a');
+      bgGradient.addColorStop(0.7,  '#031545');
+      bgGradient.addColorStop(1,    '#03045e');
+    }
+
+    // ── 3d bubbles ─────────────────────────────────────────────────
+    var BUBBLE_COUNT   = 35;
+    var BUBBLE_DEPTH   = 1200;
+    var BUBBLE_SPREAD  = 280;
+    var CAM_SPEED      = 0.45;   // world units per ms (forward)
+    var LATERAL_SPEED  = 0.55;   // world units per ms (strafe)
+    var camOffX = 0, camOffY = 0;
+
+    var worldBubbles = [];
+    for (var i = 0; i < BUBBLE_COUNT; i++) {
+      worldBubbles.push({
+        x: (Math.random() - 0.5) * BUBBLE_SPREAD * 2,
+        y: (Math.random() - 0.5) * BUBBLE_SPREAD * 2,
+        z: Math.random() * BUBBLE_DEPTH,
+        r: 1.5 + Math.random() * 3.5
+      });
+    }
+
+    function drawBubbles(dt) {
+      var fov = Math.min(canvas.width, canvas.height) * 0.75;
+      var cx  = canvas.width / 2;
+      var cy  = canvas.height / 2;
+      for (var i = 0; i < worldBubbles.length; i++) {
+        var b = worldBubbles[i];
+        b.z -= CAM_SPEED * dt;
+        if (b.z < 5) {
+          b.z = BUBBLE_DEPTH;
+          b.x = camOffX + (Math.random() - 0.5) * BUBBLE_SPREAD * 2;
+          b.y = camOffY + (Math.random() - 0.5) * BUBBLE_SPREAD * 2;
+          continue;
+        }
+        if (Math.hypot(b.x - camOffX, b.y - camOffY) > BUBBLE_SPREAD * 1.5) {
+          b.z = BUBBLE_DEPTH;
+          b.x = camOffX + (Math.random() - 0.5) * BUBBLE_SPREAD * 2;
+          b.y = camOffY + (Math.random() - 0.5) * BUBBLE_SPREAD * 2;
+          continue;
+        }
+        var scale = fov / b.z;
+        var sx    = cx + (b.x - camOffX) * scale;
+        var sy    = cy + (b.y - camOffY) * scale;
+        if (sx < -20 || sx > canvas.width + 20 || sy < -20 || sy > canvas.height + 20) continue;
+        var depthT  = 1 - b.z / BUBBLE_DEPTH;
+        var radius  = b.r * (0.3 + depthT * 2.2);
+        var alpha   = 0.06 + depthT * 0.3;
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(144,224,239,' + alpha.toFixed(2) + ')';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    // ── animation state ────────────────────────────────────────────
+    var currentDir  = 4;   // index into DIR_FOLDERS; 4 = 5-center
+    var frameIndex  = 0;
+    var animElapsed = 0;
+    var ANIM_FPS    = 8;
+    var FRAME_MS    = 1000 / ANIM_FPS;
+
+    function getDir(inp) {
+      if (inp.up   && inp.left)  return 0;
+      if (inp.up   && inp.right) return 2;
+      if (inp.down && inp.left)  return 6;
+      if (inp.down && inp.right) return 8;
+      if (inp.up)    return 1;
+      if (inp.left)  return 3;
+      if (inp.right) return 5;
+      if (inp.down)  return 7;
+      return 4;
+    }
+
+    // ── game loop ──────────────────────────────────────────────────
+    var prev = 0;
+    function loop(ts) {
+      requestAnimationFrame(loop);
+      if (GamePlate.paused) return;
+
+      var dt  = ts - prev; if (dt > 50) dt = 50; prev = ts;
+      var inp = GamePlate.input || {};
+
+      currentDir = getDir(inp);
+
+      if (inp.left)  camOffX -= LATERAL_SPEED * dt;
+      if (inp.right) camOffX += LATERAL_SPEED * dt;
+      if (inp.up)    camOffY -= LATERAL_SPEED * dt;
+      if (inp.down)  camOffY += LATERAL_SPEED * dt;
+
+      animElapsed += dt;
+      if (animElapsed >= FRAME_MS) {
+        frameIndex   = (frameIndex + 1) % FRAME_COUNT;
+        animElapsed -= FRAME_MS;
+      }
+
+      // Background
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (bgGradient) {
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      drawBubbles(dt);
+
+      // Dolphin
+      var img = frames[currentDir][frameIndex];
+      if (img && img.complete && img.naturalWidth) {
+        var size = Math.min(canvas.width, canvas.height) * 0.42;
+        var dx   = (canvas.width  - size) / 2;
+        var dy   = (canvas.height - size) / 2;
+        ctx.drawImage(img, dx, dy, size, size);
+      }
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
