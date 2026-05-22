@@ -79,10 +79,12 @@
     var btnTouch = document.getElementById('btn-touch');
     var btnTilt  = document.getElementById('btn-tilt');
 
+    var DEPTH_START = 180;
+
     function resize() {
       canvas.width  = window.innerWidth;
       canvas.height = window.innerHeight;
-      buildBg();
+      DEPTH_START = Math.round(canvas.height * 0.65);
     }
     window.addEventListener('resize', resize);
     resize();
@@ -137,25 +139,14 @@
       try { screen.orientation.lock('landscape-primary').catch(function() {}); } catch(e) {}
       controllerMode = mode === 'tilt' ? 'tilt' : mode === 'keyboard' ? 'keyboard' : 'nes';
       GamePlate.init({ orientation: 'landscape', controller: controllerMode, fullscreen: true });
+      gameStarted = true;
+      resetGame();
       dismissSplash();
     }
 
     btnStart.addEventListener('click', function() { start('keyboard'); });
     btnTouch.addEventListener('click', function() { start('touch'); });
     btnTilt.addEventListener('click',  function() { start('tilt'); });
-
-    // ── ocean background ───────────────────────────────────────────
-    var bgGradient = null;
-    function buildBg() {
-      var cx = canvas.width / 2;
-      var cy = canvas.height * 0.42;
-      var r  = Math.hypot(cx, cy) * 1.15;
-      bgGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-      bgGradient.addColorStop(0,    '#023e8a');
-      bgGradient.addColorStop(0.35, '#022a6a');
-      bgGradient.addColorStop(0.7,  '#031545');
-      bgGradient.addColorStop(1,    '#03045e');
-    }
 
     // ── 3d bubbles ─────────────────────────────────────────────────
     var BUBBLE_COUNT   = 35;
@@ -231,6 +222,82 @@
       return 4;
     }
 
+    // ── depth & breath system ──────────────────────────────────────
+    var dolphinDepth = DEPTH_START;
+    var dolphinVY    = 0;          // px/ms; negative = rising, positive = sinking
+    var isJumping    = false;
+    var wavePhase    = 0;
+    var splashParticles = [];
+
+    var BREATH_MAX         = 30000;
+    var BREATH_REFILL_RATE = BREATH_MAX / 3000;   // fills in 3 s
+    var breathMs           = BREATH_MAX;
+
+    var VERT_ACCEL  = 0.003;   // px/ms² per ms of held input
+    var VERT_SPEED  = 0.45;    // max vertical speed
+    var VERT_DRAG   = 0.98;    // velocity multiplier per 16 ms frame
+    var JUMP_THRESH = 0.28;    // min upward speed to trigger a jump
+    var GRAVITY     = 0.0006;  // downward pull while airborne
+
+    var gameStarted      = false;
+    var gameOver         = false;
+    var gameOverCooldown = 0;
+    var gameOverFade     = 0;
+
+    function resetGame() {
+      dolphinDepth     = DEPTH_START;
+      dolphinVY        = 0;
+      isJumping        = false;
+      breathMs         = BREATH_MAX;
+      gameOver         = false;
+      gameOverCooldown = 0;
+      gameOverFade     = 0;
+      splashParticles  = [];
+      camOffX = 0;
+      camOffY = 0;
+    }
+
+    function triggerSplash(splashY) {
+      var cx = canvas.width / 2;
+      for (var j = 0; j < 24; j++) {
+        var angle = -Math.PI + Math.random() * Math.PI;
+        var speed = 0.15 + Math.random() * 0.45;
+        splashParticles.push({
+          x:    cx + (Math.random() - 0.5) * 60,
+          y:    splashY,
+          vx:   Math.cos(angle) * speed,
+          vy:   Math.sin(angle) * speed - 0.25,
+          life: 1.0,
+          size: 2 + Math.random() * 4
+        });
+      }
+    }
+
+    function drawBreathMeter() {
+      var PAD = 18, W = 160, H = 13;
+      var mx = canvas.width - W - PAD, my = PAD;
+      var frac = breathMs / BREATH_MAX;
+
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(mx - 6, my - 20, W + 12, H + 30);
+
+      ctx.fillStyle = '#90e0ef';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('BREATH', mx + W, my - 5);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(mx, my, W, H);
+
+      var barColor = frac > 0.5 ? '#00b4d8' : frac > 0.25 ? '#f4a261' : '#e63946';
+      ctx.fillStyle = barColor;
+      ctx.fillRect(mx, my, W * frac, H);
+    }
+
+    function anyInput(inp) {
+      return !!(inp.up || inp.down || inp.left || inp.right || inp.a || inp.b);
+    }
+
     // ── game loop ──────────────────────────────────────────────────
     var prev = 0;
     function loop(ts) {
@@ -241,12 +308,87 @@
       var inp = GamePlate.input || {};
       if (controllerMode === 'tilt') inp = { up: inp.down, down: inp.up, left: inp.left, right: inp.right };
 
-      currentDir = getDir(inp);
+      // ── game over ────────────────────────────────────────────────
+      if (gameOver) {
+        gameOverCooldown = Math.max(0, gameOverCooldown - dt);
+        gameOverFade = Math.min(1, gameOverFade + dt / 1500);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        var goGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        goGrad.addColorStop(0,    '#0077b6');
+        goGrad.addColorStop(0.35, '#023e8a');
+        goGrad.addColorStop(0.7,  '#031545');
+        goGrad.addColorStop(1,    '#03045e');
+        ctx.fillStyle = goGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        var depthDark = Math.min(0.82, dolphinDepth / (canvas.height * 2.5));
+        ctx.fillStyle = 'rgba(1,2,20,' + depthDark.toFixed(3) + ')';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(1,2,20,' + gameOverFade.toFixed(3) + ')';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (gameOverFade > 0.75) {
+          ctx.fillStyle = '#90e0ef';
+          ctx.textAlign = 'center';
+          ctx.font = 'bold 56px sans-serif';
+          ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2 - 16);
+          if (gameOverCooldown <= 0) {
+            ctx.font = '18px sans-serif';
+            ctx.fillStyle = 'rgba(144,224,239,0.65)';
+            ctx.fillText('Press any key to try again', canvas.width / 2, canvas.height / 2 + 34);
+          }
+        }
+        if (gameOverCooldown <= 0 && anyInput(inp)) resetGame();
+        return;
+      }
 
+      // ── horizontal movement (left/right unchanged) ────────────────
+      currentDir = getDir(inp);
       if (inp.left)  camOffX -= LATERAL_SPEED * dt;
       if (inp.right) camOffX += LATERAL_SPEED * dt;
-      if (inp.up)    camOffY -= LATERAL_SPEED * dt;
-      if (inp.down)  camOffY += LATERAL_SPEED * dt;
+
+      // ── vertical depth physics ─────────────────────────────────
+      if (!isJumping) {
+        if (inp.up)   dolphinVY -= VERT_ACCEL * dt;
+        if (inp.down) dolphinVY += VERT_ACCEL * dt;
+      }
+      dolphinVY *= Math.pow(VERT_DRAG, dt / 16);
+      dolphinVY  = Math.max(-VERT_SPEED, Math.min(VERT_SPEED, dolphinVY));
+      if (isJumping) dolphinVY += GRAVITY * dt;
+      dolphinDepth += dolphinVY * dt;
+
+      // surface collision
+      if (!isJumping && dolphinDepth <= 0) {
+        if (dolphinVY < -JUMP_THRESH) {
+          isJumping = true;      // fast enough — launch a jump
+        } else {
+          dolphinDepth = 0;
+          dolphinVY    = Math.max(0, dolphinVY);
+        }
+      }
+      // return to water after jump
+      if (isJumping && dolphinDepth >= 0 && dolphinVY > 0) {
+        isJumping    = false;
+        dolphinDepth = 0;
+        dolphinVY    = 0;
+        triggerSplash(canvas.height * 0.5);
+      }
+      if (!isJumping) dolphinDepth = Math.max(0, dolphinDepth);
+
+      // ── breath ──────────────────────────────────────────────────
+      if (gameStarted) {
+        if (dolphinDepth <= 0) {
+          breathMs = Math.min(BREATH_MAX, breathMs + BREATH_REFILL_RATE * dt);
+        } else {
+          breathMs -= dt;
+          if (breathMs <= 0) {
+            breathMs         = 0;
+            gameOver         = true;
+            gameOverCooldown = 2000;
+          }
+        }
+      }
+
+      // ── animation ───────────────────────────────────────────────
+      if (isJumping) currentDir = dolphinVY < 0 ? 1 : 7;
 
       animElapsed += dt;
       if (animElapsed >= FRAME_MS) {
@@ -254,14 +396,76 @@
         animElapsed -= FRAME_MS;
       }
 
-      // Background
+      wavePhase += 0.002 * dt;
+
+      // ── render ──────────────────────────────────────────────────
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (bgGradient) {
-        ctx.fillStyle = bgGradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      var sy = canvas.height * 0.5 - dolphinDepth;   // surface Y on screen
+
+      // Sky (above surface)
+      if (sy > 0) {
+        var skyTop = Math.min(sy, canvas.height);
+        var skyGrad = ctx.createLinearGradient(0, 0, 0, skyTop);
+        skyGrad.addColorStop(0,   '#48cae4');
+        skyGrad.addColorStop(0.6, '#90e0ef');
+        skyGrad.addColorStop(1,   '#caf0f8');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, canvas.width, skyTop);
+      }
+
+      // Ocean (below surface)
+      var oceanTop = Math.max(0, sy);
+      if (oceanTop < canvas.height) {
+        var oceanGrad = ctx.createLinearGradient(0, oceanTop, 0, canvas.height);
+        oceanGrad.addColorStop(0,    '#0077b6');
+        oceanGrad.addColorStop(0.35, '#023e8a');
+        oceanGrad.addColorStop(0.7,  '#031545');
+        oceanGrad.addColorStop(1,    '#03045e');
+        ctx.fillStyle = oceanGrad;
+        ctx.fillRect(0, oceanTop, canvas.width, canvas.height - oceanTop);
+        var depthDarkAlpha = Math.min(0.82, dolphinDepth / (canvas.height * 2.5));
+        ctx.fillStyle = 'rgba(1,2,20,' + depthDarkAlpha.toFixed(3) + ')';
+        ctx.fillRect(0, oceanTop, canvas.width, canvas.height - oceanTop);
+      }
+
+      // Animated wave line
+      if (sy > -10 && sy < canvas.height + 10) {
+        var wx;
+        ctx.beginPath();
+        for (wx = 0; wx <= canvas.width; wx += 8) {
+          var wy = sy + Math.sin(wx * 0.015 + wavePhase) * 5;
+          if (wx === 0) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+        }
+        ctx.strokeStyle = 'rgba(144,224,239,0.85)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        for (wx = 0; wx <= canvas.width; wx += 8) {
+          var wy2 = sy + Math.sin(wx * 0.02 - wavePhase * 1.3) * 3 + 6;
+          if (wx === 0) ctx.moveTo(wx, wy2); else ctx.lineTo(wx, wy2);
+        }
+        ctx.strokeStyle = 'rgba(144,224,239,0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
       }
 
       drawBubbles(dt);
+
+      // Splash particles
+      for (var pi = splashParticles.length - 1; pi >= 0; pi--) {
+        var p = splashParticles[pi];
+        p.x  += p.vx * dt;
+        p.y  += p.vy * dt;
+        p.vy += 0.001 * dt;
+        p.life -= 0.0022 * dt;
+        if (p.life <= 0) { splashParticles.splice(pi, 1); continue; }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(144,224,239,' + p.life.toFixed(2) + ')';
+        ctx.fill();
+      }
 
       // Dolphin
       var img = frames[currentDir][frameIndex];
@@ -271,6 +475,8 @@
         var dy   = (canvas.height - size) / 2;
         ctx.drawImage(img, dx, dy, size, size);
       }
+
+      if (gameStarted) drawBreathMeter();
     }
     requestAnimationFrame(loop);
   </script>
