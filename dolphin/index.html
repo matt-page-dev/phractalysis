@@ -53,6 +53,15 @@
     .btn-touch:hover { background: rgba(0, 180, 150, 0.22); }
     .btn-tilt  { border-color: rgba(80, 160, 255, 0.5); }
     .btn-tilt:hover  { background: rgba(80, 160, 255, 0.2); }
+    #tune {
+      position: fixed; bottom: 12px; left: 12px; z-index: 1000;
+      background: rgba(0,0,0,0.55); border-radius: 8px;
+      padding: 10px 14px; display: flex; flex-direction: column; gap: 6px;
+      font: 11px/1.4 monospace; color: #90e0ef; min-width: 200px;
+    }
+    .tune-row { display: flex; flex-direction: column; gap: 2px; }
+    .tune-row input[type=range] { width: 100%; }
+    #tune select { width: 100%; background: #111; color: #90e0ef; border: none; }
   </style>
 </head>
 <body>
@@ -64,6 +73,66 @@
       <button class="ctrl-btn btn-key"   id="btn-start">Start</button>
       <button class="ctrl-btn btn-touch" id="btn-touch">Touch</button>
       <button class="ctrl-btn btn-tilt"  id="btn-tilt">Tilt</button>
+    </div>
+  </div>
+
+  <div id="tune">
+    <div class="tune-row"><label>Lateral max speed <span id="lv">0.55</span></label>
+      <input type="range" id="t-lat" min="0.2" max="2.0" step="0.05" value="0.55"></div>
+    <div class="tune-row"><label>Vert accel <span id="vav">0.003</span></label>
+      <input type="range" id="t-vaccel" min="0.001" max="0.015" step="0.001" value="0.003"></div>
+    <div class="tune-row"><label>Vert max speed <span id="vsv">0.45</span></label>
+      <input type="range" id="t-vspeed" min="0.1" max="2.0" step="0.05" value="0.45"></div>
+    <div class="tune-row"><label>Ring X spread <span id="rxv">80</span></label>
+      <input type="range" id="t-rx" min="10" max="250" step="5" value="80"></div>
+    <div class="tune-row"><label>Ring Y offset <span id="ryv">30</span></label>
+      <input type="range" id="t-ry" min="0" max="150" step="5" value="30"></div>
+    <div class="tune-row"><label>Hit radius mult <span id="hrv">1.0</span></label>
+      <input type="range" id="t-hr" min="0.5" max="4.0" step="0.1" value="1.0"></div>
+    <div class="tune-row"><label>Drag <span id="dgv">0.85</span></label>
+      <input type="range" id="t-drag" min="0.85" max="0.99" step="0.01" value="0.85"></div>
+    <div class="tune-row"><label>Forward speed <span id="fsv">0.45</span></label>
+      <input type="range" id="t-fspeed" min="0.05" max="2.0" step="0.05" value="0.45"></div>
+    <div class="tune-row"><label>Simultaneous rings <span id="rcv">3</span></label>
+      <input type="range" id="t-rc" min="1" max="8" step="1" value="3"></div>
+    <div class="tune-row"><label>Guide lines (nearest) <span id="gcv">3</span></label>
+      <input type="range" id="t-gc" min="0" max="8" step="1" value="3"></div>
+    <div class="tune-row">
+      <label>Ring pattern</label>
+      <select id="t-pattern">
+        <option value="random">Random</option>
+        <option value="spiral">Corkscrew spiral</option>
+        <option value="vsin">Vertical sine</option>
+        <option value="hsin">Horizontal sine</option>
+        <option value="zigzag">Zigzag</option>
+        <option value="center">Centered (easy)</option>
+        <option value="figure8">Figure-8</option>
+      </select>
+    </div>
+    <div class="tune-row">
+      <label>Ring size</label>
+      <select id="t-ringsize">
+        <option value="random">Random</option>
+        <option value="large">Large (1 pt)</option>
+        <option value="medium">Medium (2 pts)</option>
+        <option value="small">Small (3 pts)</option>
+      </select>
+    </div>
+    <div class="tune-row" style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" id="t-breath">
+      <label for="t-breath">Breath drain</label>
+    </div>
+    <div class="tune-row" style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" id="t-showdolphin" checked>
+      <label for="t-showdolphin">Show dolphin</label>
+    </div>
+    <div class="tune-row" style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" id="t-ringtrans" checked>
+      <label for="t-ringtrans">Ring transparency</label>
+    </div>
+    <div class="tune-row" style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" id="t-ringchain">
+      <label for="t-ringchain">Ring chain lines</label>
     </div>
   </div>
 
@@ -225,6 +294,7 @@
     // ── depth & breath system ──────────────────────────────────────
     var dolphinDepth = DEPTH_START;
     var dolphinVY    = 0;          // px/ms; negative = rising, positive = sinking
+    var dolphinVX    = 0;          // world units/ms; negative = left, positive = right
     var isJumping    = false;
     var wavePhase    = 0;
     var splashParticles = [];
@@ -235,7 +305,7 @@
 
     var VERT_ACCEL  = 0.003;   // px/ms² per ms of held input
     var VERT_SPEED  = 0.45;    // max vertical speed
-    var VERT_DRAG   = 0.98;    // velocity multiplier per 16 ms frame
+    var VERT_DRAG   = 0.85;    // velocity multiplier per 16 ms frame
     var JUMP_THRESH = 0.28;    // min upward speed to trigger a jump
     var GRAVITY     = 0.0006;  // downward pull while airborne
 
@@ -244,9 +314,29 @@
     var gameOverCooldown = 0;
     var gameOverFade     = 0;
 
+    var TUNE_BREATH         = true;
+    var rings               = [];
+    var score               = 0;
+    var ringSpawnTimer      = 0;
+    var RING_SPAWN_INTERVAL = 3500;
+    var RING_Z_START        = 900;
+    var RING_X_SPREAD       = 80;
+    var RING_Y_MIN          = 30;
+    var RING_Y_RANGE        = 90;
+    var HIT_RADIUS_MULT     = 1.0;
+    var RING_COUNT          = 3;
+    var SHOW_DOLPHIN        = true;
+    var RING_TRANSPARENT    = true;
+    var GUIDE_RING_COUNT    = 3;
+    var RING_SIZE           = 'random';
+    var RING_CHAIN          = false;
+    var RING_PATTERN        = 'random';
+    var ringPatternPhase    = 0;
+
     function resetGame() {
       dolphinDepth     = DEPTH_START;
       dolphinVY        = 0;
+      dolphinVX        = 0;
       isJumping        = false;
       breathMs         = BREATH_MAX;
       gameOver         = false;
@@ -255,6 +345,10 @@
       splashParticles  = [];
       camOffX = 0;
       camOffY = 0;
+      rings            = [];
+      score            = 0;
+      ringSpawnTimer   = 0;
+      ringPatternPhase = 0;
     }
 
     function triggerSplash(splashY) {
@@ -279,12 +373,17 @@
       var frac = breathMs / BREATH_MAX;
 
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.fillRect(mx - 6, my - 20, W + 12, H + 30);
+      ctx.fillRect(mx - 6, my - 20, W + 12, H + 52);
 
       ctx.fillStyle = '#90e0ef';
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText('BREATH', mx + W, my - 5);
+
+      ctx.fillStyle = 'rgba(255,215,0,0.9)';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(score + ' pts', mx + W, my + H + 22);
 
       ctx.fillStyle = 'rgba(255,255,255,0.12)';
       ctx.fillRect(mx, my, W, H);
@@ -294,8 +393,73 @@
       ctx.fillRect(mx, my, W * frac, H);
     }
 
+    function depthBlend(hex, t) {
+      var r  = parseInt(hex.slice(1,3), 16);
+      var g  = parseInt(hex.slice(3,5), 16);
+      var b  = parseInt(hex.slice(5,7), 16);
+      var dt = Math.pow(Math.max(0, Math.min(1, t)), 2);
+      return 'rgb(' + Math.round(r*dt + 3*(1-dt))  + ',' +
+                      Math.round(g*dt + 4*(1-dt))  + ',' +
+                      Math.round(b*dt + 94*(1-dt)) + ')';
+    }
+
     function anyInput(inp) {
       return !!(inp.up || inp.down || inp.left || inp.right || inp.a || inp.b);
+    }
+
+    function spawnRing(zOffset) {
+      var sizes = [
+        { outer: 38, inner: 26, pts: 1 },
+        { outer: 27, inner: 18, pts: 2 },
+        { outer: 18, inner: 12, pts: 3 }
+      ];
+      var palette = ['#FFD700','#FF4500','#00CED1','#7CFC00','#FF69B4','#9370DB'];
+      var s = RING_SIZE === 'large'  ? sizes[0] :
+              RING_SIZE === 'medium' ? sizes[1] :
+              RING_SIZE === 'small'  ? sizes[2] :
+              sizes[Math.floor(Math.random() * sizes.length)];
+      var ph = ringPatternPhase;
+      var rx, ry;
+      switch (RING_PATTERN) {
+        case 'spiral':
+          rx = camOffX + Math.cos(ph * 1.1) * 60;
+          ry = camOffY + 60 + Math.sin(ph * 1.1) * 35;
+          break;
+        case 'vsin':
+          rx = camOffX;
+          ry = camOffY + 60 + Math.sin(ph * 1.2) * 50;
+          break;
+        case 'hsin':
+          rx = camOffX + Math.sin(ph * 1.2) * 80;
+          ry = camOffY + 60;
+          break;
+        case 'zigzag':
+          rx = camOffX + (ph % 2 === 0 ? 70 : -70);
+          ry = camOffY + (ph % 2 === 0 ? 40 : 80);
+          break;
+        case 'center':
+          rx = camOffX;
+          ry = camOffY + 50;
+          break;
+        case 'figure8':
+          rx = camOffX + Math.sin(ph * 0.9) * 70;
+          ry = camOffY + 60 + Math.sin(ph * 1.8) * 30;
+          break;
+        default: // random
+          rx = camOffX + (Math.random() - 0.5) * RING_X_SPREAD * 2;
+          ry = camOffY + RING_Y_MIN + Math.random() * RING_Y_RANGE;
+      }
+      ringPatternPhase++;
+      rings.push({
+        x:           rx,
+        y:           ry,
+        z:           RING_Z_START + (zOffset || 0) + Math.random() * 100,
+        radius:      s.outer,
+        innerRadius: s.inner,
+        color:       palette[Math.floor(Math.random() * palette.length)],
+        scored:      false,
+        points:      s.pts
+      });
     }
 
     // ── game loop ──────────────────────────────────────────────────
@@ -330,10 +494,13 @@
           ctx.textAlign = 'center';
           ctx.font = 'bold 56px sans-serif';
           ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2 - 16);
+          ctx.font = '26px monospace';
+          ctx.fillStyle = '#FFD700';
+          ctx.fillText(score + ' pts', canvas.width / 2, canvas.height / 2 + 30);
           if (gameOverCooldown <= 0) {
             ctx.font = '18px sans-serif';
             ctx.fillStyle = 'rgba(144,224,239,0.65)';
-            ctx.fillText('Press any key to try again', canvas.width / 2, canvas.height / 2 + 34);
+            ctx.fillText('Press any key to try again', canvas.width / 2, canvas.height / 2 + 68);
           }
         }
         if (gameOverCooldown <= 0 && anyInput(inp)) resetGame();
@@ -342,8 +509,11 @@
 
       // ── horizontal movement (left/right unchanged) ────────────────
       currentDir = getDir(inp);
-      if (inp.left)  camOffX -= LATERAL_SPEED * dt;
-      if (inp.right) camOffX += LATERAL_SPEED * dt;
+      if (inp.left)  dolphinVX -= VERT_ACCEL * dt;
+      if (inp.right) dolphinVX += VERT_ACCEL * dt;
+      dolphinVX = Math.max(-LATERAL_SPEED, Math.min(LATERAL_SPEED, dolphinVX));
+      dolphinVX *= Math.pow(VERT_DRAG, dt / 16);
+      camOffX += dolphinVX * dt;
 
       // ── vertical depth physics ─────────────────────────────────
       if (!isJumping) {
@@ -372,18 +542,39 @@
         triggerSplash(canvas.height * 0.5);
       }
       if (!isJumping) dolphinDepth = Math.max(0, dolphinDepth);
+      camOffY = dolphinDepth;
 
       // ── breath ──────────────────────────────────────────────────
       if (gameStarted) {
         if (dolphinDepth <= 0) {
           breathMs = Math.min(BREATH_MAX, breathMs + BREATH_REFILL_RATE * dt);
-        } else {
+        } else if (!TUNE_BREATH) {
           breathMs -= dt;
           if (breathMs <= 0) {
             breathMs         = 0;
             gameOver         = true;
             gameOverCooldown = 2000;
           }
+        }
+      }
+
+      // ── rings ───────────────────────────────────────────────────
+      if (gameStarted) {
+        ringSpawnTimer += dt;
+        if (ringSpawnTimer >= RING_SPAWN_INTERVAL) {
+          ringSpawnTimer = 0;
+          for (var si = 0; si < RING_COUNT; si++) spawnRing(si * 300);
+        }
+        for (var ri = rings.length - 1; ri >= 0; ri--) {
+          var r = rings[ri];
+          r.z -= CAM_SPEED * dt;
+          if (!r.scored && r.z < 40) {
+            if (Math.hypot(r.x - camOffX, r.y - camOffY) < r.innerRadius * HIT_RADIUS_MULT) {
+              r.scored = true;
+              score += r.points;
+            }
+          }
+          if (r.z < 5) rings.splice(ri, 1);
         }
       }
 
@@ -467,18 +658,165 @@
         ctx.fill();
       }
 
-      // Dolphin
-      var img = frames[currentDir][frameIndex];
-      if (img && img.complete && img.naturalWidth) {
-        var size = Math.min(canvas.width, canvas.height) * 1.0;
-        var dx   = (canvas.width  - size) / 2;
-        var dy   = (canvas.height - size) / 2;
-        ctx.drawImage(img, dx, dy, size, size);
+      // Rings — sorted back-to-front so closer rings draw on top
+      var rfov = Math.min(canvas.width, canvas.height) * 0.75;
+      var rcx  = canvas.width / 2;
+      var rcy  = canvas.height / 2;
+      var sortedRings = rings.slice().sort(function(a, b) { return b.z - a.z; });
+
+      // Pass 1: collect fully-on-screen ring projections (strict bounds — drives guide lines & chain)
+      var visRings = [];
+      for (var ri = 0; ri < sortedRings.length; ri++) {
+        var r = sortedRings[ri];
+        if (r.z < 5) continue;
+        var rscale    = rfov / r.z;
+        var rsx       = rcx + (r.x - camOffX) * rscale;
+        var rsy       = rcy + (r.y - camOffY) * rscale;
+        var projOuter = r.radius * rscale;
+        var projInner = r.innerRadius * rscale;
+        if (projOuter < 1) continue;
+        if (rsx - projOuter < 0 || rsx + projOuter > canvas.width ||
+            rsy - projOuter < 0 || rsy + projOuter > canvas.height) continue;
+        var depthT = 1 - r.z / (RING_Z_START + 300);
+        var alpha  = RING_TRANSPARENT ? (0.3 + depthT * 0.6) : 1.0;
+        visRings.push({ rsx: rsx, rsy: rsy, projOuter: projOuter, projInner: projInner,
+                        depthT: depthT, alpha: alpha, color: r.color });
       }
 
-      if (gameStarted) drawBreathMeter();
+      // Pass 2: draw ring shapes (lenient bounds — rings render even when partially off screen)
+      for (var ri = 0; ri < sortedRings.length; ri++) {
+        var r = sortedRings[ri];
+        if (r.z < 5) continue;
+        var rscale    = rfov / r.z;
+        var rsx       = rcx + (r.x - camOffX) * rscale;
+        var rsy       = rcy + (r.y - camOffY) * rscale;
+        var projOuter = r.radius * rscale;
+        var projInner = r.innerRadius * rscale;
+        if (projOuter < 1) continue;
+        if (rsx < -projOuter * 2 || rsx > canvas.width + projOuter * 2 ||
+            rsy < -projOuter * 2 || rsy > canvas.height + projOuter * 2) continue;
+        var depthT = 1 - r.z / (RING_Z_START + 300);
+        var alpha  = RING_TRANSPARENT ? (0.3 + depthT * 0.6) : 1.0;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(rsx, rsy, (projOuter + projInner) / 2, 0, Math.PI * 2);
+        ctx.strokeStyle = depthBlend(r.color, depthT);
+        ctx.lineWidth   = projOuter - projInner;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Guide lines — nearest GUIDE_RING_COUNT from fully-visible rings only
+      var guideStart = Math.max(0, visRings.length - GUIDE_RING_COUNT);
+      for (var vi = guideStart; vi < visRings.length; vi++) {
+        var vr = visRings[vi];
+        ctx.save();
+        ctx.globalAlpha = vr.alpha * 0.35;
+        ctx.strokeStyle = depthBlend(vr.color, vr.depthT);
+        ctx.lineWidth = 1;
+        var guideAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+        for (var ai = 0; ai < guideAngles.length; ai++) {
+          ctx.beginPath();
+          ctx.moveTo(vr.rsx + Math.cos(guideAngles[ai]) * vr.projOuter,
+                     vr.rsy + Math.sin(guideAngles[ai]) * vr.projOuter);
+          ctx.lineTo(rcx, rcy);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // Chain lines — 4 lines connecting 45° spoke points of adjacent fully-visible rings
+      if (RING_CHAIN && visRings.length > 1) {
+        var chainAngles = [Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4];
+        for (var ci = 0; ci < visRings.length - 1; ci++) {
+          var cp0 = visRings[ci], cp1 = visRings[ci + 1];
+          var r0 = (cp0.projOuter + cp0.projInner) / 2;
+          var r1 = (cp1.projOuter + cp1.projInner) / 2;
+          ctx.save();
+          ctx.globalAlpha = (cp0.alpha + cp1.alpha) / 2 * 0.5;
+          ctx.strokeStyle = depthBlend(cp0.color, cp0.depthT);
+          ctx.lineWidth = 1;
+          for (var ai = 0; ai < 4; ai++) {
+            var ang = chainAngles[ai];
+            ctx.beginPath();
+            ctx.moveTo(cp0.rsx + Math.cos(ang) * r0, cp0.rsy + Math.sin(ang) * r0);
+            ctx.lineTo(cp1.rsx + Math.cos(ang) * r1, cp1.rsy + Math.sin(ang) * r1);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
+      // Dolphin
+      if (SHOW_DOLPHIN) {
+        var img = frames[currentDir][frameIndex];
+        if (img && img.complete && img.naturalWidth) {
+          var size = Math.min(canvas.width, canvas.height) * 1.0;
+          var dx   = (canvas.width  - size) / 2;
+          var dy   = (canvas.height - size) / 2;
+          ctx.drawImage(img, dx, dy, size, size);
+        }
+      } else {
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff2222';
+        ctx.fill();
+      }
+
+      if (gameStarted) {
+        drawBreathMeter();
+      }
     }
     requestAnimationFrame(loop);
+
+    (function() {
+      function wire(id, valId, decimals, setter) {
+        var el = document.getElementById(id);
+        var vl = document.getElementById(valId);
+        el.addEventListener('input', function() {
+          var v = parseFloat(el.value);
+          vl.textContent = v.toFixed(decimals);
+          setter(v);
+        });
+      }
+      wire('t-lat',    'lv',  2, function(v){ LATERAL_SPEED = v; });
+      wire('t-vaccel', 'vav', 3, function(v){ VERT_ACCEL = v; });
+      wire('t-vspeed', 'vsv', 2, function(v){ VERT_SPEED = v; });
+      wire('t-rx',     'rxv', 0, function(v){ RING_X_SPREAD = v; });
+      wire('t-ry',     'ryv', 0, function(v){ RING_Y_MIN = v; });
+      wire('t-hr',     'hrv', 1, function(v){ HIT_RADIUS_MULT = v; });
+      wire('t-drag',   'dgv', 2, function(v){ VERT_DRAG = v; });
+      wire('t-rc',     'rcv', 0, function(v){ RING_COUNT = v; });
+      wire('t-gc',     'gcv', 0, function(v){ GUIDE_RING_COUNT = v; });
+      wire('t-fspeed', 'fsv', 2, function(v){ CAM_SPEED = v; });
+      document.getElementById('t-breath').addEventListener('change', function() {
+        TUNE_BREATH = !this.checked;
+      });
+      document.getElementById('t-showdolphin').addEventListener('change', function() {
+        SHOW_DOLPHIN = this.checked;
+      });
+      document.getElementById('t-ringtrans').addEventListener('change', function() {
+        RING_TRANSPARENT = this.checked;
+      });
+      document.getElementById('t-ringchain').addEventListener('change', function() {
+        RING_CHAIN = this.checked;
+      });
+      document.getElementById('t-ringsize').addEventListener('change', function() {
+        RING_SIZE = this.value;
+      });
+      document.getElementById('t-pattern').addEventListener('change', function() {
+        RING_PATTERN = this.value;
+        ringPatternPhase = 0;
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' && e.target.type === 'range' &&
+            ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+          e.preventDefault();
+        }
+      }, true);
+    })();
   </script>
+
 </body>
 </html>

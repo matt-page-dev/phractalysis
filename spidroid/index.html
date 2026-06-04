@@ -1122,7 +1122,8 @@
       if (!bugRef || bugs.indexOf(bugRef) < 0) return;
       if (bugRef.type === 'canyon' ? !bugRef.landed : bugRef.landed) return;
       playSound('web-sling');
-      slingStrands.push({ fromId: fromId, toBugRef: bugRef, t: 0 });
+      slingStrands.push({ fromId: fromId, toBugRef: bugRef, t: 0,
+                          pulling: false, pullT: 0, pullStartX: 0, pullStartY: 0 });
     }
 
     function updateSlingStrands() {
@@ -1133,17 +1134,46 @@
           var bugRef = strand.toBugRef;
           var bugIdx = bugs.indexOf(bugRef);
           var isCanyonStrand = bugRef.type === 'canyon';
+
+          if (strand.pulling) {
+            strand.pullT = Math.min(1, strand.pullT + PULL_SPEED);
+            bugRef.x = strand.pullStartX + (nodes[strand.fromId].x - strand.pullStartX) * strand.pullT;
+            bugRef.y = strand.pullStartY + (nodes[strand.fromId].y - strand.pullStartY) * strand.pullT;
+            if (strand.pullT >= 1) {
+              score += 10;
+              silk = Math.min(SILK_MAX, silk + 10);
+              playSound('chomp');
+              triggerEatAnim();
+              bugs.splice(bugIdx, 1);
+              slingStrands.splice(i, 1);
+            }
+            continue;
+          }
+
           var shouldCancel = bugIdx < 0 || (isCanyonStrand ? !bugRef.landed : bugRef.landed);
           if (shouldCancel) { slingStrands.splice(i, 1); continue; }
           strand.t += SLING_BUILD_SPEED;
           if (strand.t >= 1) {
-            var eatVal = isCanyonStrand ? 10 : (BUG_SCORES[bugRef.tier] || 1);
-            score += eatVal;
-            silk = Math.min(SILK_MAX, silk + eatVal);
-            playSound('chomp');
-            triggerEatAnim();
-            bugs.splice(bugIdx, 1);
-            slingStrands.splice(i, 1);
+            if (isCanyonStrand) {
+              if (!bugRef.hit) {
+                bugRef.hit = true;
+                playSound(['twang','twang2','twang3'][Math.floor(Math.random() * 3)]);
+                slingStrands.splice(i, 1);
+              } else {
+                strand.pulling   = true;
+                strand.pullT     = 0;
+                strand.pullStartX = bugRef.x;
+                strand.pullStartY = bugRef.y;
+              }
+            } else {
+              var eatVal = BUG_SCORES[bugRef.tier] || 1;
+              score += eatVal;
+              silk = Math.min(SILK_MAX, silk + eatVal);
+              playSound('chomp');
+              triggerEatAnim();
+              bugs.splice(bugIdx, 1);
+              slingStrands.splice(i, 1);
+            }
           }
           continue;
         }
@@ -1212,6 +1242,7 @@
     var TRAVERSE_SPEED = 0.07;
     var REPAIR_PER_FRAME = 0.45;
     var SLING_BUILD_SPEED = 0.08;
+    var PULL_SPEED        = 0.05;
     var HOLD_DELAY     = 10;
     var HOLD_REPEAT    = 5;
     var NODE_DWELL     = 0;
@@ -1692,11 +1723,23 @@
       // --- Spider world position ---
       var sp = spiderWorldPos();
 
-      // --- Dynamic zoom: only during PLAYING ---
+      // --- Dynamic zoom: zoom in on short adjacent segments ---
       if (gamePhase === 'PLAYING') {
-        var spDx = sp.x - nodes[0].x, spDy = sp.y - nodes[0].y;
-        var spDist = Math.sqrt(spDx * spDx + spDy * spDy);
-        var zoomFraction = 1 - Math.min(spDist / webRadius, 1);
+        var shortestSegLen = webRadius;
+        if (spider.state === 'AT_NODE') {
+          var znb = adjacency[spider.nodeId];
+          for (var zi = 0; zi < znb.length; zi++) {
+            var zsdx = nodes[spider.nodeId].x - nodes[znb[zi]].x;
+            var zsdy = nodes[spider.nodeId].y - nodes[znb[zi]].y;
+            var zslen = Math.sqrt(zsdx * zsdx + zsdy * zsdy);
+            if (zslen < shortestSegLen) shortestSegLen = zslen;
+          }
+        } else {
+          var zsdx = nodes[spider.fromId].x - nodes[spider.toId].x;
+          var zsdy = nodes[spider.fromId].y - nodes[spider.toId].y;
+          shortestSegLen = Math.sqrt(zsdx * zsdx + zsdy * zsdy);
+        }
+        var zoomFraction = 1 - Math.min(shortestSegLen / webRadius, 1);
         var targetScale  = baseScale * (1 + (MAX_ZOOM - 1) * zoomFraction);
         cameraScale += (targetScale - cameraScale) * ZOOM_LERP;
       }
