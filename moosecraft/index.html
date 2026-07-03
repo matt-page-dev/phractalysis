@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MooseCraft</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #1a1008; overflow: hidden; }
+    canvas { display: block; }
+    #splash {
+      position: fixed; inset: 0; z-index: 99999;
+      background: #1a1008;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 24px;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #game-logo {
+      max-width: min(300px, 78vw);
+      max-height: 30vh;
+      object-fit: contain;
+      animation: logo-zoom-in 2.0s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    #game-logo.floating { animation: logo-float 7s ease-in-out infinite; }
+    @keyframes logo-zoom-in {
+      from { transform: scale(0.2); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    @keyframes logo-float {
+      0%   { transform: translate(0, 0) rotate(0deg); }
+      25%  { transform: translate(4px, -6px) rotate(0.6deg); }
+      50%  { transform: translate(-2px, -10px) rotate(-0.4deg); }
+      75%  { transform: translate(-5px, -3px) rotate(0.5deg); }
+      100% { transform: translate(0, 0) rotate(0deg); }
+    }
+    #splash-tag {
+      margin: 0;
+      font: 13px/1.5 sans-serif;
+      color: rgba(200,169,110,0.55);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      text-align: center;
+    }
+    .splash-btn {
+      padding: 13px 36px;
+      font: 600 15px/1 sans-serif;
+      color: #c8a96e;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      background: rgba(200,169,110,0.08);
+      border: 1.5px solid rgba(200,169,110,0.35);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .splash-btn:hover { background: rgba(200,169,110,0.18); }
+    #splash-hint {
+      margin: 0;
+      font: 13px/1 sans-serif;
+      color: rgba(200,169,110,0.45);
+      letter-spacing: 0.12em;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:0.35; } 50% { opacity:1; } }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="splash">
+    <img id="game-logo" src="./assets/images/logo.png" alt="MooseCraft">
+    <p id="splash-tag">Build your forest. Raid theirs.</p>
+    <button class="splash-btn" id="btn-start">Play</button>
+    <p id="splash-hint">tap to begin</p>
+  </div>
+
+  <script src="./game-plate.js"></script>
+  <script>
+
+    // ── Canvas ──────────────────────────────────────────────────────────
+    var canvas  = document.getElementById('game');
+    var ctx     = canvas.getContext('2d');
+    var splash  = document.getElementById('splash');
+    var isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    var gameStarted = false;
+
+    var mooseSheet = new Image();
+    mooseSheet.src = './assets/images/moose-walk-spritesheet.png';
+
+    document.getElementById('game-logo').addEventListener('animationend', function () {
+      this.classList.add('floating');
+    }, { once: true });
+
+    // ── World layout ────────────────────────────────────────────────────
+    // Player zone is a rectangle in the CENTER. Rivals surround it.
+    var WORLD_COLS = 32;
+    var WORLD_ROWS = 48;
+    var PZONE_C0 = 8,  PZONE_C1 = 24;  // cols 8–23 (16 wide)
+    var PZONE_R0 = 16, PZONE_R1 = 32;  // rows 16–31 (16 tall)
+
+    function inPlayerZone(x, y) {
+      return x >= PZONE_C0 && x < PZONE_C1 && y >= PZONE_R0 && y < PZONE_R1;
+    }
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', function () {
+      resize();
+      if (gameStarted) initGame();
+    });
+    resize();
+
+    // ── Camera (smooth zoom) ────────────────────────────────────────────
+    var curTS = 1, camX = 0, camY = 0; // curTS = current tile size (px, float)
+
+    function getOverviewTS() {
+      return Math.floor(Math.min(canvas.width / WORLD_COLS, canvas.height / WORLD_ROWS));
+    }
+    function getHomeTS() {
+      var pad = 2; // 1-tile padding each side → (zone + 2) tiles shown
+      return Math.floor(Math.min(
+        canvas.width  / (PZONE_C1 - PZONE_C0 + pad),
+        canvas.height / (PZONE_R1 - PZONE_R0 + pad)
+      ));
+    }
+
+    function updateCamera() {
+      var tgt, tgtCX, tgtCY;
+      if (player && inPlayerZone(player.x, player.y)) {
+        tgt  = getHomeTS();
+        tgtCX = (PZONE_C0 + PZONE_C1) / 2 * tgt - canvas.width  / 2;
+        tgtCY = (PZONE_R0 + PZONE_R1) / 2 * tgt - canvas.height / 2;
+      } else {
+        tgt  = getOverviewTS();
+        tgtCX = -(canvas.width  - WORLD_COLS * tgt) / 2;
+        tgtCY = -(canvas.height - WORLD_ROWS * tgt) / 2;
+      }
+      var k = 0.10;
+      curTS += (tgt   - curTS) * k;
+      camX  += (tgtCX - camX)  * k;
+      camY  += (tgtCY - camY)  * k;
+    }
+
+    function tx(c) { return c * curTS - camX; }
+    function ty(r) { return r * curTS - camY; }
+
+    // ── Tile constants ───────────────────────────────────────────────────
+    var T_DESERT = 0, T_BARE = 1, T_GRASS = 2, T_TREE = 3, T_WATER = 4, T_ANIMAL = 5;
+    var TILE_COLOR = ['#c8a96e','#8b6914','#5a8f3c','#2d5a1b','#3d7ab5','#8b5e3c'];
+    var TILE_RES   = [null, null, 'grass', 'wood', 'water', 'animal'];
+    var RES_TILE   = { wood:T_TREE, grass:T_GRASS, water:T_WATER, animal:T_ANIMAL };
+    var RES_COLOR  = { wood:'#2d5a1b', grass:'#5a8f3c', water:'#3d7ab5', animal:'#8b5e3c' };
+
+    // ── Map ─────────────────────────────────────────────────────────────
+    var map = [];
+
+    function initMap() {
+      map = [];
+      for (var r = 0; r < WORLD_ROWS; r++) {
+        map.push([]);
+        for (var c = 0; c < WORLD_COLS; c++) {
+          if (inPlayerZone(c, r)) {
+            map[r].push(T_DESERT);
+          } else {
+            var rn = Math.random();
+            if      (rn < 0.22) map[r].push(T_TREE);
+            else if (rn < 0.42) map[r].push(T_GRASS);
+            else if (rn < 0.54) map[r].push(T_WATER);
+            else if (rn < 0.64) map[r].push(T_ANIMAL);
+            else                map[r].push(T_BARE);
+          }
+        }
+      }
+    }
+
+    function rivalResourceCount() {
+      var n = 0;
+      for (var r = 0; r < WORLD_ROWS; r++)
+        for (var c = 0; c < WORLD_COLS; c++)
+          if (!inPlayerZone(c, r) && map[r][c] >= T_GRASS) n++;
+      return n;
+    }
+
+    // ── Entities ─────────────────────────────────────────────────────────
+    var player, rivals, drops;
+    var gameOver, gameWon, score;
+
+    var CARRY_MAX   = 5;
+    var MOVE_MS     = 170;
+    var ACTION_MS   = 300;
+    var COMBAT_MS   = 900;
+    var INVINCE_MS  = 1500;
+    var DEATH_MS    = 1800;
+    var RIVAL_MV_MS = 520;
+    var AI_TICK_MS  = 1800;
+
+    function makeMoose(x, y) {
+      return {
+        x:x, y:y,
+        hp:3, maxHp:3,
+        carry:{ wood:0, grass:0, water:0, animal:0 },
+        moveT:0, actionT:0,
+        flash:0,
+        dead:false, deathT:0,
+        invincible:0,
+        facing: 0,       // 0 = south; sprite naturally faces down
+        animFrame: 0,
+        animSettle: false
+      };
+    }
+
+    function makeRival(x, y) {
+      var rv = makeMoose(x, y);
+      rv.startX = x; rv.startY = y;
+      rv.state = 'PATROL';
+      rv.targetX = x; rv.targetY = y;
+      rv.mvTimer = RIVAL_MV_MS;
+      rv.aiTimer = 1500 + Math.random() * 800;
+      rv.combatTimer = COMBAT_MS;
+      return rv;
+    }
+
+    function carryTotal(e) {
+      return e.carry.wood + e.carry.grass + e.carry.water + e.carry.animal;
+    }
+
+    function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+    function initGame() {
+      initMap();
+      player = makeMoose(
+        Math.floor((PZONE_C0 + PZONE_C1) / 2),
+        Math.floor((PZONE_R0 + PZONE_R1) / 2)
+      );
+      rivals = [
+        makeRival(Math.floor(WORLD_COLS / 2),                              Math.floor(PZONE_R0 / 2)),                    // N
+        makeRival(Math.floor(WORLD_COLS / 2),                              PZONE_R1 + Math.floor((WORLD_ROWS - PZONE_R1) / 2)), // S
+        makeRival(Math.floor(PZONE_C0 / 2),                               Math.floor(WORLD_ROWS / 2)),                  // W
+        makeRival(PZONE_C1 + Math.floor((WORLD_COLS - PZONE_C1) / 2),    Math.floor(WORLD_ROWS / 2)),                  // E
+      ];
+      drops    = [];
+      gameOver = false; gameWon = false; score = 0;
+
+      var ts = getOverviewTS();
+      curTS = ts;
+      camX  = -(canvas.width  - WORLD_COLS * ts) / 2;
+      camY  = -(canvas.height - WORLD_ROWS * ts) / 2;
+    }
+
+    // ── Player actions ───────────────────────────────────────────────────
+    function doMine() {
+      if (inPlayerZone(player.x, player.y)) return;
+      var res = TILE_RES[map[player.y][player.x]];
+      if (res && carryTotal(player) < CARRY_MAX) {
+        player.carry[res]++;
+        map[player.y][player.x] = T_BARE;
+        score++;
+      }
+    }
+
+    function doBuild() {
+      if (!inPlayerZone(player.x, player.y)) return;
+      if (map[player.y][player.x] !== T_DESERT) return;
+      var res = null;
+      if      (player.carry.wood   > 0) { res='wood';   player.carry.wood--;   }
+      else if (player.carry.grass  > 0) { res='grass';  player.carry.grass--;  }
+      else if (player.carry.water  > 0) { res='water';  player.carry.water--;  }
+      else if (player.carry.animal > 0) { res='animal'; player.carry.animal--; }
+      if (!res) return;
+      map[player.y][player.x] = RES_TILE[res];
+    }
+
+    // ── Rival AI ─────────────────────────────────────────────────────────
+    function rivalAiTick(rv) {
+      var stripped = [];
+      for (var r = 0; r < WORLD_ROWS; r++)
+        for (var c = 0; c < WORLD_COLS; c++)
+          if (!inPlayerZone(c, r) && map[r][c] === T_BARE) stripped.push({ x:c, y:r });
+
+      var roll = Math.random();
+      if (!inPlayerZone(player.x, player.y) && roll < 0.50) {
+        rv.state = 'CHASE';
+      } else if (stripped.length > 0 && roll < 0.40) {
+        rv.state = 'REBUILD';
+        var t = stripped[Math.floor(Math.random() * stripped.length)];
+        rv.targetX = t.x; rv.targetY = t.y;
+      } else if (roll < 0.25) {
+        rv.state = 'RAID';
+        rv.targetX = PZONE_C0 + Math.floor(Math.random() * (PZONE_C1 - PZONE_C0));
+        rv.targetY = PZONE_R0 + Math.floor(Math.random() * (PZONE_R1 - PZONE_R0));
+      } else {
+        rv.state = 'PATROL';
+        var px, py, att = 0;
+        do {
+          px = Math.floor(Math.random() * WORLD_COLS);
+          py = Math.floor(Math.random() * WORLD_ROWS);
+          att++;
+        } while (inPlayerZone(px, py) && att < 10);
+        rv.targetX = px; rv.targetY = py;
+      }
+    }
+
+    function rivalDoMove(rv) {
+      if (rv.state === 'CHASE') { rv.targetX = player.x; rv.targetY = player.y; }
+
+      var dx = rv.targetX - rv.x, dy = rv.targetY - rv.y;
+      if (dx === 0 && dy === 0) { rivalAiTick(rv); return; }
+
+      if (Math.abs(dx) >= Math.abs(dy))
+        rv.x = clamp(rv.x + (dx > 0 ? 1 : -1), 0, WORLD_COLS - 1);
+      else
+        rv.y = clamp(rv.y + (dy > 0 ? 1 : -1), 0, WORLD_ROWS - 1);
+
+      if (inPlayerZone(rv.x, rv.y)) {
+        var res = TILE_RES[map[rv.y][rv.x]];
+        if (res) { rv.carry[res] = (rv.carry[res] || 0) + 1; map[rv.y][rv.x] = T_DESERT; }
+      }
+
+      if (!inPlayerZone(rv.x, rv.y) && map[rv.y][rv.x] === T_BARE) {
+        var types = ['wood','grass','water','animal'];
+        for (var i = 0; i < types.length; i++) {
+          if ((rv.carry[types[i]] || 0) > 0) {
+            rv.carry[types[i]]--;
+            map[rv.y][rv.x] = RES_TILE[types[i]];
+            break;
+          }
+        }
+      }
+    }
+
+    // ── Drops ────────────────────────────────────────────────────────────
+    function dropAll(entity) {
+      var types = ['wood','grass','water','animal'];
+      for (var i = 0; i < types.length; i++) {
+        for (var j = 0; j < entity.carry[types[i]]; j++) {
+          drops.push({
+            x: clamp(entity.x + Math.round(Math.random() * 2 - 1), 0, WORLD_COLS - 1),
+            y: clamp(entity.y + Math.round(Math.random() * 2 - 1), 0, WORLD_ROWS - 1),
+            res: types[i]
+          });
+        }
+        entity.carry[types[i]] = 0;
+      }
+    }
+
+    function pickupDrops() {
+      for (var i = drops.length - 1; i >= 0; i--) {
+        if (drops[i].x === player.x && drops[i].y === player.y && carryTotal(player) < CARRY_MAX) {
+          player.carry[drops[i].res]++;
+          drops.splice(i, 1);
+        }
+      }
+    }
+
+    // ── Drawing ──────────────────────────────────────────────────────────
+    function drawMap() {
+      var c0 = Math.max(0, Math.floor(camX / curTS));
+      var c1 = Math.min(WORLD_COLS, Math.ceil((camX + canvas.width)  / curTS) + 1);
+      var r0 = Math.max(0, Math.floor(camY / curTS));
+      var r1 = Math.min(WORLD_ROWS, Math.ceil((camY + canvas.height) / curTS) + 1);
+
+      for (var r = r0; r < r1; r++) {
+        for (var c = c0; c < c1; c++) {
+          var tile = map[r][c];
+          ctx.fillStyle = TILE_COLOR[tile];
+          ctx.fillRect(tx(c), ty(r), curTS + 0.5, curTS + 0.5);
+
+          if (tile === T_TREE) {
+            ctx.fillStyle = '#1a3d0a';
+            var s = curTS * 0.52;
+            ctx.fillRect(tx(c)+(curTS-s)/2, ty(r)+(curTS-s)/2, s, s);
+          } else if (tile === T_WATER) {
+            ctx.fillStyle = 'rgba(140,210,255,0.38)';
+            ctx.fillRect(tx(c)+curTS*0.14, ty(r)+curTS*0.38, curTS*0.72, curTS*0.10);
+            ctx.fillRect(tx(c)+curTS*0.24, ty(r)+curTS*0.58, curTS*0.52, curTS*0.08);
+          } else if (tile === T_GRASS) {
+            ctx.fillStyle = '#3d6b20';
+            ctx.fillRect(tx(c)+curTS*0.18, ty(r)+curTS*0.10, curTS*0.10, curTS*0.44);
+            ctx.fillRect(tx(c)+curTS*0.44, ty(r)+curTS*0.05, curTS*0.10, curTS*0.50);
+            ctx.fillRect(tx(c)+curTS*0.70, ty(r)+curTS*0.12, curTS*0.10, curTS*0.42);
+          } else if (tile === T_ANIMAL) {
+            ctx.fillStyle = '#6b3c1a';
+            var as = curTS * 0.40;
+            ctx.fillRect(tx(c)+(curTS-as)/2, ty(r)+(curTS-as)/2, as, as);
+            ctx.fillStyle = '#8b5020';
+            ctx.fillRect(tx(c)+(curTS-as*0.38)/2, ty(r)+(curTS-as*0.38)/2, as*0.38, as*0.38);
+          }
+        }
+      }
+
+      // Grid
+      ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+      ctx.lineWidth = 0.5;
+      for (var gc = c0 + 1; gc <= c1; gc++) {
+        ctx.beginPath(); ctx.moveTo(tx(gc), 0); ctx.lineTo(tx(gc), canvas.height); ctx.stroke();
+      }
+      for (var gr = r0 + 1; gr <= r1; gr++) {
+        ctx.beginPath(); ctx.moveTo(0, ty(gr)); ctx.lineTo(canvas.width, ty(gr)); ctx.stroke();
+      }
+
+      // Player zone border
+      ctx.strokeStyle = 'rgba(255,200,80,0.65)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([curTS * 0.4, curTS * 0.25]);
+      ctx.strokeRect(
+        tx(PZONE_C0), ty(PZONE_R0),
+        (PZONE_C1 - PZONE_C0) * curTS,
+        (PZONE_R1 - PZONE_R0) * curTS
+      );
+      ctx.setLineDash([]);
+
+      // Danger tint when outside home zone
+      if (player && !inPlayerZone(player.x, player.y)) {
+        ctx.fillStyle = 'rgba(255, 50, 10, 0.05)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    function drawDrops() {
+      for (var i = 0; i < drops.length; i++) {
+        var d = drops[i];
+        ctx.fillStyle = RES_COLOR[d.res] || '#999';
+        var s = curTS * 0.30;
+        ctx.fillRect(tx(d.x)+(curTS-s)/2, ty(d.y)+(curTS-s)/2, s, s);
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        var ds = s * 0.38;
+        ctx.fillRect(tx(d.x)+(curTS-ds)/2, ty(d.y)+(curTS-ds)/2, ds, ds);
+      }
+    }
+
+    function drawMoose(e, bodyColor, showCarry) {
+      if (e.dead) return;
+      if (e.invincible > 0 && Math.floor(e.invincible / 140) % 2 === 0) return;
+
+      var x = tx(e.x), y = ty(e.y), ts = curTS;
+
+      // Skip if off-screen
+      if (x + ts < 0 || x > canvas.width || y + ts < 0 || y > canvas.height) return;
+
+      var col = (e.flash > 0 && Math.floor(e.flash / 2) % 2 === 0) ? '#ff5050' : bodyColor;
+
+      ctx.fillStyle = col;
+      ctx.fillRect(x+ts*0.17, y+ts*0.02, ts*0.09, ts*0.20);
+      ctx.fillRect(x+ts*0.08, y+ts*0.02, ts*0.20, ts*0.07);
+      ctx.fillRect(x+ts*0.74, y+ts*0.02, ts*0.09, ts*0.20);
+      ctx.fillRect(x+ts*0.72, y+ts*0.02, ts*0.20, ts*0.07);
+      ctx.fillRect(x+ts*0.28, y+ts*0.16, ts*0.44, ts*0.22);
+      ctx.fillRect(x+ts*0.18, y+ts*0.34, ts*0.64, ts*0.48);
+
+      ctx.fillStyle = (col === '#ff5050') ? '#fff' : '#1a0800';
+      ctx.fillRect(x+ts*0.35, y+ts*0.20, ts*0.08, ts*0.08);
+      ctx.fillRect(x+ts*0.57, y+ts*0.20, ts*0.08, ts*0.08);
+
+      if (showCarry && carryTotal(e) > 0) {
+        var n   = carryTotal(e);
+        var dot = Math.max(3, Math.floor(ts * 0.13));
+        var gap = 2;
+        var startX = x + (ts - n * (dot + gap) + gap) / 2;
+        for (var i = 0; i < n; i++) {
+          ctx.fillStyle = '#ffd166';
+          ctx.fillRect(startX + i * (dot + gap), y - dot - 3, dot, dot);
+        }
+      }
+    }
+
+    function drawPlayerSprite(e) {
+      if (e.dead) return;
+      if (e.invincible > 0 && Math.floor(e.invincible / 140) % 2 === 0) return;
+
+      var x = tx(e.x), y = ty(e.y), ts = curTS;
+      if (x + ts < 0 || x > canvas.width || y + ts < 0 || y > canvas.height) return;
+
+      if (!mooseSheet.complete || !mooseSheet.naturalWidth) {
+        drawMoose(e, '#d4c4a8', true);
+        return;
+      }
+
+      var fw = mooseSheet.width  / 2;
+      var fh = mooseSheet.height / 2;
+      var sx = (e.animFrame % 2) * fw;
+      var sy = Math.floor(e.animFrame / 2) * fh;
+      var size = ts * 1.5;
+
+      ctx.save();
+      ctx.translate(x + ts / 2, y + ts / 2);
+      ctx.rotate(e.facing || 0);
+      if (e.flash > 0 && Math.floor(e.flash / 2) % 2 === 0) {
+        ctx.filter = 'brightness(400%) sepia(1) saturate(800%) hue-rotate(-50deg)';
+      }
+      ctx.drawImage(mooseSheet, sx, sy, fw, fh, -size / 2, -size / 2, size, size);
+      ctx.restore();
+
+      if (carryTotal(e) > 0) {
+        var n   = carryTotal(e);
+        var dot = Math.max(3, Math.floor(ts * 0.13));
+        var gap = 2;
+        var startX = x + (ts - n * (dot + gap) + gap) / 2;
+        for (var i = 0; i < n; i++) {
+          ctx.fillStyle = '#ffd166';
+          ctx.fillRect(startX + i * (dot + gap), y - dot - 3, dot, dot);
+        }
+      }
+    }
+
+    function drawHUD() {
+      var fs   = Math.max(12, Math.floor(canvas.width * 0.038));
+      var barH = Math.floor(fs * 1.6);
+      ctx.fillStyle = 'rgba(16, 10, 2, 0.72)';
+      ctx.fillRect(0, 0, canvas.width, barH);
+      ctx.textBaseline = 'middle';
+      var mid = barH / 2;
+
+      ctx.font = 'bold ' + fs + 'px sans-serif';
+      ctx.textAlign = 'left';
+      var ph = '';
+      for (var i = 0; i < player.hp;           i++) ph += '♥';
+      for (var i = player.hp; i < player.maxHp; i++) ph += '♡';
+      ctx.fillStyle = '#e8555a';
+      ctx.fillText(ph, 8, mid);
+
+      ctx.font = fs + 'px monospace';
+      ctx.textAlign = 'center';
+      var parts = [];
+      if (player.carry.wood   > 0) parts.push('W' + player.carry.wood);
+      if (player.carry.grass  > 0) parts.push('G' + player.carry.grass);
+      if (player.carry.water  > 0) parts.push('~' + player.carry.water);
+      if (player.carry.animal > 0) parts.push('A' + player.carry.animal);
+      ctx.fillStyle = parts.length ? '#c8a96e' : 'rgba(200,169,110,0.35)';
+      ctx.fillText(parts.length ? parts.join(' ') : 'A:mine  B:build', canvas.width / 2, mid);
+
+      ctx.font = 'bold ' + fs + 'px sans-serif';
+      ctx.textAlign = 'right';
+      var rh = '';
+      for (var j = 0; j < rivals.length; j++) {
+        if (!rivals[j].dead) {
+          for (var i = 0; i < rivals[j].hp;           i++) rh += '♥';
+          for (var i = rivals[j].hp; i < rivals[j].maxHp; i++) rh += '♡';
+          rh += ' ';
+        }
+      }
+      ctx.fillStyle = '#c88060';
+      ctx.fillText(rh.trim(), canvas.width - 8, mid);
+    }
+
+    function drawGameOver() {
+      ctx.fillStyle = 'rgba(0,0,0,0.68)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      var fs = Math.floor(canvas.width * 0.082);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (gameWon) {
+        ctx.fillStyle = '#c8a96e';
+        ctx.font = 'bold ' + fs + 'px sans-serif';
+        ctx.fillText('FOREST CLAIMED!', canvas.width/2, canvas.height/2 - fs*0.8);
+        ctx.fillStyle = '#5a8f3c';
+        ctx.font = 'bold ' + Math.floor(fs*1.15) + 'px sans-serif';
+        ctx.fillText('YOU WIN', canvas.width/2, canvas.height/2 + fs*0.5);
+      } else {
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold ' + fs + 'px sans-serif';
+        ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
+      }
+      ctx.font = Math.floor(fs*0.44) + 'px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('tap any button to restart', canvas.width/2, canvas.height/2 + fs*1.85);
+    }
+
+    // ── Main loop ────────────────────────────────────────────────────────
+    var prevT = 0;
+
+    function loop(now) {
+      requestAnimationFrame(loop);
+      if (!gameStarted || GamePlate.paused) { prevT = now; return; }
+
+      var dt = Math.min(now - prevT, 80);
+      prevT = now;
+
+      var inp = GamePlate.input || {};
+
+      updateCamera();
+
+      if (gameOver || gameWon) {
+        ctx.fillStyle = '#1a1008';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawMap();
+        drawDrops();
+        for (var j = 0; j < rivals.length; j++) drawMoose(rivals[j], '#7a4020', false);
+        drawPlayerSprite(player);
+        drawGameOver();
+        if (inp.a || inp.b || inp.up || inp.down || inp.left || inp.right) initGame();
+        return;
+      }
+
+      // ── Player ───────────────────────────────────────────────────────
+      if (player.dead) {
+        player.deathT -= dt;
+        if (player.deathT <= 0) {
+          player.dead = false;
+          player.hp   = player.maxHp;
+          player.x    = Math.floor((PZONE_C0 + PZONE_C1) / 2);
+          player.y    = Math.floor((PZONE_R0 + PZONE_R1) / 2);
+          player.invincible = INVINCE_MS;
+          player.carry = { wood:0, grass:0, water:0, animal:0 };
+        }
+      } else {
+        player.invincible = Math.max(0, player.invincible - dt);
+        player.flash      = Math.max(0, player.flash - 1);
+        player.moveT      = Math.max(0, player.moveT - dt);
+        player.actionT    = Math.max(0, player.actionT - dt);
+
+        if (player.moveT === 0) {
+          var moved = false;
+          if      (inp.left)  { player.x = clamp(player.x-1, 0, WORLD_COLS-1); player.facing =  Math.PI/2; moved=true; }
+          else if (inp.right) { player.x = clamp(player.x+1, 0, WORLD_COLS-1); player.facing = -Math.PI/2; moved=true; }
+          else if (inp.up)    { player.y = clamp(player.y-1, 0, WORLD_ROWS-1); player.facing =  Math.PI;   moved=true; }
+          else if (inp.down)  { player.y = clamp(player.y+1, 0, WORLD_ROWS-1); player.facing =  0;         moved=true; }
+          if (moved) {
+            player.moveT = MOVE_MS;
+            player.animFrame  = (player.animFrame + 1) % 4;
+            player.animSettle = true;
+          } else if (player.animSettle) {
+            player.animFrame  = (player.animFrame + 1) % 4;
+            player.animSettle = false;
+          }
+        }
+
+        if (inp.a && player.actionT === 0) { doMine();  player.actionT = ACTION_MS; }
+        if (inp.b && player.actionT === 0) { doBuild(); player.actionT = ACTION_MS; }
+
+        pickupDrops();
+      }
+
+      // ── Rivals ───────────────────────────────────────────────────────
+      for (var j = 0; j < rivals.length; j++) {
+        var rv = rivals[j];
+
+        if (rv.dead) {
+          rv.deathT -= dt;
+          if (rv.deathT <= 0) {
+            rv.dead  = false;
+            rv.hp    = rv.maxHp;
+            rv.x     = rv.startX;
+            rv.y     = rv.startY;
+            rv.carry = { wood:0, grass:0, water:0, animal:0 };
+            rv.state = 'PATROL';
+            rv.targetX = rv.startX; rv.targetY = rv.startY;
+          }
+        } else {
+          rv.flash   = Math.max(0, rv.flash - 1);
+          rv.mvTimer -= dt;
+          rv.aiTimer -= dt;
+          if (rv.aiTimer <= 0) { rv.aiTimer = AI_TICK_MS;  rivalAiTick(rv); }
+          if (rv.mvTimer <= 0) { rv.mvTimer = RIVAL_MV_MS; rivalDoMove(rv); }
+        }
+
+        if (!player.dead && !rv.dead && player.invincible <= 0
+            && player.x === rv.x && player.y === rv.y) {
+          rv.combatTimer -= dt;
+          if (rv.combatTimer <= 0) {
+            rv.combatTimer = COMBAT_MS;
+            player.hp--; rv.hp--;
+            player.flash = 14; rv.flash = 14;
+            if (player.hp <= 0) { dropAll(player); player.dead=true; player.deathT=DEATH_MS; }
+            if (rv.hp   <= 0)   { rv.dead=true; rv.deathT=DEATH_MS*1.5; }
+          }
+        } else {
+          rv.combatTimer = COMBAT_MS;
+        }
+      }
+
+      if (rivalResourceCount() === 0) gameWon = true;
+
+      // ── Draw ─────────────────────────────────────────────────────────
+      ctx.fillStyle = '#1a1008';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawMap();
+      drawDrops();
+      var homeView = player && inPlayerZone(player.x, player.y);
+      for (var j = 0; j < rivals.length; j++) {
+        // In home view, only show rivals that have raided into the player zone
+        if (homeView && !inPlayerZone(rivals[j].x, rivals[j].y)) continue;
+        drawMoose(rivals[j], '#7a4020', false);
+      }
+      drawPlayerSprite(player);
+      drawHUD();
+    }
+
+    // ── Splash / start ───────────────────────────────────────────────────
+    function dismissSplash() {
+      splash.classList.add('hidden');
+      splash.addEventListener('transitionend', function () {
+        splash.style.display = 'none';
+      }, { once: true });
+    }
+
+    function startGame() {
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+      try { screen.orientation.lock('portrait-primary').catch(function () {}); } catch (e) {}
+      GamePlate.init({
+        orientation: 'portrait',
+        controller: isMobile ? 'nes' : 'keyboard',
+        fullscreen: true
+      });
+      resize();
+      initGame();
+      gameStarted = true;
+      dismissSplash();
+    }
+
+    document.getElementById('btn-start').addEventListener('click', startGame);
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

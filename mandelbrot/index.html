@@ -220,6 +220,13 @@ button:disabled {
 }
 
 .canvas-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.canvas-stage {
     position: relative;
     display: flex;
     justify-content: center;
@@ -348,6 +355,22 @@ input[type="range"]::-moz-range-thumb:hover {
 #autoExploreCanvas {
     border: 1px solid #3a3a3a;
     border-radius: 4px;
+}
+
+.julia-map-container {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.julia-map-container.active {
+    display: flex;
+}
+
+#juliaMapCanvas {
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    cursor: crosshair;
 }
 
 .path-style-options {
@@ -780,6 +803,328 @@ input[type="range"]::-moz-range-thumb:hover {
     background: #3a5a4a;
 }
 
+/* ===== Journey Tracking — storyboard dock ===== */
+
+.journey-dock {
+    width: 400px;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.journey-dock-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.journey-add-btn {
+    padding: 7px 12px;
+    background: #4a7c59;
+    font-size: 13px;
+}
+
+.journey-add-btn:hover {
+    background: #5a8c69;
+}
+
+.journey-dock-meta {
+    font-size: 12px;
+    color: #aaa;
+    margin-left: auto;
+}
+
+.journey-tempo {
+    font-size: 13px;
+    color: #ccc;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.journey-tempo input {
+    width: 52px;
+    padding: 3px 5px;
+    background: #3a3a3a;
+    color: #fff;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.journey-strip {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 6px 2px 10px;
+    min-height: 40px;
+}
+
+.journey-empty {
+    font-size: 12px;
+    color: #777;
+    padding: 8px 4px;
+    line-height: 1.5;
+}
+
+.journey-card {
+    flex: 0 0 auto;
+    width: 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.journey-thumb-wrap {
+    position: relative;
+    width: 96px;
+    height: 96px;
+}
+
+.journey-thumb {
+    width: 96px;
+    height: 96px;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    background: #000;
+    object-fit: cover;
+    display: block;
+}
+
+.journey-thumb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+    font-size: 20px;
+}
+
+.journey-card-del {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    font-size: 11px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.journey-card-del:hover {
+    background: #9c4a4a;
+}
+
+.journey-card-label {
+    width: 96px;
+    padding: 3px 4px;
+    background: #1f1f1f;
+    color: #ddd;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    font-size: 11px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.journey-card-move {
+    display: flex;
+    gap: 4px;
+}
+
+.journey-card-move button {
+    padding: 2px 8px;
+    font-size: 11px;
+    background: #3a3a3a;
+}
+
+.journey-card-move button:hover:not(:disabled) {
+    background: #4a4a4a;
+}
+
+.journey-card-move button:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.journey-connector {
+    flex: 0 0 auto;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 2px;
+    margin-top: 28px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #888;
+}
+
+.journey-connector:hover {
+    background: #333;
+    color: #ccc;
+}
+
+.journey-connector.selected {
+    background: #3a3a55;
+    color: #cfd0ff;
+}
+
+.journey-conn-line {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.journey-conn-beats {
+    font-size: 10px;
+}
+
+.journey-conn-badge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: #7c4a7c;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+}
+
+/* ===== Journey — transition editor ===== */
+
+.journey-editor {
+    border-top: 1px solid #3a3a3a;
+    margin-top: 4px;
+    padding-top: 10px;
+}
+
+.journey-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.journey-editor-title {
+    font-size: 13px;
+    color: #ddd;
+    font-weight: 600;
+}
+
+.journey-editor-close {
+    padding: 2px 8px;
+    font-size: 12px;
+    background: #3a3a3a;
+}
+
+.journey-editor-close:hover {
+    background: #9c4a4a;
+}
+
+.journey-editor-timing {
+    display: grid;
+    grid-template-columns: auto 70px auto;
+    align-items: center;
+    gap: 6px 8px;
+    margin-bottom: 10px;
+}
+
+.journey-editor-timing .journey-easing,
+.journey-editor-timing .journey-panCurve {
+    grid-column: 2 / 4;
+    width: 100%;
+    padding: 4px;
+    background: #3a3a3a;
+    color: #fff;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.journey-editor-pulse {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 12px;
+}
+
+.journey-editor-pulse label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.journey-pulse-count-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.journey-field {
+    padding: 6px 0;
+    border-top: 1px solid #333;
+}
+
+.journey-field-label {
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 4px;
+}
+
+.journey-field-vals {
+    font-size: 10px;
+    color: #777;
+    margin-top: 1px;
+}
+
+.journey-field-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: #aaa;
+}
+
+.journey-field-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.journey-field-snapat {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #888;
+}
+
+.journey-snapat-range {
+    width: 90px;
+}
+
+.journey-field-none {
+    font-size: 12px;
+    color: #777;
+    padding: 4px 0;
+}
+
     </style>
 </head>
 <body>
@@ -849,6 +1194,14 @@ input[type="range"]::-moz-range-thumb:hover {
                         <line x1="12" y1="11" x2="16" y2="11"/>
                     </svg>
                 </button>
+                <!-- Journey: map pin path -->
+                <button class="tab-btn" data-tab="journey" data-label="Journey">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 14 C6 14, 6 9, 9 9 S12 4, 15 4" stroke-dasharray="2 2"/>
+                        <circle cx="3" cy="14" r="1.6" fill="currentColor" stroke="none"/>
+                        <circle cx="15" cy="4" r="1.6" fill="currentColor" stroke="none"/>
+                    </svg>
+                </button>
             </div>
 
             <div class="tab-content" id="tab-navigation">
@@ -900,7 +1253,20 @@ input[type="range"]::-moz-range-thumb:hover {
                 </div>
 
                 <div class="control-section">
+                    <select id="exportResolutionSelect" style="margin-bottom:6px">
+                        <optgroup label="Square">
+                            <option value="2048x2048" selected>Standard (2048×2048)</option>
+                            <option value="4096x4096">High-Res (4096×4096)</option>
+                            <option value="8192x8192">Max (8192×8192)</option>
+                        </optgroup>
+                        <optgroup label="Widescreen 16:9">
+                            <option value="1920x1080">1080p (1920×1080)</option>
+                            <option value="3840x2160">4K (3840×2160)</option>
+                            <option value="7680x4320">8K (7680×4320)</option>
+                        </optgroup>
+                    </select>
                     <button id="exportBtn" class="export-button">Export PNG</button>
+                    <p class="orbit-hint">Higher resolutions take longer to render.</p>
                 </div>
 
                 <div class="control-section">
@@ -1070,7 +1436,7 @@ input[type="range"]::-moz-range-thumb:hover {
                         <input type="checkbox" id="juliaModeToggle"> Julia Set Mode
                     </label>
                     <div id="juliaCSection" style="display:none; margin-top:6px">
-                        <div class="equation-note" id="juliaInstruction">Click a point on the canvas to set c</div>
+                        <div class="equation-note" id="juliaInstruction">Click a point on the map to set c</div>
                         <div class="equation-note" id="juliaCDisplay" style="display:none"></div>
                     </div>
                 </div>
@@ -1172,6 +1538,47 @@ input[type="range"]::-moz-range-thumb:hover {
                 </div>
             </div>
 
+            <div class="tab-content" id="tab-journey" style="display:none">
+                <div class="control-section">
+                    <p class="orbit-hint">Save places from the storyboard below the canvas, then render the journey between them.</p>
+                </div>
+                <div class="control-section">
+                    <button id="journeyPreviewBtn" class="export-button">Preview</button>
+                </div>
+                <div class="control-section">
+                    <label class="path-style-label" style="margin-bottom:6px">
+                        <input type="checkbox" id="journeyBoomerang" checked> Boomerang
+                    </label>
+                    <select id="journeyGifResolutionSelect" style="margin-bottom:6px">
+                        <optgroup label="Square">
+                            <option value="400x400" selected>Standard (400×400)</option>
+                            <option value="2048x2048">Full-Res (2048×2048)</option>
+                            <option value="4096x4096">High-Res (4096×4096)</option>
+                            <option value="8192x8192">Max (8192×8192)</option>
+                        </optgroup>
+                        <optgroup label="Widescreen 16:9">
+                            <option value="1920x1080">1080p (1920×1080)</option>
+                            <option value="3840x2160">4K (3840×2160)</option>
+                            <option value="7680x4320">8K (7680×4320)</option>
+                        </optgroup>
+                    </select>
+                    <button id="journeyExportGifBtn" class="export-button">Export GIF</button>
+                    <p class="orbit-hint">Higher resolutions take longer to render and encode.</p>
+                    <div id="journeyGifProgressContainer" class="gif-progress-container" style="display:none">
+                        <div class="gif-progress-label" id="journeyGifProgressLabel">Rendering…</div>
+                        <div class="gif-progress-track">
+                            <div class="gif-progress-bar" id="journeyGifProgressBar"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="control-section">
+                    <h3>Journey File</h3>
+                    <button id="journeyExportJsonBtn">Export Journey</button>
+                    <button id="journeyImportJsonBtn" style="margin-top:6px">Import Journey</button>
+                    <input type="file" id="journeyImportJsonInput" accept=".json" style="display:none">
+                </div>
+            </div>
+
             <div class="tab-content" id="tab-orbit-explorer" style="display:none">
                 <div class="control-section">
                     <h3>Display Style</h3>
@@ -1194,16 +1601,32 @@ input[type="range"]::-moz-range-thumb:hover {
         </div>
 
         <div class="canvas-container">
-            <canvas id="mandelbrotCanvas" width="2048" height="2048"></canvas>
-            <div id="loadingOverlay" class="loading-overlay">
-                <div class="spinner"></div>
-                <div class="loading-text">Rendering...</div>
+            <div class="canvas-stage">
+                <canvas id="mandelbrotCanvas" width="2048" height="2048"></canvas>
+                <div id="loadingOverlay" class="loading-overlay">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Rendering...</div>
+                </div>
+            </div>
+            <div class="journey-dock">
+                <div class="journey-dock-header">
+                    <button id="journeyAddBtn" class="journey-add-btn">+ Add current view</button>
+                    <span class="journey-dock-meta">Journey &middot; <span id="journeyCount">0 places</span></span>
+                    <span class="journey-tempo" title="Journey tempo">&#9833;=<input type="number" id="journeyBpm" min="40" max="300" step="1" value="120"></span>
+                </div>
+                <div id="journeyStrip" class="journey-strip"></div>
+                <div id="journeyEditor" class="journey-editor" style="display:none"></div>
             </div>
         </div>
 
         <div class="path-canvas-container">
             <canvas id="pathCanvas" width="400" height="400"></canvas>
             <canvas id="ratioGraphCanvas" width="400" height="200"></canvas>
+        </div>
+
+        <div class="julia-map-container">
+            <canvas id="juliaMapCanvas" width="400" height="400"></canvas>
+            <p class="orbit-hint">Click to set c</p>
         </div>
 
         <div class="auto-explore-canvas-container" style="display:none">
@@ -1244,7 +1667,7 @@ input[type="range"]::-moz-range-thumb:hover {
 
     <script>
 // gif.js 0.2.0 - https://github.com/jnordberg/gif.js
-(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.GIF=f()}})(function(){var define,module,exports;return function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}({1:[function(require,module,exports){function EventEmitter(){this._events=this._events||{};this._maxListeners=this._maxListeners||undefined}module.exports=EventEmitter;EventEmitter.EventEmitter=EventEmitter;EventEmitter.prototype._events=undefined;EventEmitter.prototype._maxListeners=undefined;EventEmitter.defaultMaxListeners=10;EventEmitter.prototype.setMaxListeners=function(n){if(!isNumber(n)||n<0||isNaN(n))throw TypeError("n must be a positive number");this._maxListeners=n;return this};EventEmitter.prototype.emit=function(type){var er,handler,len,args,i,listeners;if(!this._events)this._events={};if(type==="error"){if(!this._events.error||isObject(this._events.error)&&!this._events.error.length){er=arguments[1];if(er instanceof Error){throw er}else{var err=new Error('Uncaught, unspecified "error" event. ('+er+")");err.context=er;throw err}}}handler=this._events[type];if(isUndefined(handler))return false;if(isFunction(handler)){switch(arguments.length){case 1:handler.call(this);break;case 2:handler.call(this,arguments[1]);break;case 3:handler.call(this,arguments[1],arguments[2]);break;default:args=Array.prototype.slice.call(arguments,1);handler.apply(this,args)}}else if(isObject(handler)){args=Array.prototype.slice.call(arguments,1);listeners=handler.slice();len=listeners.length;for(i=0;i<len;i++)listeners[i].apply(this,args)}return true};EventEmitter.prototype.addListener=function(type,listener){var m;if(!isFunction(listener))throw TypeError("listener must be a function");if(!this._events)this._events={};if(this._events.newListener)this.emit("newListener",type,isFunction(listener.listener)?listener.listener:listener);if(!this._events[type])this._events[type]=listener;else if(isObject(this._events[type]))this._events[type].push(listener);else this._events[type]=[this._events[type],listener];if(isObject(this._events[type])&&!this._events[type].warned){if(!isUndefined(this._maxListeners)){m=this._maxListeners}else{m=EventEmitter.defaultMaxListeners}if(m&&m>0&&this._events[type].length>m){this._events[type].warned=true;console.error("(node) warning: possible EventEmitter memory "+"leak detected. %d listeners added. "+"Use emitter.setMaxListeners() to increase limit.",this._events[type].length);if(typeof console.trace==="function"){console.trace()}}}return this};EventEmitter.prototype.on=EventEmitter.prototype.addListener;EventEmitter.prototype.once=function(type,listener){if(!isFunction(listener))throw TypeError("listener must be a function");var fired=false;function g(){this.removeListener(type,g);if(!fired){fired=true;listener.apply(this,arguments)}}g.listener=listener;this.on(type,g);return this};EventEmitter.prototype.removeListener=function(type,listener){var list,position,length,i;if(!isFunction(listener))throw TypeError("listener must be a function");if(!this._events||!this._events[type])return this;list=this._events[type];length=list.length;position=-1;if(list===listener||isFunction(list.listener)&&list.listener===listener){delete this._events[type];if(this._events.removeListener)this.emit("removeListener",type,listener)}else if(isObject(list)){for(i=length;i-- >0;){if(list[i]===listener||list[i].listener&&list[i].listener===listener){position=i;break}}if(position<0)return this;if(list.length===1){list.length=0;delete this._events[type]}else{list.splice(position,1)}if(this._events.removeListener)this.emit("removeListener",type,listener)}return this};EventEmitter.prototype.removeAllListeners=function(type){var key,listeners;if(!this._events)return this;if(!this._events.removeListener){if(arguments.length===0)this._events={};else if(this._events[type])delete this._events[type];return this}if(arguments.length===0){for(key in this._events){if(key==="removeListener")continue;this.removeAllListeners(key)}this.removeAllListeners("removeListener");this._events={};return this}listeners=this._events[type];if(isFunction(listeners)){this.removeListener(type,listeners)}else if(listeners){while(listeners.length)this.removeListener(type,listeners[listeners.length-1])}delete this._events[type];return this};EventEmitter.prototype.listeners=function(type){var ret;if(!this._events||!this._events[type])ret=[];else if(isFunction(this._events[type]))ret=[this._events[type]];else ret=this._events[type].slice();return ret};EventEmitter.prototype.listenerCount=function(type){if(this._events){var evlistener=this._events[type];if(isFunction(evlistener))return 1;else if(evlistener)return evlistener.length}return 0};EventEmitter.listenerCount=function(emitter,type){return emitter.listenerCount(type)};function isFunction(arg){return typeof arg==="function"}function isNumber(arg){return typeof arg==="number"}function isObject(arg){return typeof arg==="object"&&arg!==null}function isUndefined(arg){return arg===void 0}},{}],2:[function(require,module,exports){var UA,browser,mode,platform,ua;ua=navigator.userAgent.toLowerCase();platform=navigator.platform.toLowerCase();UA=ua.match(/(opera|ie|firefox|chrome|version)[\s\/:]([\w\d\.]+)?.*?(safari|version[\s\/:]([\w\d\.]+)|$)/)||[null,"unknown",0];mode=UA[1]==="ie"&&document.documentMode;browser={name:UA[1]==="version"?UA[3]:UA[1],version:mode||parseFloat(UA[1]==="opera"&&UA[4]?UA[4]:UA[2]),platform:{name:ua.match(/ip(?:ad|od|hone)/)?"ios":(ua.match(/(?:webos|android)/)||platform.match(/mac|win|linux/)||["other"])[0]}};browser[browser.name]=true;browser[browser.name+parseInt(browser.version,10)]=true;browser.platform[browser.platform.name]=true;module.exports=browser},{}],3:[function(require,module,exports){var EventEmitter,GIF,browser,extend=function(child,parent){for(var key in parent){if(hasProp.call(parent,key))child[key]=parent[key]}function ctor(){this.constructor=child}ctor.prototype=parent.prototype;child.prototype=new ctor;child.__super__=parent.prototype;return child},hasProp={}.hasOwnProperty,indexOf=[].indexOf||function(item){for(var i=0,l=this.length;i<l;i++){if(i in this&&this[i]===item)return i}return-1},slice=[].slice;EventEmitter=require("events").EventEmitter;browser=require("./browser.coffee");GIF=function(superClass){var defaults,frameDefaults;extend(GIF,superClass);defaults={workerScript:"gif.worker.js",workers:2,repeat:0,background:"#fff",quality:10,width:null,height:null,transparent:null,debug:false,dither:false};frameDefaults={delay:500,copy:false};function GIF(options){var base,key,value;this.running=false;this.options={};this.frames=[];this.freeWorkers=[];this.activeWorkers=[];this.setOptions(options);for(key in defaults){value=defaults[key];if((base=this.options)[key]==null){base[key]=value}}}GIF.prototype.setOption=function(key,value){this.options[key]=value;if(this._canvas!=null&&(key==="width"||key==="height")){return this._canvas[key]=value}};GIF.prototype.setOptions=function(options){var key,results,value;results=[];for(key in options){if(!hasProp.call(options,key))continue;value=options[key];results.push(this.setOption(key,value))}return results};GIF.prototype.addFrame=function(image,options){var frame,key;if(options==null){options={}}frame={};frame.transparent=this.options.transparent;for(key in frameDefaults){frame[key]=options[key]||frameDefaults[key]}if(this.options.width==null){this.setOption("width",image.width)}if(this.options.height==null){this.setOption("height",image.height)}if(typeof ImageData!=="undefined"&&ImageData!==null&&image instanceof ImageData){frame.data=image.data}else if(typeof CanvasRenderingContext2D!=="undefined"&&CanvasRenderingContext2D!==null&&image instanceof CanvasRenderingContext2D||typeof WebGLRenderingContext!=="undefined"&&WebGLRenderingContext!==null&&image instanceof WebGLRenderingContext){if(options.copy){frame.data=this.getContextData(image)}else{frame.context=image}}else if(image.childNodes!=null){if(options.copy){frame.data=this.getImageData(image)}else{frame.image=image}}else{throw new Error("Invalid image")}return this.frames.push(frame)};GIF.prototype.render=function(){var i,j,numWorkers,ref;if(this.running){throw new Error("Already running")}if(this.options.width==null||this.options.height==null){throw new Error("Width and height must be set prior to rendering")}this.running=true;this.nextFrame=0;this.finishedFrames=0;this.imageParts=function(){var j,ref,results;results=[];for(i=j=0,ref=this.frames.length;0<=ref?j<ref:j>ref;i=0<=ref?++j:--j){results.push(null)}return results}.call(this);numWorkers=this.spawnWorkers();if(this.options.globalPalette===true){this.renderNextFrame()}else{for(i=j=0,ref=numWorkers;0<=ref?j<ref:j>ref;i=0<=ref?++j:--j){this.renderNextFrame()}}this.emit("start");return this.emit("progress",0)};GIF.prototype.abort=function(){var worker;while(true){worker=this.activeWorkers.shift();if(worker==null){break}this.log("killing active worker");worker.terminate()}this.running=false;return this.emit("abort")};GIF.prototype.spawnWorkers=function(){var j,numWorkers,ref,results;numWorkers=Math.min(this.options.workers,this.frames.length);(function(){results=[];for(var j=ref=this.freeWorkers.length;ref<=numWorkers?j<numWorkers:j>numWorkers;ref<=numWorkers?j++:j--){results.push(j)}return results}).apply(this).forEach(function(_this){return function(i){var worker;_this.log("spawning worker "+i);worker=new Worker(_this.options.workerScript);worker.onmessage=function(event){_this.activeWorkers.splice(_this.activeWorkers.indexOf(worker),1);_this.freeWorkers.push(worker);return _this.frameFinished(event.data)};return _this.freeWorkers.push(worker)}}(this));return numWorkers};GIF.prototype.frameFinished=function(frame){var i,j,ref;this.log("frame "+frame.index+" finished - "+this.activeWorkers.length+" active");this.finishedFrames++;this.emit("progress",this.finishedFrames/this.frames.length);this.imageParts[frame.index]=frame;if(this.options.globalPalette===true){this.options.globalPalette=frame.globalPalette;this.log("global palette analyzed");if(this.frames.length>2){for(i=j=1,ref=this.freeWorkers.length;1<=ref?j<ref:j>ref;i=1<=ref?++j:--j){this.renderNextFrame()}}}if(indexOf.call(this.imageParts,null)>=0){return this.renderNextFrame()}else{return this.finishRendering()}};GIF.prototype.finishRendering=function(){var data,frame,i,image,j,k,l,len,len1,len2,len3,offset,page,ref,ref1,ref2;len=0;ref=this.imageParts;for(j=0,len1=ref.length;j<len1;j++){frame=ref[j];len+=(frame.data.length-1)*frame.pageSize+frame.cursor}len+=frame.pageSize-frame.cursor;this.log("rendering finished - filesize "+Math.round(len/1e3)+"kb");data=new Uint8Array(len);offset=0;ref1=this.imageParts;for(k=0,len2=ref1.length;k<len2;k++){frame=ref1[k];ref2=frame.data;for(i=l=0,len3=ref2.length;l<len3;i=++l){page=ref2[i];data.set(page,offset);if(i===frame.data.length-1){offset+=frame.cursor}else{offset+=frame.pageSize}}}image=new Blob([data],{type:"image/gif"});return this.emit("finished",image,data)};GIF.prototype.renderNextFrame=function(){var frame,task,worker;if(this.freeWorkers.length===0){throw new Error("No free workers")}if(this.nextFrame>=this.frames.length){return}frame=this.frames[this.nextFrame++];worker=this.freeWorkers.shift();task=this.getTask(frame);this.log("starting frame "+(task.index+1)+" of "+this.frames.length);this.activeWorkers.push(worker);return worker.postMessage(task)};GIF.prototype.getContextData=function(ctx){return ctx.getImageData(0,0,this.options.width,this.options.height).data};GIF.prototype.getImageData=function(image){var ctx;if(this._canvas==null){this._canvas=document.createElement("canvas");this._canvas.width=this.options.width;this._canvas.height=this.options.height}ctx=this._canvas.getContext("2d");ctx.setFill=this.options.background;ctx.fillRect(0,0,this.options.width,this.options.height);ctx.drawImage(image,0,0);return this.getContextData(ctx)};GIF.prototype.getTask=function(frame){var index,task;index=this.frames.indexOf(frame);task={index:index,last:index===this.frames.length-1,delay:frame.delay,transparent:frame.transparent,width:this.options.width,height:this.options.height,quality:this.options.quality,dither:this.options.dither,globalPalette:this.options.globalPalette,repeat:this.options.repeat,canTransfer:browser.name==="chrome"};if(frame.data!=null){task.data=frame.data}else if(frame.context!=null){task.data=this.getContextData(frame.context)}else if(frame.image!=null){task.data=this.getImageData(frame.image)}else{throw new Error("Invalid frame")}return task};GIF.prototype.log=function(){var args;args=1<=arguments.length?slice.call(arguments,0):[];if(!this.options.debug){return}return console.log.apply(console,args)};return GIF}(EventEmitter);module.exports=GIF},{"./browser.coffee":2,events:1}]},{},[3])(3)});
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.GIF=f()}})(function(){var define,module,exports;return function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}({1:[function(require,module,exports){function EventEmitter(){this._events=this._events||{};this._maxListeners=this._maxListeners||undefined}module.exports=EventEmitter;EventEmitter.EventEmitter=EventEmitter;EventEmitter.prototype._events=undefined;EventEmitter.prototype._maxListeners=undefined;EventEmitter.defaultMaxListeners=10;EventEmitter.prototype.setMaxListeners=function(n){if(!isNumber(n)||n<0||isNaN(n))throw TypeError("n must be a positive number");this._maxListeners=n;return this};EventEmitter.prototype.emit=function(type){var er,handler,len,args,i,listeners;if(!this._events)this._events={};if(type==="error"){if(!this._events.error||isObject(this._events.error)&&!this._events.error.length){er=arguments[1];if(er instanceof Error){throw er}else{var err=new Error('Uncaught, unspecified "error" event. ('+er+")");err.context=er;throw err}}}handler=this._events[type];if(isUndefined(handler))return false;if(isFunction(handler)){switch(arguments.length){case 1:handler.call(this);break;case 2:handler.call(this,arguments[1]);break;case 3:handler.call(this,arguments[1],arguments[2]);break;default:args=Array.prototype.slice.call(arguments,1);handler.apply(this,args)}}else if(isObject(handler)){args=Array.prototype.slice.call(arguments,1);listeners=handler.slice();len=listeners.length;for(i=0;i<len;i++)listeners[i].apply(this,args)}return true};EventEmitter.prototype.addListener=function(type,listener){var m;if(!isFunction(listener))throw TypeError("listener must be a function");if(!this._events)this._events={};if(this._events.newListener)this.emit("newListener",type,isFunction(listener.listener)?listener.listener:listener);if(!this._events[type])this._events[type]=listener;else if(isObject(this._events[type]))this._events[type].push(listener);else this._events[type]=[this._events[type],listener];if(isObject(this._events[type])&&!this._events[type].warned){if(!isUndefined(this._maxListeners)){m=this._maxListeners}else{m=EventEmitter.defaultMaxListeners}if(m&&m>0&&this._events[type].length>m){this._events[type].warned=true;console.error("(node) warning: possible EventEmitter memory "+"leak detected. %d listeners added. "+"Use emitter.setMaxListeners() to increase limit.",this._events[type].length);if(typeof console.trace==="function"){console.trace()}}}return this};EventEmitter.prototype.on=EventEmitter.prototype.addListener;EventEmitter.prototype.once=function(type,listener){if(!isFunction(listener))throw TypeError("listener must be a function");var fired=false;function g(){this.removeListener(type,g);if(!fired){fired=true;listener.apply(this,arguments)}}g.listener=listener;this.on(type,g);return this};EventEmitter.prototype.removeListener=function(type,listener){var list,position,length,i;if(!isFunction(listener))throw TypeError("listener must be a function");if(!this._events||!this._events[type])return this;list=this._events[type];length=list.length;position=-1;if(list===listener||isFunction(list.listener)&&list.listener===listener){delete this._events[type];if(this._events.removeListener)this.emit("removeListener",type,listener)}else if(isObject(list)){for(i=length;i-- >0;){if(list[i]===listener||list[i].listener&&list[i].listener===listener){position=i;break}}if(position<0)return this;if(list.length===1){list.length=0;delete this._events[type]}else{list.splice(position,1)}if(this._events.removeListener)this.emit("removeListener",type,listener)}return this};EventEmitter.prototype.removeAllListeners=function(type){var key,listeners;if(!this._events)return this;if(!this._events.removeListener){if(arguments.length===0)this._events={};else if(this._events[type])delete this._events[type];return this}if(arguments.length===0){for(key in this._events){if(key==="removeListener")continue;this.removeAllListeners(key)}this.removeAllListeners("removeListener");this._events={};return this}listeners=this._events[type];if(isFunction(listeners)){this.removeListener(type,listeners)}else if(listeners){while(listeners.length)this.removeListener(type,listeners[listeners.length-1])}delete this._events[type];return this};EventEmitter.prototype.listeners=function(type){var ret;if(!this._events||!this._events[type])ret=[];else if(isFunction(this._events[type]))ret=[this._events[type]];else ret=this._events[type].slice();return ret};EventEmitter.prototype.listenerCount=function(type){if(this._events){var evlistener=this._events[type];if(isFunction(evlistener))return 1;else if(evlistener)return evlistener.length}return 0};EventEmitter.listenerCount=function(emitter,type){return emitter.listenerCount(type)};function isFunction(arg){return typeof arg==="function"}function isNumber(arg){return typeof arg==="number"}function isObject(arg){return typeof arg==="object"&&arg!==null}function isUndefined(arg){return arg===void 0}},{}],2:[function(require,module,exports){var UA,browser,mode,platform,ua;ua=navigator.userAgent.toLowerCase();platform=navigator.platform.toLowerCase();UA=ua.match(/(opera|ie|firefox|chrome|version)[\s\/:]([\w\d\.]+)?.*?(safari|version[\s\/:]([\w\d\.]+)|$)/)||[null,"unknown",0];mode=UA[1]==="ie"&&document.documentMode;browser={name:UA[1]==="version"?UA[3]:UA[1],version:mode||parseFloat(UA[1]==="opera"&&UA[4]?UA[4]:UA[2]),platform:{name:ua.match(/ip(?:ad|od|hone)/)?"ios":(ua.match(/(?:webos|android)/)||platform.match(/mac|win|linux/)||["other"])[0]}};browser[browser.name]=true;browser[browser.name+parseInt(browser.version,10)]=true;browser.platform[browser.platform.name]=true;module.exports=browser},{}],3:[function(require,module,exports){var EventEmitter,GIF,browser,extend=function(child,parent){for(var key in parent){if(hasProp.call(parent,key))child[key]=parent[key]}function ctor(){this.constructor=child}ctor.prototype=parent.prototype;child.prototype=new ctor;child.__super__=parent.prototype;return child},hasProp={}.hasOwnProperty,indexOf=[].indexOf||function(item){for(var i=0,l=this.length;i<l;i++){if(i in this&&this[i]===item)return i}return-1},slice=[].slice;EventEmitter=require("events").EventEmitter;browser=require("./browser.coffee");GIF=function(superClass){var defaults,frameDefaults;extend(GIF,superClass);defaults={workerScript:"gif.worker.js",workers:2,repeat:0,background:"#fff",quality:10,width:null,height:null,transparent:null,debug:false,dither:false};frameDefaults={delay:500,copy:false};function GIF(options){var base,key,value;this.running=false;this.options={};this.frames=[];this.freeWorkers=[];this.activeWorkers=[];this.setOptions(options);for(key in defaults){value=defaults[key];if((base=this.options)[key]==null){base[key]=value}}}GIF.prototype.setOption=function(key,value){this.options[key]=value;if(this._canvas!=null&&(key==="width"||key==="height")){return this._canvas[key]=value}};GIF.prototype.setOptions=function(options){var key,results,value;results=[];for(key in options){if(!hasProp.call(options,key))continue;value=options[key];results.push(this.setOption(key,value))}return results};GIF.prototype.addFrame=function(image,options){var frame,key;if(options==null){options={}}frame={};frame.transparent=this.options.transparent;for(key in frameDefaults){frame[key]=options[key]||frameDefaults[key]}if(this.options.width==null){this.setOption("width",image.width)}if(this.options.height==null){this.setOption("height",image.height)}if(typeof ImageData!=="undefined"&&ImageData!==null&&image instanceof ImageData){frame.data=image.data}else if(typeof CanvasRenderingContext2D!=="undefined"&&CanvasRenderingContext2D!==null&&image instanceof CanvasRenderingContext2D||typeof WebGLRenderingContext!=="undefined"&&WebGLRenderingContext!==null&&image instanceof WebGLRenderingContext){if(options.copy){frame.data=this.getContextData(image)}else{frame.context=image}}else if(image.childNodes!=null){if(options.copy){frame.data=this.getImageData(image)}else{frame.image=image}}else{throw new Error("Invalid image")}return this.frames.push(frame)};GIF.prototype.render=function(){var i,j,numWorkers,ref;if(this.running){throw new Error("Already running")}if(this.options.width==null||this.options.height==null){throw new Error("Width and height must be set prior to rendering")}this.running=true;this.nextFrame=0;this.finishedFrames=0;this.imageParts=function(){var j,ref,results;results=[];for(i=j=0,ref=this.frames.length;0<=ref?j<ref:j>ref;i=0<=ref?++j:--j){results.push(null)}return results}.call(this);numWorkers=this.spawnWorkers();if(this.options.globalPalette===true){this.renderNextFrame()}else{for(i=j=0,ref=numWorkers;0<=ref?j<ref:j>ref;i=0<=ref?++j:--j){this.renderNextFrame()}}this.emit("start");return this.emit("progress",0)};GIF.prototype.abort=function(){var worker;while(true){worker=this.activeWorkers.shift();if(worker==null){break}this.log("killing active worker");worker.terminate()}this.running=false;return this.emit("abort")};GIF.prototype.spawnWorkers=function(){var j,numWorkers,ref,results;numWorkers=Math.min(this.options.workers,this.frames.length);(function(){results=[];for(var j=ref=this.freeWorkers.length;ref<=numWorkers?j<numWorkers:j>numWorkers;ref<=numWorkers?j++:j--){results.push(j)}return results}).apply(this).forEach(function(_this){return function(i){var worker;_this.log("spawning worker "+i);worker=new Worker(_this.options.workerScript);worker.onmessage=function(event){_this.activeWorkers.splice(_this.activeWorkers.indexOf(worker),1);_this.freeWorkers.push(worker);return _this.frameFinished(event.data)};return _this.freeWorkers.push(worker)}}(this));return numWorkers};GIF.prototype.frameFinished=function(frame){var i,j,ref;this.log("frame "+frame.index+" finished - "+this.activeWorkers.length+" active");this.finishedFrames++;this.emit("progress",this.finishedFrames/this.frames.length);this.imageParts[frame.index]=frame;if(this.options.globalPalette===true){this.options.globalPalette=frame.globalPalette;this.log("global palette analyzed");if(this.frames.length>2){for(i=j=1,ref=this.freeWorkers.length;1<=ref?j<ref:j>ref;i=1<=ref?++j:--j){this.renderNextFrame()}}}if(indexOf.call(this.imageParts,null)>=0){return this.renderNextFrame()}else{return this.finishRendering()}};GIF.prototype.finishRendering=function(){var frame,i,image,j,k,len,len1,len2,page,parts,ref,ref1,total;parts=[];total=0;ref=this.imageParts;for(j=0,len1=ref.length;j<len1;j++){frame=ref[j];ref1=frame.data;for(i=k=0,len2=ref1.length;k<len2;i=++k){page=ref1[i];if(i===ref1.length-1){page=page.subarray(0,frame.cursor)}parts.push(page);total+=page.length}}this.log("rendering finished - filesize "+Math.round(total/1e3)+"kb");image=new Blob(parts,{type:"image/gif"});return this.emit("finished",image,null)};GIF.prototype.renderNextFrame=function(){var frame,task,worker;if(this.freeWorkers.length===0){throw new Error("No free workers")}if(this.nextFrame>=this.frames.length){return}frame=this.frames[this.nextFrame++];worker=this.freeWorkers.shift();task=this.getTask(frame);this.log("starting frame "+(task.index+1)+" of "+this.frames.length);this.activeWorkers.push(worker);return worker.postMessage(task)};GIF.prototype.getContextData=function(ctx){return ctx.getImageData(0,0,this.options.width,this.options.height).data};GIF.prototype.getImageData=function(image){var ctx;if(this._canvas==null){this._canvas=document.createElement("canvas");this._canvas.width=this.options.width;this._canvas.height=this.options.height}ctx=this._canvas.getContext("2d");ctx.setFill=this.options.background;ctx.fillRect(0,0,this.options.width,this.options.height);ctx.drawImage(image,0,0);return this.getContextData(ctx)};GIF.prototype.getTask=function(frame){var index,task;index=this.frames.indexOf(frame);task={index:index,last:index===this.frames.length-1,delay:frame.delay,transparent:frame.transparent,width:this.options.width,height:this.options.height,quality:this.options.quality,dither:this.options.dither,globalPalette:this.options.globalPalette,repeat:this.options.repeat,canTransfer:browser.name==="chrome"};if(frame.data!=null){task.data=frame.data}else if(frame.context!=null){task.data=this.getContextData(frame.context)}else if(frame.image!=null){task.data=this.getImageData(frame.image)}else{throw new Error("Invalid frame")}return task};GIF.prototype.log=function(){var args;args=1<=arguments.length?slice.call(arguments,0):[];if(!this.options.debug){return}return console.log.apply(console,args)};return GIF}(EventEmitter);module.exports=GIF},{"./browser.coffee":2,events:1}]},{},[3])(3)});
 //# sourceMappingURL=gif.js.map
 
 const _GIF_WORKER_SRC = `// gif.worker.js 0.2.0 - https://github.com/jnordberg/gif.js
@@ -1529,6 +1952,7 @@ const state = {
     trapIteration: 1,
     trapRotation: 0,
     trapScale: 1,
+    trapMorph: null,        // transient { shapeA, shapeB, t, mode } during a journey trap-shape morph
     showTrapShape: true,
     ratioTargetValue: 1.0,
     viewRotation: 0,
@@ -1669,7 +2093,7 @@ self.onmessage = function(e) {
 /* === js/renderer.js === */
 // DOM references for rendering
 const canvas = document.getElementById('mandelbrotCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const loadingOverlay = document.getElementById('loadingOverlay');
 
 // Cached iteration data — populated by render(), consumed by recolor()
@@ -1743,6 +2167,24 @@ function mandelbrot(cr, ci, maxIter) {
     return iteratePoint(0, 0, cr, ci, maxIter, 'mandelbrot', 2);
 }
 
+// Bounds to render with for the current canvas size. For a square canvas (the normal
+// live-view case, and same-aspect exports) these are exactly state's bounds. For a
+// wider-than-tall export canvas, the real-axis range is widened proportionally so extra
+// scenery appears on the sides — the vertical framing/scale stays identical to a same-height
+// square render, with no stretching. Computed fresh each call; never mutates state.
+function getEffectiveBounds() {
+    if (canvas.width === canvas.height) {
+        return { minReal: state.minReal, maxReal: state.maxReal, minImag: state.minImag, maxImag: state.maxImag };
+    }
+    const aspect = canvas.width / canvas.height;
+    const cx = (state.minReal + state.maxReal) / 2;
+    const cy = (state.minImag + state.maxImag) / 2;
+    let hw = (state.maxReal - state.minReal) / 2;
+    let hh = (state.maxImag - state.minImag) / 2;
+    if (aspect > 1) hw *= aspect; else hh /= aspect;
+    return { minReal: cx - hw, maxReal: cx + hw, minImag: cy - hh, maxImag: cy + hh };
+}
+
 // Fast recolor pass — uses cached iteration data, no Mandelbrot recomputation
 function recolor() {
     if (!cachedNormalizedValues) return;
@@ -1773,6 +2215,39 @@ function recolor() {
     ctx.putImageData(cachedImageData, 0, 0);
 }
 
+// Serializes every render dispatch (button clicks, sliders, animation frames, GIF
+// capture) onto a single chain. renderClassic() reassigns each Worker's onmessage
+// per call, so if two dispatches were ever in flight at once, a worker still
+// crunching the older viewport could deliver its reply to the newer call's promise —
+// producing a Frankenstein frame with stale horizontal strips. Routing everything
+// through one queue guarantees a dispatch never starts until the previous fully lands.
+let renderQueue = Promise.resolve();
+
+function dispatchRenderTask() {
+    if (state.renderingMode === 'buddhabrot') {
+        renderBuddhabrot();
+        return;
+    } else if (state.renderingMode === 'periodicity') {
+        renderPeriodicity();
+        return;
+    } else if (state.renderingMode === 'orbit-trap') {
+        return renderOrbitTrap();
+    } else if (state.renderingMode === 'orbit-ratio-convergence') {
+        renderRatioConvergence();
+        return;
+    } else if (state.renderingMode === 'orbit-ratio-convergence-to-value') {
+        renderRatioConvergenceToValue();
+        return;
+    } else {
+        return renderClassic();
+    }
+}
+
+function queueRender() {
+    renderQueue = renderQueue.then(dispatchRenderTask, dispatchRenderTask);
+    return renderQueue;
+}
+
 // Full render — dispatches to the active rendering mode
 function render() {
     if (state.isRendering) return;
@@ -1780,21 +2255,7 @@ function render() {
     state.isRendering = true;
     loadingOverlay.classList.add('active');
 
-    setTimeout(() => {
-        if (state.renderingMode === 'buddhabrot') {
-            renderBuddhabrot();
-        } else if (state.renderingMode === 'periodicity') {
-            renderPeriodicity();
-        } else if (state.renderingMode === 'orbit-trap') {
-            renderOrbitTrap();
-        } else if (state.renderingMode === 'orbit-ratio-convergence') {
-            renderRatioConvergence();
-        } else if (state.renderingMode === 'orbit-ratio-convergence-to-value') {
-            renderRatioConvergenceToValue();
-        } else {
-            renderClassic(); // async — manages its own state/overlay cleanup
-        }
-    }, 10);
+    setTimeout(queueRender, 10);
 }
 
 // Classic Mandelbrot rendering — async, parallelised across Web Workers.
@@ -1803,14 +2264,15 @@ async function renderClassic() {
     const width = canvas.width;
     const height = canvas.height;
     const totalPixels = width * height;
+    const bounds = getEffectiveBounds();
 
     // Real-axis symmetry only holds for standard Mandelbrot (z^2, no Julia, no rotation).
-    const imagRange = state.maxImag - state.minImag;
+    const imagRange = bounds.maxImag - bounds.minImag;
     const useSymmetry = (
         state.fractalType === 'mandelbrot' && state.exponent === 2 && !state.juliaMode &&
         state.viewRotation === 0 &&
-        state.minImag < 0 && state.maxImag > 0 &&
-        Math.abs(state.minImag + state.maxImag) < imagRange * 0.02
+        bounds.minImag < 0 && bounds.maxImag > 0 &&
+        Math.abs(bounds.minImag + bounds.maxImag) < imagRange * 0.02
     );
 
     // How many rows each worker needs to compute
@@ -1832,8 +2294,8 @@ async function renderClassic() {
         new Promise(resolve => {
             workers[workerIdx].onmessage = e => resolve(e.data);
             workers[workerIdx].postMessage({
-                minReal: state.minReal, maxReal: state.maxReal,
-                minImag: state.minImag, maxImag: state.maxImag,
+                minReal: bounds.minReal, maxReal: bounds.maxReal,
+                minImag: bounds.minImag, maxImag: bounds.maxImag,
                 maxIterations: state.maxIterations,
                 width, height, startRow, endRow,
                 viewRotation: state.viewRotation,
@@ -1910,10 +2372,11 @@ function renderBuddhabrot() {
 
     const maxIter = state.maxIterations;
     const SAMPLES = state.buddhabrotSamples;
-    const cx = (state.minReal + state.maxReal) / 2;
-    const cy = (state.minImag + state.maxImag) / 2;
-    const hw = (state.maxReal - state.minReal) / 2;
-    const hh = (state.maxImag - state.minImag) / 2;
+    const bounds = getEffectiveBounds();
+    const cx = (bounds.minReal + bounds.maxReal) / 2;
+    const cy = (bounds.minImag + bounds.maxImag) / 2;
+    const hw = (bounds.maxReal - bounds.minReal) / 2;
+    const hh = (bounds.maxImag - bounds.minImag) / 2;
     const cos_t = Math.cos(state.viewRotation || 0);
     const sin_t = Math.sin(state.viewRotation || 0);
 
@@ -2028,10 +2491,11 @@ function renderPeriodicity() {
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const cx = (state.minReal + state.maxReal) / 2;
-    const cy = (state.minImag + state.maxImag) / 2;
-    const hw = (state.maxReal - state.minReal) / 2;
-    const hh = (state.maxImag - state.minImag) / 2;
+    const bounds = getEffectiveBounds();
+    const cx = (bounds.minReal + bounds.maxReal) / 2;
+    const cy = (bounds.minImag + bounds.maxImag) / 2;
+    const hw = (bounds.maxReal - bounds.minReal) / 2;
+    const hh = (bounds.maxImag - bounds.minImag) / 2;
     const cos_t = Math.cos(state.viewRotation || 0);
     const sin_t = Math.sin(state.viewRotation || 0);
 
@@ -2180,7 +2644,8 @@ function star5Vertices(outerR, innerR) {
     return { vx, vy };
 }
 
-function trapDistance(zr, zi, shape, rotation, scale, pngDistField, pngWidth, pngHeight) {
+// Apply the trap's rotation + scale to a point (shared by named shapes and morph polygons)
+function applyTrapTransform(zr, zi, rotation, scale) {
     if (rotation !== 0) {
         const cos = Math.cos(-rotation);
         const sin = Math.sin(-rotation);
@@ -2192,6 +2657,18 @@ function trapDistance(zr, zi, shape, rotation, scale, pngDistField, pngWidth, pn
         zr /= scale;
         zi /= scale;
     }
+    return [zr, zi];
+}
+
+// Distance to a morphed polygon boundary (rotation/scale applied to the point first)
+function trapDistancePolygon(zr, zi, vx, vy, rotation, scale) {
+    const p = applyTrapTransform(zr, zi, rotation, scale);
+    return distToPolygonBoundary(p[0], p[1], vx, vy);
+}
+
+function trapDistance(zr, zi, shape, rotation, scale, pngDistField, pngWidth, pngHeight) {
+    const p = applyTrapTransform(zr, zi, rotation, scale);
+    zr = p[0]; zi = p[1];
     switch (shape) {
         case 'point':
             return Math.sqrt(zr * zr + zi * zi);
@@ -2281,8 +2758,14 @@ self.onmessage = function(e) {
         width, height, startRow, endRow,
         trapShape, trapRotation, trapScale, trapAggregation, trapIteration,
         pngDistField, pngWidth, pngHeight, viewRotation,
-        fractalType, exponent, juliaMode, juliaCr, juliaCi
+        fractalType, exponent, juliaMode, juliaCr, juliaCi,
+        trapShapeB, trapBlendFactor, pngDistFieldB, pngWidthB, pngHeightB,
+        trapPolygon
     } = e.data;
+
+    const morphing = trapShapeB && trapBlendFactor > 0;
+    const polyVx = trapPolygon ? trapPolygon.vx : null;
+    const polyVy = trapPolygon ? trapPolygon.vy : null;
 
     const type  = fractalType || 'mandelbrot';
     const exp   = (exponent != null) ? exponent : 2;
@@ -2321,7 +2804,16 @@ self.onmessage = function(e) {
             let atIterDist = 0;
 
             for (let iter = 0; iter < maxIterations; iter++) {
-                const d = trapDistance(zr, zi, trapShape, trapRotation, trapScale, pngDistField, pngWidth, pngHeight);
+                let d;
+                if (polyVx) {
+                    d = trapDistancePolygon(zr, zi, polyVx, polyVy, trapRotation, trapScale);
+                } else {
+                    d = trapDistance(zr, zi, trapShape, trapRotation, trapScale, pngDistField, pngWidth, pngHeight);
+                    if (morphing) {
+                        const dB = trapDistance(zr, zi, trapShapeB, trapRotation, trapScale, pngDistFieldB, pngWidthB, pngHeightB);
+                        d = d * (1 - trapBlendFactor) + dB * trapBlendFactor;
+                    }
+                }
                 if (d < minDist) minDist = d;
                 if (d > maxDist) maxDist = d;
                 accumDist += d;
@@ -2487,6 +2979,128 @@ function star5Vertices(outerR, innerR) {
     return { vx, vy };
 }
 
+// --- Point-to-point shape morphing (main thread) ----------------------------
+// A morph samples both shapes' outlines to N arc-length-uniform boundary points,
+// aligns them (anti-twist), and lerps into an intermediate polygon that the
+// orbit-trap worker renders as its own distance field — a true geometric melt.
+
+const TRAP_MORPH_N = 64;
+let _trapMorphCache = null; // { key, A, B } — sampled A and B pre-aligned to A
+
+// Ordered boundary points (closed loop) for a morphable shape, in the same
+// complex-plane units the trap distance uses. Curves are sampled densely;
+// polygons return their corner vertices (the resampler walks the edges).
+function shapeBoundaryPoints(shape) {
+    const pts = [];
+    const pushPoly = (vx, vy) => { for (let i = 0; i < vx.length; i++) pts.push({ x: vx[i], y: vy[i] }); };
+    switch (shape) {
+        case 'circle': {
+            const M = 360;
+            for (let i = 0; i < M; i++) { const a = (i / M) * Math.PI * 2; pts.push({ x: Math.cos(a), y: Math.sin(a) }); }
+            break;
+        }
+        case 'square':    pushPoly([-0.75, 0.75, 0.75, -0.75], [-0.75, -0.75, 0.75, 0.75]); break;
+        case 'triangle':  { const { vx, vy } = regularPolygon(3, 0.8); pushPoly(vx, vy); break; }
+        case 'pentagon':  { const { vx, vy } = regularPolygon(5, 0.8); pushPoly(vx, vy); break; }
+        case 'hexagon':   { const { vx, vy } = regularPolygon(6, 0.8); pushPoly(vx, vy); break; }
+        case 'star':      { const { vx, vy } = star5Vertices(0.8, 0.35); pushPoly(vx, vy); break; }
+        case 'trapezoid': pushPoly([-0.9, 0.9, 0.45, -0.45], [-0.4, -0.4, 0.4, 0.4]); break;
+        case 'heart': {
+            // Matches the trap mapping zr→x=zr·1.2, zi→y=zi·1.2−0.2 (inverse of overlay form)
+            const M = 360;
+            for (let i = 0; i < M; i++) {
+                const t = (i / M) * Math.PI * 2;
+                const x = Math.pow(Math.sin(t), 3);
+                const y = (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16;
+                pts.push({ x: x / 1.2, y: (y + 0.2) / 1.2 });
+            }
+            break;
+        }
+        case 'figure8': {
+            const M = 360;
+            for (let i = 0; i < M; i++) {
+                const t = (i / M) * Math.PI * 2;
+                const denom = 1 + Math.sin(t) * Math.sin(t);
+                pts.push({ x: Math.cos(t) / denom, y: Math.sin(t) * Math.cos(t) / denom });
+            }
+            break;
+        }
+    }
+    return pts;
+}
+
+// Resample a closed polyline to exactly N points spaced uniformly by arc length.
+function resampleClosedByArcLength(pts, N) {
+    const m = pts.length;
+    const seg = new Array(m);
+    let total = 0;
+    for (let i = 0; i < m; i++) {
+        const a = pts[i], b = pts[(i + 1) % m];
+        seg[i] = Math.hypot(b.x - a.x, b.y - a.y);
+        total += seg[i];
+    }
+    const out = { x: new Array(N), y: new Array(N) };
+    let edge = 0, acc = 0; // acc = arc length at the start of the current edge
+    for (let i = 0; i < N; i++) {
+        const target = (i / N) * total;
+        while (edge < m - 1 && acc + seg[edge] < target) { acc += seg[edge]; edge++; }
+        const a = pts[edge], b = pts[(edge + 1) % m];
+        const f = seg[edge] > 0 ? (target - acc) / seg[edge] : 0;
+        out.x[i] = a.x + (b.x - a.x) * f;
+        out.y[i] = a.y + (b.y - a.y) * f;
+    }
+    return out;
+}
+
+function sampleShapeOutline(shape, N) {
+    return resampleClosedByArcLength(shapeBoundaryPoints(shape), N);
+}
+
+// Reindex B (rotational offset + winding direction) to minimize total point
+// travel from A — prevents the morph from twisting inside out.
+function alignOutlines(A, B) {
+    const N = A.x.length;
+    let bestCost = Infinity, bestOff = 0, bestRev = false;
+    for (let dir = 0; dir < 2; dir++) {
+        const reversed = dir === 1;
+        for (let off = 0; off < N; off++) {
+            let cost = 0;
+            for (let i = 0; i < N; i++) {
+                const j = reversed ? (((off - i) % N) + N) % N : (i + off) % N;
+                const dx = A.x[i] - B.x[j], dy = A.y[i] - B.y[j];
+                cost += dx * dx + dy * dy;
+                if (cost >= bestCost) break;
+            }
+            if (cost < bestCost) { bestCost = cost; bestOff = off; bestRev = reversed; }
+        }
+    }
+    const out = { x: new Array(N), y: new Array(N) };
+    for (let i = 0; i < N; i++) {
+        const j = bestRev ? (((bestOff - i) % N) + N) % N : (i + bestOff) % N;
+        out.x[i] = B.x[j]; out.y[i] = B.y[j];
+    }
+    return out;
+}
+
+// Intermediate polygon between shapeA and shapeB at blend t (cached per shape pair).
+// Returns null if either shape has no closed outline (caller falls back to dissolve).
+function getMorphedTrapPolygon(shapeA, shapeB, t) {
+    if (shapeBoundaryPoints(shapeA).length === 0 || shapeBoundaryPoints(shapeB).length === 0) return null;
+    const key = shapeA + '|' + shapeB;
+    if (!_trapMorphCache || _trapMorphCache.key !== key) {
+        const A = sampleShapeOutline(shapeA, TRAP_MORPH_N);
+        const B = alignOutlines(A, sampleShapeOutline(shapeB, TRAP_MORPH_N));
+        _trapMorphCache = { key, A, B };
+    }
+    const { A, B } = _trapMorphCache;
+    const vx = new Array(TRAP_MORPH_N), vy = new Array(TRAP_MORPH_N);
+    for (let i = 0; i < TRAP_MORPH_N; i++) {
+        vx[i] = A.x[i] + (B.x[i] - A.x[i]) * t;
+        vy[i] = A.y[i] + (B.y[i] - A.y[i]) * t;
+    }
+    return { vx, vy };
+}
+
 function trapDistance(zr, zi, shape) {
     if (state.trapRotation !== 0) {
         const cos = Math.cos(-state.trapRotation);
@@ -2612,12 +3226,35 @@ async function renderOrbitTrap() {
     const width = canvas.width;
     const height = canvas.height;
     const totalPixels = width * height;
+    const bounds = getEffectiveBounds();
 
     // Resolve PNG trap data to send to workers (null for non-image shapes)
     let pngDistField = null, pngWidth = 0, pngHeight = 0;
     if (state.trapShape.startsWith('png:')) {
         const pd = pngPixelData[state.trapShape.slice(4)];
         if (pd) { pngDistField = pd.distField; pngWidth = pd.width; pngHeight = pd.height; }
+    }
+
+    // Trap-shape transition (set transiently during a journey leg; null otherwise).
+    //  - 'morph'    → geometric point-to-point: send an interpolated polygon.
+    //  - 'dissolve' → distance-field cross-fade: send shape B + blend factor.
+    let trapPolygon = null;
+    let trapShapeB = null, trapBlendFactor = 0;
+    let pngDistFieldB = null, pngWidthB = 0, pngHeightB = 0;
+    if (state.trapMorph && state.trapMorph.t > 0) {
+        const m = state.trapMorph;
+        if (m.mode === 'morph') {
+            trapPolygon = getMorphedTrapPolygon(m.shapeA, m.shapeB, m.t);
+        }
+        // Dissolve, or morph fallback when a shape has no outline.
+        if (!trapPolygon && m.shapeB) {
+            trapShapeB = m.shapeB;
+            trapBlendFactor = m.t;
+            if (trapShapeB.startsWith('png:')) {
+                const pd = pngPixelData[trapShapeB.slice(4)];
+                if (pd) { pngDistFieldB = pd.distField; pngWidthB = pd.width; pngHeightB = pd.height; }
+            }
+        }
     }
 
     const workers = getOrbitTrapWorkerPool();
@@ -2635,8 +3272,8 @@ async function renderOrbitTrap() {
         new Promise(resolve => {
             workers[workerIdx].onmessage = e => resolve(e.data);
             workers[workerIdx].postMessage({
-                minReal: state.minReal, maxReal: state.maxReal,
-                minImag: state.minImag, maxImag: state.maxImag,
+                minReal: bounds.minReal, maxReal: bounds.maxReal,
+                minImag: bounds.minImag, maxImag: bounds.maxImag,
                 maxIterations: state.maxIterations,
                 width, height, startRow, endRow,
                 trapShape: state.trapShape,
@@ -2650,7 +3287,9 @@ async function renderOrbitTrap() {
                 exponent: state.exponent,
                 juliaMode: state.juliaMode,
                 juliaCr: state.juliaC ? state.juliaC.re : 0,
-                juliaCi: state.juliaC ? state.juliaC.im : 0
+                juliaCi: state.juliaC ? state.juliaC.im : 0,
+                trapShapeB, trapBlendFactor, pngDistFieldB, pngWidthB, pngHeightB,
+                trapPolygon
             });
         })
     );
@@ -2810,10 +3449,11 @@ function renderRatioConvergence() {
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const cx = (state.minReal + state.maxReal) / 2;
-    const cy = (state.minImag + state.maxImag) / 2;
-    const hw = (state.maxReal - state.minReal) / 2;
-    const hh = (state.maxImag - state.minImag) / 2;
+    const bounds = getEffectiveBounds();
+    const cx = (bounds.minReal + bounds.maxReal) / 2;
+    const cy = (bounds.minImag + bounds.maxImag) / 2;
+    const hw = (bounds.maxReal - bounds.minReal) / 2;
+    const hh = (bounds.maxImag - bounds.minImag) / 2;
     const cos_t = Math.cos(state.viewRotation || 0);
     const sin_t = Math.sin(state.viewRotation || 0);
 
@@ -2900,10 +3540,11 @@ function renderRatioConvergenceToValue() {
     const height = canvas.height;
     const totalPixels = width * height;
 
-    const cx = (state.minReal + state.maxReal) / 2;
-    const cy = (state.minImag + state.maxImag) / 2;
-    const hw = (state.maxReal - state.minReal) / 2;
-    const hh = (state.maxImag - state.minImag) / 2;
+    const bounds = getEffectiveBounds();
+    const cx = (bounds.minReal + bounds.maxReal) / 2;
+    const cy = (bounds.minImag + bounds.maxImag) / 2;
+    const hw = (bounds.maxReal - bounds.minReal) / 2;
+    const hh = (bounds.maxImag - bounds.minImag) / 2;
     const cos_t = Math.cos(state.viewRotation || 0);
     const sin_t = Math.sin(state.viewRotation || 0);
 
@@ -3587,6 +4228,18 @@ function drawTrapShapeOverlay() {
 
     const shape = state.trapShape;
 
+    // During a geometric morph, stroke the interpolated polygon so the dashed
+    // outline melts in lockstep with the fill.
+    if (state.trapMorph && state.trapMorph.mode === 'morph') {
+        const poly = getMorphedTrapPolygon(state.trapMorph.shapeA, state.trapMorph.shapeB, state.trapMorph.t);
+        if (poly) {
+            drawPoly(poly.vx, poly.vy);
+            pathCtx.stroke();
+            pathCtx.restore();
+            return;
+        }
+    }
+
     if (shape === 'point') {
         pathCtx.arc(origin.px, origin.py, 5, 0, Math.PI * 2);
 
@@ -3706,6 +4359,156 @@ function togglePathExplorerMode(enabled) {
 }
 
 
+/* === js/julia-map.js === */
+// Julia Macro Map — fixed-view mini canvas for picking the Julia constant c
+const juliaMapCanvas = document.getElementById('juliaMapCanvas');
+const juliaMapCtx = juliaMapCanvas.getContext('2d');
+const juliaMapContainer = document.querySelector('.julia-map-container');
+
+let juliaMapBackground = null;
+let isJuliaMapDragging = false;
+
+// Convert complex plane coordinate to Julia map pixel (always uses defaultView)
+function complexToJuliaMapPixel(cr, ci) {
+    const w = juliaMapCanvas.width;
+    const h = juliaMapCanvas.height;
+    const px = (cr - defaultView.minReal) / (defaultView.maxReal - defaultView.minReal) * w;
+    const py = (ci - defaultView.minImag) / (defaultView.maxImag - defaultView.minImag) * h;
+    return { px, py };
+}
+
+// Convert Julia map pixel to complex plane coordinate (inverse of the above)
+function juliaMapPixelToComplex(px, py) {
+    const w = juliaMapCanvas.width;
+    const h = juliaMapCanvas.height;
+    const cr = defaultView.minReal + (px / w) * (defaultView.maxReal - defaultView.minReal);
+    const ci = defaultView.minImag + (py / h) * (defaultView.maxImag - defaultView.minImag);
+    return { cr, ci };
+}
+
+// Render the Mandelbrot-family macro map (always ignores juliaC — this canvas is what you pick c from)
+function renderJuliaMapBackground() {
+    const w = juliaMapCanvas.width;
+    const h = juliaMapCanvas.height;
+    const totalPixels = w * h;
+    const imageData = juliaMapCtx.createImageData(w, h);
+
+    const realRange = defaultView.maxReal - defaultView.minReal;
+    const imagRange = defaultView.maxImag - defaultView.minImag;
+
+    const smoothedValues = new Float64Array(totalPixels);
+    const normalizedValues = new Float32Array(totalPixels);
+    const escapedIndices = [];
+
+    for (let py = 0; py < h; py++) {
+        for (let px = 0; px < w; px++) {
+            const cr = defaultView.minReal + (px / w) * realRange;
+            const ci = defaultView.minImag + (py / h) * imagRange;
+            const { iter, zr, zi } = iteratePoint(0, 0, cr, ci, state.maxIterations, state.fractalType, state.exponent);
+            const idx = py * w + px;
+            if (iter === state.maxIterations) {
+                smoothedValues[idx] = -1;
+            } else {
+                const zMag = Math.sqrt(zr * zr + zi * zi);
+                smoothedValues[idx] = iter + 1 - Math.log(Math.log(zMag)) / Math.log(2);
+                escapedIndices.push(idx);
+            }
+        }
+    }
+    escapedIndices.sort((a, b) => smoothedValues[a] - smoothedValues[b]);
+    const n = escapedIndices.length;
+    for (let r = 0; r < n; r++) {
+        normalizedValues[escapedIndices[r]] = n > 1 ? r / (n - 1) : 0;
+    }
+
+    for (let i = 0; i < totalPixels; i++) {
+        let color;
+        if (smoothedValues[i] === -1) {
+            color = { r: 0, g: 0, b: 0 };
+        } else {
+            color = getColor(normalizedValues[i], state.currentGradient);
+        }
+        const offset = i * 4;
+        imageData.data[offset]     = color.r;
+        imageData.data[offset + 1] = color.g;
+        imageData.data[offset + 2] = color.b;
+        imageData.data[offset + 3] = 255;
+    }
+
+    juliaMapCtx.putImageData(imageData, 0, 0);
+    juliaMapBackground = imageData;
+    drawJuliaCMarker();
+}
+
+// Restore the cached background, then overlay a marker at the current juliaC (if any)
+function drawJuliaCMarker() {
+    if (juliaMapBackground) {
+        juliaMapCtx.putImageData(juliaMapBackground, 0, 0);
+    }
+    if (!state.juliaC) return;
+
+    const { px, py } = complexToJuliaMapPixel(state.juliaC.re, state.juliaC.im);
+    juliaMapCtx.strokeStyle = '#ffffff';
+    juliaMapCtx.lineWidth = 1.5;
+
+    juliaMapCtx.beginPath();
+    juliaMapCtx.arc(px, py, 5, 0, Math.PI * 2);
+    juliaMapCtx.stroke();
+
+    juliaMapCtx.beginPath();
+    juliaMapCtx.moveTo(px - 9, py);
+    juliaMapCtx.lineTo(px - 3, py);
+    juliaMapCtx.moveTo(px + 3, py);
+    juliaMapCtx.lineTo(px + 9, py);
+    juliaMapCtx.moveTo(px, py - 9);
+    juliaMapCtx.lineTo(px, py - 3);
+    juliaMapCtx.moveTo(px, py + 3);
+    juliaMapCtx.lineTo(px, py + 9);
+    juliaMapCtx.stroke();
+}
+
+function toggleJuliaMapCanvas(enabled) {
+    if (enabled) {
+        juliaMapContainer.classList.add('active');
+        renderJuliaMapBackground();
+    } else {
+        juliaMapContainer.classList.remove('active');
+    }
+}
+
+// Re-render the map only if it's currently visible — for use at parameter-change call sites
+function refreshJuliaMapIfVisible() {
+    if (juliaMapContainer.classList.contains('active')) renderJuliaMapBackground();
+}
+
+function setJuliaCFromPixel(px, py) {
+    const { cr, ci } = juliaMapPixelToComplex(px, py);
+    state.juliaC = { re: cr, im: ci };
+    updateJuliaCDisplay();
+    drawJuliaCMarker();
+    render();
+    if (state.pathExplorerMode) renderPathBackground();
+}
+
+juliaMapCanvas.addEventListener('mousedown', (e) => {
+    isJuliaMapDragging = true;
+    setJuliaCFromPixel(e.offsetX, e.offsetY);
+});
+
+juliaMapCanvas.addEventListener('mousemove', (e) => {
+    if (!isJuliaMapDragging) return;
+    setJuliaCFromPixel(e.offsetX, e.offsetY);
+});
+
+juliaMapCanvas.addEventListener('mouseup', () => {
+    isJuliaMapDragging = false;
+});
+
+juliaMapCanvas.addEventListener('mouseleave', () => {
+    isJuliaMapDragging = false;
+});
+
+
 /* === js/pulse.js === */
 // Pulse animation — cycles gradient phase offset 0 → 1 → 0
 let pulseQueue = 0;
@@ -3769,16 +4572,50 @@ function getSegmentFrameCount(seg) {
     return Math.round(duration * animationDef.fps);
 }
 
+// Map a frame index within a segment to its eased-input progress [0, 1],
+// honoring an optional leading hold (pauseBeforeBeats) and trailing hold (pauseBeats):
+// progress pins to 0 during the leading pause, ramps 0→1 over the active beats,
+// then pins to 1 during the trailing pause.
+function computeSegmentProgress(seg, frameInSegment, segFrameCount) {
+    const totalBeats = seg.measures * 4;
+    let before = Math.max(0, seg.pauseBeforeBeats ?? 0);
+    let after  = Math.max(0, seg.pauseBeats ?? 0);
+    const maxHold = totalBeats - 0.25; // keep at least a sliver of motion
+    if (before + after > maxHold && (before + after) > 0) {
+        const scale = maxHold / (before + after);
+        before *= scale; after *= scale;
+    }
+    const beforeFrames = Math.round(segFrameCount * before / totalBeats);
+    const afterFrames  = Math.round(segFrameCount * after / totalBeats);
+    const activeFrames = Math.max(1, segFrameCount - beforeFrames - afterFrames);
+    if (frameInSegment < beforeFrames) return 0;
+    const f = frameInSegment - beforeFrames;
+    if (f >= activeFrames) return 1;
+    return f / Math.max(activeFrames - 1, 1);
+}
+
 function saveAnimationState() {
     return {
         gradientOffset: state.gradientOffset,
         gradientRepeats: state.gradientRepeats,
         gradientStops: gradients[state.currentGradient].map(s => ({ ...s })),
         toGradientIdx: (state.currentGradient + 1) % gradients.length,
+        gradientBlendRepeats: state.gradientBlendRepeats,
         trapRotation: state.trapRotation,
         trapScale: state.trapScale,
         trapIteration: state.trapIteration,
+        buddhabrotSamples: state.buddhabrotSamples,
+        showTrapShape: state.showTrapShape,
+        trapShape: state.trapShape,
+        trapAggregation: state.trapAggregation,
+        renderingMode: state.renderingMode,
+        ratioTargetValue: state.ratioTargetValue,
         maxIterations: state.maxIterations,
+        exponent: state.exponent,
+        fractalType: state.fractalType,
+        juliaMode: state.juliaMode,
+        juliaC: state.juliaC ? { re: state.juliaC.re, im: state.juliaC.im } : null,
+        pathStyle: state.pathStyle,
         minReal: state.minReal, maxReal: state.maxReal,
         minImag: state.minImag, maxImag: state.maxImag,
         viewRotation: state.viewRotation
@@ -3788,10 +4625,22 @@ function saveAnimationState() {
 function restoreAnimationState(saved) {
     state.gradientOffset = saved.gradientOffset;
     if (typeof saved.gradientRepeats === 'number') state.gradientRepeats = saved.gradientRepeats;
+    if (typeof saved.gradientBlendRepeats === 'boolean') state.gradientBlendRepeats = saved.gradientBlendRepeats;
     if (typeof saved.maxIterations === 'number') state.maxIterations = saved.maxIterations;
+    if (typeof saved.exponent === 'number') state.exponent = saved.exponent;
+    if (typeof saved.ratioTargetValue === 'number') state.ratioTargetValue = saved.ratioTargetValue;
+    if (typeof saved.renderingMode === 'string') state.renderingMode = saved.renderingMode;
+    if (typeof saved.trapShape === 'string') state.trapShape = saved.trapShape;
+    if (typeof saved.trapAggregation === 'string') state.trapAggregation = saved.trapAggregation;
+    if (typeof saved.fractalType === 'string') state.fractalType = saved.fractalType;
+    if (typeof saved.juliaMode === 'boolean') state.juliaMode = saved.juliaMode;
+    if (typeof saved.pathStyle === 'string') state.pathStyle = saved.pathStyle;
+    if (saved.juliaC !== undefined) state.juliaC = saved.juliaC ? { re: saved.juliaC.re, im: saved.juliaC.im } : null;
     state.trapRotation = saved.trapRotation;
     state.trapScale = saved.trapScale;
     state.trapIteration = saved.trapIteration;
+    if (typeof saved.buddhabrotSamples === 'number') state.buddhabrotSamples = saved.buddhabrotSamples;
+    if (typeof saved.showTrapShape === 'boolean') state.showTrapShape = saved.showTrapShape;
     state.minReal = saved.minReal; state.maxReal = saved.maxReal;
     state.minImag = saved.minImag; state.maxImag = saved.maxImag;
     state.viewRotation = saved.viewRotation ?? 0;
@@ -3855,18 +4704,11 @@ function recolorBlended(fromIdx, toIdx, t) {
     ctx.putImageData(cachedImageData, 0, 0);
 }
 
-// Async render used during GIF capture — bypasses the render() guard/overlay
+// Async render used during animation playback / GIF capture — skips the
+// render() overlay but still funnels through queueRender() so it can never
+// run concurrently with another dispatch (see queueRender in renderer.js).
 async function renderAsync() {
-    state.isRendering = false; // clear guard so renderClassic can run
-    if (state.renderingMode === 'buddhabrot') {
-        renderBuddhabrot();
-    } else if (state.renderingMode === 'periodicity') {
-        renderPeriodicity();
-    } else if (state.renderingMode === 'orbit-trap') {
-        await renderOrbitTrap();
-    } else {
-        await renderClassic();
-    }
+    await queueRender();
 }
 
 // Cubic bezier interpolation between four 2D points
@@ -3896,9 +4738,15 @@ async function applyAnimationFrame(progress, saved, modifications, easing) {
     let gradientBlend = null;
     const ease = applyEase(progress, easing);
 
+    // Trap-shape morph is transient: reset each frame, set only while a morph is active.
+    state.trapMorph = null;
+
     for (const mod of modifications) {
         if (mod.type === 'colorPulse') {
-            state.gradientOffset = progress;
+            // Cycle the gradient `count` whole times over the segment; since gradientOffset
+            // is period-1, progress=1 lands back on the start offset ("ends where it started").
+            const count = mod.count ?? 1;
+            state.gradientOffset = (saved.gradientOffset + progress * count) % 1;
 
         } else if (mod.type === 'zoomIn') {
             const finalScale = mod.finalScale ?? 0.25;
@@ -3997,7 +4845,8 @@ async function applyAnimationFrame(progress, saved, modifications, easing) {
         } else if (mod.type === 'gradientFade') {
             gradientBlend = { fromIdx: state.currentGradient, toIdx: saved.toGradientIdx, t: progress };
 
-        } else if (mod.type === 'snapshotTransition') {
+        } else if (mod.type === 'snapshotTransition' && !mod.fields) {
+            // --- Legacy snapshot transition (Animation tab): hardcoded field behavior ---
             const target = mod.target;
             if (target.viewport) {
                 state.minReal = saved.minReal + (target.viewport.minReal - saved.minReal) * ease;
@@ -4029,6 +4878,121 @@ async function applyAnimationFrame(progress, saved, modifications, easing) {
                 if (target.rendering?.trapShape) state.trapShape = target.rendering.trapShape;
                 if (target.rendering?.trapAggregation) state.trapAggregation = target.rendering.trapAggregation;
             }
+            needsRender = true;
+
+        } else if (mod.type === 'snapshotTransition') {
+            // --- Spec-driven snapshot transition (Journey): per-field interpolate/snap ---
+            const target = mod.target;
+            const F = mod.fields;
+            const has = (key) => Object.prototype.hasOwnProperty.call(F, key);
+            const dir = (key, discrete) => {
+                const d = F[key];
+                const mode = d?.mode ?? (discrete ? 'snap' : 'interpolate');
+                const at = d?.snapAt ?? 1;
+                return { mode, at, atTarget: ease >= at };
+            };
+            const contScalar = (key, fromV, toV, apply) => {
+                if (!has(key) || toV === undefined) return;
+                const d = dir(key, false);
+                if (d.mode === 'interpolate') apply(fromV + (toV - fromV) * ease);
+                else if (d.atTarget) apply(toV);
+            };
+            const discrete = (key, toV, apply) => {
+                if (!has(key) || toV === undefined) return;
+                if (dir(key, true).atTarget) apply(toV);
+            };
+
+            // Viewport — interpolate center (optionally along a sporadic curve) + half-size
+            if (has('viewport') && target.viewport) {
+                const d = dir('viewport', false);
+                const vb = target.viewport;
+                if (d.mode === 'interpolate') {
+                    const cxA = (saved.minReal + saved.maxReal) / 2, cyA = (saved.minImag + saved.maxImag) / 2;
+                    const cxB = (vb.minReal + vb.maxReal) / 2,        cyB = (vb.minImag + vb.maxImag) / 2;
+                    let cx, cy;
+                    if (mod.panCurve === 'sporadic') {
+                        const dx = cxB - cxA, dy = cyB - cyA;
+                        const seed = mod.resolvedSeed ?? 0.5;
+                        const perpX = -dy, perpY = dx;
+                        const off = 0.4 * (seed * 2 - 1);
+                        const p0 = { x: cxA, y: cyA }, p3 = { x: cxB, y: cyB };
+                        const p1 = { x: cxA + dx * 0.33 + perpX * off,       y: cyA + dy * 0.33 + perpY * off };
+                        const p2 = { x: cxA + dx * 0.67 - perpX * off * 0.5, y: cyA + dy * 0.67 - perpY * off * 0.5 };
+                        const pos = cubicBezier(p0, p1, p2, p3, ease);
+                        cx = pos.x; cy = pos.y;
+                    } else {
+                        cx = cxA + (cxB - cxA) * ease; cy = cyA + (cyB - cyA) * ease;
+                    }
+                    const hwA = (saved.maxReal - saved.minReal) / 2, hhA = (saved.maxImag - saved.minImag) / 2;
+                    const hwB = (vb.maxReal - vb.minReal) / 2,        hhB = (vb.maxImag - vb.minImag) / 2;
+                    const hw = hwA + (hwB - hwA) * ease, hh = hhA + (hhB - hhA) * ease;
+                    state.minReal = cx - hw; state.maxReal = cx + hw;
+                    state.minImag = cy - hh; state.maxImag = cy + hh;
+                    if (typeof vb.viewRotation === 'number')
+                        state.viewRotation = (saved.viewRotation ?? 0) + (vb.viewRotation - (saved.viewRotation ?? 0)) * ease;
+                } else if (d.atTarget) {
+                    state.minReal = vb.minReal; state.maxReal = vb.maxReal;
+                    state.minImag = vb.minImag; state.maxImag = vb.maxImag;
+                    if (typeof vb.viewRotation === 'number') state.viewRotation = vb.viewRotation;
+                }
+            }
+
+            // Gradient — stops + shift + repeats
+            if (has('gradient') && target.colorGradient) {
+                const d = dir('gradient', false);
+                const cg = target.colorGradient;
+                if (d.mode === 'interpolate') {
+                    if (cg.stops) gradients[state.currentGradient] = blendGradientStops(saved.gradientStops, cg.stops, ease);
+                    if (typeof cg.shift === 'number')   state.gradientOffset  = saved.gradientOffset  + (cg.shift   - saved.gradientOffset)  * ease;
+                    if (typeof cg.repeats === 'number') state.gradientRepeats = saved.gradientRepeats + (cg.repeats - saved.gradientRepeats) * ease;
+                } else if (d.atTarget) {
+                    if (cg.stops) gradients[state.currentGradient] = cg.stops.map(s => ({ ...s }));
+                    if (typeof cg.shift === 'number')   state.gradientOffset = cg.shift;
+                    if (typeof cg.repeats === 'number') state.gradientRepeats = cg.repeats;
+                    if (typeof cg.blendRepeats === 'boolean') state.gradientBlendRepeats = cg.blendRepeats;
+                }
+            }
+
+            contScalar('iterations', saved.maxIterations, target.iterations?.max, v => state.maxIterations = Math.round(v));
+            contScalar('trapScale', saved.trapScale, target.rendering?.trapScale, v => state.trapScale = v);
+            contScalar('trapIteration', saved.trapIteration, target.rendering?.trapIteration, v => state.trapIteration = Math.round(v));
+            contScalar('trapRotation', saved.trapRotation, target.rendering?.trapRotation, v => state.trapRotation = v);
+            contScalar('buddhabrotSamples', saved.buddhabrotSamples, target.rendering?.buddhabrotSamples, v => state.buddhabrotSamples = Math.round(v));
+            contScalar('ratioTargetValue', saved.ratioTargetValue, target.rendering?.ratioTargetValue, v => state.ratioTargetValue = v);
+            contScalar('exponent', saved.exponent, target.equation?.exponent, v => state.exponent = v);
+
+            if (has('juliaC')) {
+                const d = dir('juliaC', false);
+                const tj = target.equation?.juliaC;
+                if (d.mode === 'interpolate' && saved.juliaC && tj) {
+                    state.juliaC = { re: saved.juliaC.re + (tj.re - saved.juliaC.re) * ease, im: saved.juliaC.im + (tj.im - saved.juliaC.im) * ease };
+                } else if (d.atTarget) {
+                    state.juliaC = tj ? { re: tj.re, im: tj.im } : null;
+                }
+            }
+
+            discrete('renderingMode',   target.rendering?.style,          v => state.renderingMode = v);
+            discrete('trapAggregation', target.rendering?.trapAggregation, v => state.trapAggregation = v);
+
+            // Trap shape — 'morph' (geometric point-to-point) or 'dissolve' (distance
+            // cross-fade) animates the shape over the leg; otherwise it snaps at snapAt (default 1).
+            if (has('trapShape') && target.rendering?.trapShape !== undefined) {
+                const d = F['trapShape'];
+                const fromShape = saved.trapShape;
+                const toShape = target.rendering.trapShape;
+                if ((d?.mode === 'morph' || d?.mode === 'dissolve') && fromShape !== toShape && ease < 1) {
+                    state.trapShape = fromShape;
+                    state.trapMorph = { shapeA: fromShape, shapeB: toShape, t: ease, mode: d.mode };
+                } else if (ease >= (d?.snapAt ?? 1)) {
+                    state.trapShape = toShape; // commit (also the ease>=1 end of a morph)
+                }
+            }
+
+            discrete('showTrapShape',   target.rendering?.showTrapShape,  v => state.showTrapShape = v);
+            discrete('fractalType',     target.equation?.fractalType,     v => state.fractalType = v);
+            discrete('juliaMode',       target.equation?.juliaMode,       v => state.juliaMode = v);
+            discrete('pathStyle',       target.orbitExplorer?.pathStyle,  v => state.pathStyle = v);
+
             needsRender = true;
         }
     }
@@ -4064,17 +5028,20 @@ function resolveSegmentMods(mods) {
     });
 }
 
-function captureGif() {
+function captureGif(ui) {
     const hasEffects = animationDef.segments.some(s => s.modifications.length > 0);
     if (!hasEffects) {
         alert('Add at least one effect to a segment before exporting.');
         return;
     }
 
-    const btn = document.getElementById('exportGifBtn');
-    const progressContainer = document.getElementById('gifProgressContainer');
-    const progressBar = document.getElementById('gifProgressBar');
-    const progressLabel = document.getElementById('gifProgressLabel');
+    // `ui` may be a MouseEvent (from a click listener) or an options object with
+    // custom element ids; fall back to the Animation tab's widgets otherwise.
+    const ids = (ui && typeof ui === 'object' && ui.btnId) ? ui : {};
+    const btn = document.getElementById(ids.btnId || 'exportGifBtn');
+    const progressContainer = document.getElementById(ids.progressId || 'gifProgressContainer');
+    const progressBar = document.getElementById(ids.barId || 'gifProgressBar');
+    const progressLabel = document.getElementById(ids.labelId || 'gifProgressLabel');
 
     function setProgress(label, pct) {
         progressLabel.textContent = label;
@@ -4087,12 +5054,20 @@ function captureGif() {
     setProgress('Rendering frames… 0%', 0);
 
     const frameDelay = Math.round(1000 / animationDef.fps);
-    const outputSize = 400;
+    const resSelect = ids.resolutionId ? document.getElementById(ids.resolutionId) : null;
+    const [outputW, outputH] = resSelect ? resSelect.value.split('x').map(Number) : [400, 400];
+
+    const originalW = canvas.width, originalH = canvas.height;
+    // Same-aspect downsizes (e.g. today's 400x400 default) reuse the existing full-res render
+    // as free anti-aliasing. Anything wider-aspect (widescreen) or larger than the current
+    // canvas needs a genuine native re-render to avoid stretching/distortion.
+    const aspectMatches = outputW * originalH === outputH * originalW;
+    const needsResize = !aspectMatches || outputW > originalW || outputH > originalH;
 
     const offCanvas = document.createElement('canvas');
-    offCanvas.width = outputSize;
-    offCanvas.height = outputSize;
-    const offCtx = offCanvas.getContext('2d');
+    offCanvas.width = outputW;
+    offCanvas.height = outputH;
+    const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
 
     const workerBlob = new Blob([_GIF_WORKER_SRC], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(workerBlob);
@@ -4100,10 +5075,15 @@ function captureGif() {
     const gif = new GIF({
         workers: 2,
         quality: 10,
-        width: outputSize,
-        height: outputSize,
+        width: outputW,
+        height: outputH,
         workerScript: workerUrl
     });
+
+    if (needsResize) {
+        canvas.width = outputW;
+        canvas.height = outputH;
+    }
 
     const globalSaved = saveAnimationState();
 
@@ -4132,6 +5112,11 @@ function captureGif() {
             }
 
             restoreAnimationState(globalSaved);
+            if (needsResize) {
+                canvas.width = originalW;
+                canvas.height = originalH;
+                render();
+            }
 
             gif.on('progress', (ratio) => {
                 setProgress(`Encoding… ${Math.round(ratio * 100)}%`, ratio);
@@ -4147,6 +5132,7 @@ function captureGif() {
                 btn.textContent = 'Export GIF';
                 btn.disabled = false;
                 progressContainer.style.display = 'none';
+                if (ids.onDone) ids.onDone();
             });
 
             btn.textContent = 'Encoding…';
@@ -4164,17 +5150,11 @@ function captureGif() {
             resolvedMods = resolveSegmentMods(seg.modifications);
         }
 
-        const totalBeats = seg.measures * 4;
-        const pauseBeats = Math.min(seg.pauseBeats ?? 0, totalBeats - 0.25);
-        const activeFraction = (totalBeats - pauseBeats) / totalBeats;
-        const activeFrames = Math.max(1, Math.round(segFrameCount * activeFraction));
-        const progress = frameInSegment < activeFrames
-            ? frameInSegment / Math.max(activeFrames - 1, 1)
-            : 1;
+        const progress = computeSegmentProgress(seg, frameInSegment, segFrameCount);
         await applyAnimationFrame(progress, segmentSaved, resolvedMods, seg.easing);
 
-        offCtx.drawImage(canvas, 0, 0, outputSize, outputSize);
-        const imageData = offCtx.getImageData(0, 0, outputSize, outputSize);
+        offCtx.drawImage(canvas, 0, 0, outputW, outputH);
+        const imageData = offCtx.getImageData(0, 0, outputW, outputH);
         gif.addFrame(imageData, { copy: true, delay: frameDelay });
         if (frameBuffers) frameBuffers.push(imageData);
 
@@ -4673,7 +5653,9 @@ function captureSnapshot(label) {
             trapShape: state.trapShape,
             trapAggregation: state.trapAggregation,
             trapIteration: state.trapIteration,
+            trapRotation: state.trapRotation,
             trapScale: state.trapScale,
+            showTrapShape: state.showTrapShape,
             ratioTargetValue: state.ratioTargetValue
         },
         iterations: {
@@ -4800,7 +5782,17 @@ function applySnapshot(snap) {
             if (slider) slider.value = r.trapIteration;
             if (disp) disp.textContent = r.trapIteration;
         }
+        if (typeof r.trapRotation === 'number') {
+            state.trapRotation = r.trapRotation;
+            const inp = document.getElementById('trapRotationInput');
+            if (inp) inp.value = Math.round(r.trapRotation * 180 / Math.PI);
+        }
         if (typeof r.trapScale === 'number') state.trapScale = r.trapScale;
+        if (typeof r.showTrapShape === 'boolean') {
+            state.showTrapShape = r.showTrapShape;
+            const cb = document.getElementById('showTrapShapeCheckbox');
+            if (cb) cb.checked = r.showTrapShape;
+        }
         if (typeof r.ratioTargetValue === 'number') {
             state.ratioTargetValue = r.ratioTargetValue;
             const inp = document.getElementById('ratioTargetInput');
@@ -4910,6 +5902,618 @@ function tryLoadSnapshotFromURL() {
 }
 
 
+/* === js/journey.js === */
+// Journey Tracking — saved "places" + storyboard animations between them.
+// A place = captureSnapshot() + a thumbnail. A journey = ordered places with a
+// per-gap "leg" describing the transition (timing in beats + per-setting interpolate/snap).
+
+// Settings that can differ between two places. `discrete` settings can only snap.
+const JOURNEY_FIELD_DEFS = [
+    { key: 'viewport',        label: 'Zoom / position', discrete: false },
+    { key: 'gradient',        label: 'Gradient',        discrete: false },
+    { key: 'iterations',      label: 'Max iterations',  discrete: false },
+    { key: 'exponent',        label: 'Exponent',        discrete: false },
+    { key: 'trapScale',       label: 'Trap scale',      discrete: false },
+    { key: 'trapIteration',   label: 'Trap iteration',  discrete: false },
+    { key: 'trapRotation',    label: 'Trap rotation',   discrete: false },
+    { key: 'buddhabrotSamples',label:'Buddhabrot samples',discrete: false },
+    { key: 'ratioTargetValue',label: 'Target ratio',    discrete: false },
+    { key: 'juliaC',          label: 'Julia c',         discrete: false },
+    { key: 'renderingMode',   label: 'Rendering mode',  discrete: true  },
+    { key: 'trapShape',       label: 'Trap shape',      discrete: true, morphable: true },
+    { key: 'trapAggregation', label: 'Trap aggregation',discrete: true  },
+    { key: 'showTrapShape',   label: 'Show trap shape', discrete: true  },
+    { key: 'fractalType',     label: 'Fractal type',    discrete: true  },
+    { key: 'juliaMode',       label: 'Julia mode',      discrete: true  },
+    { key: 'pathStyle',       label: 'Orbit path style',discrete: true  },
+];
+
+// Shapes with a single closed outline — only these can geometrically point-to-point morph.
+const CLOSED_OUTLINE_SHAPES = new Set([
+    'circle', 'square', 'triangle', 'pentagon', 'hexagon', 'star', 'trapezoid', 'heart', 'figure8'
+]);
+
+const journeyState = {
+    bpm: 120,
+    places: [],   // [{ id, label, thumb, snap }]
+    legs: []      // legs.length === max(places.length - 1, 0)
+};
+
+let journeyPlaceSeq = 0;
+let journeyEditingLeg = null; // index of the leg whose editor is open, or null
+
+// --- Helpers -----------------------------------------------------------------
+
+function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Render a ~120px thumbnail of the current main canvas.
+function makeThumb(size = 120) {
+    const off = document.createElement('canvas');
+    off.width = size; off.height = size;
+    off.getContext('2d').drawImage(canvas, 0, 0, size, size);
+    return off.toDataURL('image/png');
+}
+
+// Extract a comparable value for a field key from a snapshot.
+function snapFieldValue(snap, key) {
+    switch (key) {
+        case 'viewport':         return snap.viewport ? [snap.viewport.minReal, snap.viewport.maxReal, snap.viewport.minImag, snap.viewport.maxImag, snap.viewport.viewRotation ?? 0] : null;
+        case 'gradient':         return snap.colorGradient ? [snap.colorGradient.stops, snap.colorGradient.shift, snap.colorGradient.repeats, snap.colorGradient.blendRepeats] : null;
+        case 'iterations':       return snap.iterations?.max ?? null;
+        case 'exponent':         return snap.equation?.exponent ?? null;
+        case 'trapScale':        return snap.rendering?.trapScale ?? null;
+        case 'trapIteration':    return snap.rendering?.trapIteration ?? null;
+        case 'trapRotation':     return snap.rendering?.trapRotation ?? null;
+        case 'buddhabrotSamples':return snap.rendering?.buddhabrotSamples ?? null;
+        case 'showTrapShape':    return snap.rendering?.showTrapShape ?? null;
+        case 'ratioTargetValue': return snap.rendering?.ratioTargetValue ?? null;
+        case 'juliaC':           return snap.equation?.juliaC ? [snap.equation.juliaC.re, snap.equation.juliaC.im] : null;
+        case 'renderingMode':    return snap.rendering?.style ?? null;
+        case 'trapShape':        return snap.rendering?.trapShape ?? null;
+        case 'trapAggregation':  return snap.rendering?.trapAggregation ?? null;
+        case 'fractalType':      return snap.equation?.fractalType ?? null;
+        case 'juliaMode':        return snap.equation?.juliaMode ?? null;
+        case 'pathStyle':        return snap.orbitExplorer?.pathStyle ?? null;
+    }
+    return null;
+}
+
+function fieldDisplayValue(snap, key) {
+    const v = snapFieldValue(snap, key);
+    switch (key) {
+        case 'viewport': {
+            const w = snap.viewport ? (snap.viewport.maxReal - snap.viewport.minReal) : 0;
+            return 'width ' + w.toExponential(2);
+        }
+        case 'gradient':   return 'gradient';
+        case 'juliaC':     return v ? `${v[0].toFixed(3)}, ${v[1].toFixed(3)}` : '—';
+        case 'juliaMode':  return v ? 'on' : 'off';
+        case 'showTrapShape': return v ? 'on' : 'off';
+        case 'trapRotation':  return v == null ? '—' : `${(v * 180 / Math.PI).toFixed(0)}°`;
+        case 'exponent':   return Number.isInteger(v) ? String(v) : (v ?? 0).toFixed(1);
+        default:           return v == null ? '—' : String(v);
+    }
+}
+
+// Settings that differ between two snapshots.
+function diffPlaces(snapA, snapB) {
+    const out = [];
+    for (const def of JOURNEY_FIELD_DEFS) {
+        const va = snapFieldValue(snapA, def.key);
+        const vb = snapFieldValue(snapB, def.key);
+        if (JSON.stringify(va) !== JSON.stringify(vb)) out.push(def);
+    }
+    return out;
+}
+
+// Whether the trap shape can animate (dissolve or morph) between two places:
+// morphable field, both places in orbit-trap mode.
+function isMorphable(def, snapA, snapB) {
+    return def.morphable
+        && snapA.rendering?.style === 'orbit-trap'
+        && snapB.rendering?.style === 'orbit-trap';
+}
+
+// Whether the trap shape supports a true geometric point-to-point morph:
+// animatable AND both shapes have a single closed outline.
+function isGeometricMorphable(def, snapA, snapB) {
+    return isMorphable(def, snapA, snapB)
+        && CLOSED_OUTLINE_SHAPES.has(snapA.rendering?.trapShape)
+        && CLOSED_OUTLINE_SHAPES.has(snapB.rendering?.trapShape);
+}
+
+// Default per-field directives for a leg: geometric trap shape → morph,
+// other animatable trap shape → dissolve, other continuous → interpolate,
+// discrete → snap@1.
+function defaultLegFields(snapA, snapB) {
+    const fields = {};
+    for (const def of diffPlaces(snapA, snapB)) {
+        if (isGeometricMorphable(def, snapA, snapB)) fields[def.key] = { mode: 'morph', snapAt: 1 };
+        else if (isMorphable(def, snapA, snapB))     fields[def.key] = { mode: 'dissolve', snapAt: 1 };
+        else if (def.discrete)                       fields[def.key] = { mode: 'snap', snapAt: 1 };
+        else                                         fields[def.key] = { mode: 'interpolate', snapAt: 1 };
+    }
+    return fields;
+}
+
+function defaultLeg(snapA, snapB) {
+    return {
+        transitionBeats: 16,
+        pauseBeforeBeats: 0,
+        pauseAfterBeats: 0,
+        easing: 'smooth',
+        panCurve: 'straight',
+        colorPulse: { enabled: false, count: 1 },
+        fields: defaultLegFields(snapA, snapB)
+    };
+}
+
+// Re-diff every leg against its (possibly reordered) neighbours, preserving the
+// user's directive for any key that still differs.
+function resyncAllLegFields() {
+    for (let i = 0; i < journeyState.legs.length; i++) {
+        const fresh = defaultLegFields(journeyState.places[i].snap, journeyState.places[i + 1].snap);
+        const old = journeyState.legs[i].fields || {};
+        for (const k in fresh) if (old[k]) fresh[k] = old[k];
+        journeyState.legs[i].fields = fresh;
+    }
+}
+
+// --- Place management --------------------------------------------------------
+
+function addCurrentPlace(label) {
+    const name = (label && label.trim()) || ('Place ' + (journeyState.places.length + 1));
+    const place = {
+        id: 'p' + (++journeyPlaceSeq),
+        label: name,
+        thumb: makeThumb(),
+        snap: captureSnapshot()
+    };
+    journeyState.places.push(place);
+    if (journeyState.places.length >= 2) {
+        const a = journeyState.places[journeyState.places.length - 2].snap;
+        journeyState.legs.push(defaultLeg(a, place.snap));
+    }
+    renderStoryboard();
+}
+
+function removePlace(id) {
+    const i = journeyState.places.findIndex(p => p.id === id);
+    if (i === -1) return;
+    const left = journeyState.places[i - 1];
+    const right = journeyState.places[i + 1];
+    journeyState.places.splice(i, 1);
+
+    if (journeyState.places.length < 2) {
+        journeyState.legs = [];
+    } else if (i === 0) {
+        journeyState.legs.shift();
+    } else if (!right) {
+        journeyState.legs.pop();
+    } else {
+        journeyState.legs.splice(i - 1, 2, defaultLeg(left.snap, right.snap));
+    }
+    if (journeyEditingLeg !== null) closeTransitionEditor();
+    renderStoryboard();
+}
+
+function movePlace(id, dir) {
+    const i = journeyState.places.findIndex(p => p.id === id);
+    const j = i + dir;
+    if (i === -1 || j < 0 || j >= journeyState.places.length) return;
+    [journeyState.places[i], journeyState.places[j]] = [journeyState.places[j], journeyState.places[i]];
+    resyncAllLegFields();
+    if (journeyEditingLeg !== null) closeTransitionEditor();
+    renderStoryboard();
+}
+
+// --- Build / play / export ---------------------------------------------------
+
+// Translate the journey into animationDef.segments (one snapshotTransition per leg),
+// after seeding the start state from the first place.
+function buildAnimationFromJourney() {
+    applySnapshot(journeyState.places[0].snap);
+    animationDef.segments = journeyState.legs.map((leg, i) => {
+        const totalBeats = (leg.pauseBeforeBeats || 0) + (leg.transitionBeats || 1) + (leg.pauseAfterBeats || 0);
+        const modifications = [{
+            type: 'snapshotTransition',
+            target: journeyState.places[i + 1].snap,
+            fields: leg.fields,
+            panCurve: leg.panCurve || 'straight',
+            resolvedSeed: Math.random()
+        }];
+        // Color pulse runs after the transition so it owns gradientOffset; it cycles
+        // the gradient a whole number of times, landing back on the start offset.
+        if (leg.colorPulse?.enabled) {
+            modifications.push({ type: 'colorPulse', count: Math.max(1, Math.round(leg.colorPulse.count || 1)) });
+        }
+        return {
+            bpm: journeyState.bpm,
+            measures: totalBeats / 4,
+            pauseBeforeBeats: leg.pauseBeforeBeats || 0,
+            pauseBeats: leg.pauseAfterBeats || 0,
+            easing: leg.easing || 'smooth',
+            collapsed: true,
+            modifications
+        };
+    });
+}
+
+function playJourney() {
+    if (journeyState.places.length < 2) { alert('Add at least two places to preview a journey.'); return; }
+
+    const userSnap = captureSnapshot();
+    const prevSegments = animationDef.segments;
+    buildAnimationFromJourney();
+    const segs = animationDef.segments;
+    const frameDelay = Math.round(1000 / animationDef.fps);
+    const btn = document.getElementById('journeyPreviewBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Playing…'; }
+
+    let si = 0, fi = 0, segSaved = null, mods = null;
+
+    async function step() {
+        if (si >= segs.length) {
+            animationDef.segments = prevSegments; // don't clobber the Animation tab
+            applySnapshot(userSnap);
+            if (btn) { btn.disabled = false; btn.textContent = 'Preview'; }
+            return;
+        }
+        const seg = segs[si];
+        const segFrames = getSegmentFrameCount(seg);
+        if (fi === 0) { segSaved = saveAnimationState(); mods = seg.modifications; }
+        const progress = computeSegmentProgress(seg, fi, segFrames);
+        await applyAnimationFrame(progress, segSaved, mods, seg.easing);
+        fi++;
+        if (fi >= segFrames) { si++; fi = 0; }
+        setTimeout(step, frameDelay);
+    }
+    setTimeout(step, 50);
+}
+
+function exportJourneyGif() {
+    if (journeyState.places.length < 2) { alert('Add at least two places to export a journey.'); return; }
+    const prevSegments = animationDef.segments;
+    const prevBoomerang = animationDef.boomerang;
+    const boomerangCheckbox = document.getElementById('journeyBoomerang');
+    animationDef.boomerang = boomerangCheckbox ? boomerangCheckbox.checked : true;
+    buildAnimationFromJourney();
+    captureGif({
+        btnId: 'journeyExportGifBtn',
+        progressId: 'journeyGifProgressContainer',
+        barId: 'journeyGifProgressBar',
+        labelId: 'journeyGifProgressLabel',
+        resolutionId: 'journeyGifResolutionSelect',
+        onDone: () => { animationDef.segments = prevSegments; animationDef.boomerang = prevBoomerang; }
+    });
+}
+
+// --- JSON export / import ----------------------------------------------------
+
+function downloadJourneyFile() {
+    if (journeyState.places.length === 0) { alert('Nothing to export — add some places first.'); return; }
+    const data = {
+        version: 1,
+        bpm: journeyState.bpm,
+        places: journeyState.places.map(p => ({ id: p.id, label: p.label, snap: p.snap })),
+        legs: journeyState.legs
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = `phractalysis-journey-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importJourneyFromFileInput(fileInput) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        let data;
+        try { data = JSON.parse(e.target.result); }
+        catch { alert('Could not load journey: invalid JSON file'); return; }
+        if (!data || !Array.isArray(data.places) || data.places.some(p => !p.snap)) {
+            alert('Not a valid journey file');
+            return;
+        }
+        journeyState.bpm = typeof data.bpm === 'number' ? data.bpm : 120;
+        journeyState.places = data.places.map((p, idx) => ({
+            id: p.id || ('p' + (++journeyPlaceSeq)),
+            label: p.label || ('Place ' + (idx + 1)),
+            thumb: null,
+            snap: p.snap
+        }));
+        journeyState.legs = Array.isArray(data.legs) ? data.legs : [];
+        // Repair leg count if needed.
+        while (journeyState.legs.length < journeyState.places.length - 1) {
+            const i = journeyState.legs.length;
+            journeyState.legs.push(defaultLeg(journeyState.places[i].snap, journeyState.places[i + 1].snap));
+        }
+        journeyState.legs.length = Math.max(journeyState.places.length - 1, 0);
+        closeTransitionEditor();
+        renderStoryboard();
+        await regenerateThumbs();
+    };
+    reader.readAsText(file);
+    fileInput.value = '';
+}
+
+// Re-render each place to the canvas to rebuild its thumbnail, then restore the view.
+async function regenerateThumbs() {
+    if (journeyState.places.length === 0) return;
+    const userSnap = captureSnapshot();
+    for (const place of journeyState.places) {
+        applySnapshot(place.snap);
+        await renderAsync();
+        place.thumb = makeThumb();
+        renderStoryboard();
+    }
+    applySnapshot(userSnap);
+}
+
+// --- Storyboard rendering ----------------------------------------------------
+
+function renderStoryboard() {
+    const strip = document.getElementById('journeyStrip');
+    const count = document.getElementById('journeyCount');
+    const bpmInput = document.getElementById('journeyBpm');
+    if (!strip) return;
+
+    if (count) count.textContent = `${journeyState.places.length} place${journeyState.places.length === 1 ? '' : 's'}`;
+    if (bpmInput && document.activeElement !== bpmInput) bpmInput.value = journeyState.bpm;
+
+    if (journeyState.places.length === 0) {
+        strip.innerHTML = `<div class="journey-empty">No places yet — explore to an interesting spot and click “+ Add current view”.</div>`;
+        return;
+    }
+
+    let html = '';
+    journeyState.places.forEach((p, i) => {
+        const thumb = p.thumb
+            ? `<img class="journey-thumb" src="${p.thumb}" alt="">`
+            : `<div class="journey-thumb journey-thumb-empty">…</div>`;
+        html += `
+            <div class="journey-card" data-id="${p.id}">
+                <div class="journey-thumb-wrap">
+                    ${thumb}
+                    <button class="journey-card-del" data-act="del" data-id="${p.id}" title="Delete">&#10005;</button>
+                </div>
+                <input class="journey-card-label" data-id="${p.id}" value="${escapeAttr(p.label)}">
+                <div class="journey-card-move">
+                    <button data-act="left" data-id="${p.id}" title="Move left"${i === 0 ? ' disabled' : ''}>&#9664;</button>
+                    <button data-act="right" data-id="${p.id}" title="Move right"${i === journeyState.places.length - 1 ? ' disabled' : ''}>&#9654;</button>
+                </div>
+            </div>`;
+        if (i < journeyState.places.length - 1) {
+            const leg = journeyState.legs[i];
+            const diffCount = Object.keys(leg.fields || {}).length;
+            const selected = journeyEditingLeg === i ? ' selected' : '';
+            html += `
+                <div class="journey-connector${selected}" data-act="edit" data-leg="${i}" title="Edit transition">
+                    <span class="journey-conn-beats">${leg.transitionBeats}b</span>
+                    <span class="journey-conn-line">&#10230;</span>
+                    <span class="journey-conn-badge" title="${diffCount} setting${diffCount === 1 ? '' : 's'} differ">${diffCount}</span>
+                </div>`;
+        }
+    });
+    strip.innerHTML = html;
+}
+
+// --- Transition editor -------------------------------------------------------
+
+function openTransitionEditor(legIndex) {
+    const editor = document.getElementById('journeyEditor');
+    if (!editor) return;
+    const leg = journeyState.legs[legIndex];
+    if (!leg) return;
+    journeyEditingLeg = legIndex;
+
+    const a = journeyState.places[legIndex];
+    const b = journeyState.places[legIndex + 1];
+    const diffs = diffPlaces(a.snap, b.snap);
+
+    const easingOpt = (v, lbl) => `<option value="${v}" ${leg.easing === v ? 'selected' : ''}>${lbl}</option>`;
+    const curveOpt = (v, lbl) => `<option value="${v}" ${(leg.panCurve || 'straight') === v ? 'selected' : ''}>${lbl}</option>`;
+
+    let fieldsHtml = '';
+    if (diffs.length === 0) {
+        fieldsHtml = `<div class="journey-field-none">These two places have identical settings — this leg is a timed hold.</div>`;
+    } else {
+        for (const def of diffs) {
+            const geo = isGeometricMorphable(def, a.snap, b.snap);
+            const morphable = isMorphable(def, a.snap, b.snap);
+
+            // Options available for this row, in display order.
+            let opts;
+            if (def.morphable) {
+                // Trap shape: Morph (geometric only) / Dissolve (both orbit-trap) / Snap
+                opts = geo ? [['morph', 'Morph'], ['dissolve', 'Dissolve'], ['snap', 'Snap']]
+                    : morphable ? [['dissolve', 'Dissolve'], ['snap', 'Snap']]
+                    : [['dissolve', 'Dissolve', true], ['snap', 'Snap']];
+            } else if (def.discrete) {
+                opts = [['interpolate', 'Interpolate', true], ['snap', 'Snap']];
+            } else {
+                opts = [['interpolate', 'Interpolate'], ['snap', 'Snap']];
+            }
+
+            // Effective mode: fall back to the first available option if the stored
+            // directive isn't offered here (e.g. a 'morph' leg whose shape lost its outline).
+            const avail = opts.filter(o => !o[2]).map(o => o[0]);
+            let mode = leg.fields[def.key]?.mode;
+            if (!avail.includes(mode)) mode = avail[0];
+            const snapAt = leg.fields[def.key]?.snapAt ?? 1;
+            const isSnap = mode === 'snap';
+
+            const radios = opts.map(([val, lbl, disabled]) =>
+                `<label><input type="radio" name="jf-${def.key}" value="${val}" ${mode === val ? 'checked' : ''} ${disabled ? 'disabled' : ''}> ${lbl}</label>`
+            ).join('');
+
+            fieldsHtml += `
+                <div class="journey-field" data-key="${def.key}">
+                    <span class="journey-field-label">${def.label}
+                        <span class="journey-field-vals">${fieldDisplayValue(a.snap, def.key)} &#8594; ${fieldDisplayValue(b.snap, def.key)}</span>
+                    </span>
+                    <div class="journey-field-controls">
+                        ${radios}
+                        <span class="journey-field-snapat" style="${isSnap ? '' : 'display:none'}">at
+                            <input type="range" class="journey-snapat-range" min="0" max="1" step="0.05" value="${snapAt}">
+                            <span class="journey-snapat-val">${snapAt.toFixed(2)}</span>
+                        </span>
+                    </div>
+                </div>`;
+        }
+    }
+
+    editor.innerHTML = `
+        <div class="journey-editor-head">
+            <span class="journey-editor-title">Transition: ${escapeAttr(a.label)} &#8594; ${escapeAttr(b.label)}</span>
+            <button class="journey-editor-close" data-act="close" title="Close">&#10005;</button>
+        </div>
+        <div class="journey-editor-timing">
+            <label class="anim-label">Pause before</label>
+            <input type="number" class="anim-number journey-pauseBefore" min="0" step="1" value="${leg.pauseBeforeBeats || 0}"><span class="anim-label">beats</span>
+            <label class="anim-label">Transition</label>
+            <input type="number" class="anim-number journey-transition" min="1" step="1" value="${leg.transitionBeats}"><span class="anim-label">beats</span>
+            <label class="anim-label">Pause after</label>
+            <input type="number" class="anim-number journey-pauseAfter" min="0" step="1" value="${leg.pauseAfterBeats || 0}"><span class="anim-label">beats</span>
+            <label class="anim-label">Easing</label>
+            <select class="journey-easing">${easingOpt('smooth', 'Smooth')}${easingOpt('easeIn', 'Ease In')}${easingOpt('easeOut', 'Ease Out')}${easingOpt('linear', 'Linear')}</select>
+            <label class="anim-label">Pan path</label>
+            <select class="journey-panCurve">${curveOpt('straight', 'Straight')}${curveOpt('sporadic', 'Sporadic Curve')}</select>
+        </div>
+        <div class="journey-editor-pulse">
+            <label><input type="checkbox" class="journey-pulse-enable" ${leg.colorPulse?.enabled ? 'checked' : ''}> Color pulse</label>
+            <span class="journey-pulse-count-wrap" style="${leg.colorPulse?.enabled ? '' : 'display:none'}">
+                <input type="number" class="anim-number journey-pulse-count" min="1" step="1" value="${leg.colorPulse?.count ?? 1}">
+                <span class="anim-label">times</span>
+            </span>
+        </div>
+        <div class="journey-editor-fields">${fieldsHtml}</div>
+    `;
+    editor.style.display = 'block';
+    wireTransitionEditor(legIndex);
+    renderStoryboard();
+}
+
+function wireTransitionEditor(legIndex) {
+    const editor = document.getElementById('journeyEditor');
+    const leg = journeyState.legs[legIndex];
+
+    editor.querySelector('.journey-editor-close').addEventListener('click', closeTransitionEditor);
+
+    const pb = editor.querySelector('.journey-pauseBefore');
+    const tr = editor.querySelector('.journey-transition');
+    const pa = editor.querySelector('.journey-pauseAfter');
+    pb.addEventListener('change', () => { leg.pauseBeforeBeats = Math.max(0, parseFloat(pb.value) || 0); pb.value = leg.pauseBeforeBeats; });
+    tr.addEventListener('change', () => { leg.transitionBeats = Math.max(1, parseFloat(tr.value) || 1); tr.value = leg.transitionBeats; renderStoryboard(); });
+    pa.addEventListener('change', () => { leg.pauseAfterBeats = Math.max(0, parseFloat(pa.value) || 0); pa.value = leg.pauseAfterBeats; });
+
+    editor.querySelector('.journey-easing').addEventListener('change', (e) => { leg.easing = e.target.value; });
+    editor.querySelector('.journey-panCurve').addEventListener('change', (e) => { leg.panCurve = e.target.value; });
+
+    if (!leg.colorPulse) leg.colorPulse = { enabled: false, count: 1 };
+    const pulseEnable = editor.querySelector('.journey-pulse-enable');
+    const pulseCountWrap = editor.querySelector('.journey-pulse-count-wrap');
+    const pulseCount = editor.querySelector('.journey-pulse-count');
+    pulseEnable.addEventListener('change', () => {
+        leg.colorPulse.enabled = pulseEnable.checked;
+        pulseCountWrap.style.display = pulseEnable.checked ? '' : 'none';
+    });
+    pulseCount.addEventListener('change', () => {
+        leg.colorPulse.count = Math.max(1, Math.round(parseFloat(pulseCount.value) || 1));
+        pulseCount.value = leg.colorPulse.count;
+    });
+
+    editor.querySelectorAll('.journey-field').forEach(row => {
+        const key = row.dataset.key;
+        if (!leg.fields[key]) leg.fields[key] = { mode: 'interpolate', snapAt: 1 };
+        const snapAtWrap = row.querySelector('.journey-field-snapat');
+        row.querySelectorAll(`input[name="jf-${key}"]`).forEach(radio => {
+            radio.addEventListener('change', () => {
+                leg.fields[key].mode = radio.value;
+                if (snapAtWrap) snapAtWrap.style.display = radio.value === 'snap' ? '' : 'none';
+            });
+        });
+        const range = row.querySelector('.journey-snapat-range');
+        if (range) {
+            range.addEventListener('input', () => {
+                leg.fields[key].snapAt = parseFloat(range.value);
+                row.querySelector('.journey-snapat-val').textContent = parseFloat(range.value).toFixed(2);
+            });
+        }
+    });
+}
+
+function closeTransitionEditor() {
+    const editor = document.getElementById('journeyEditor');
+    journeyEditingLeg = null;
+    if (editor) { editor.style.display = 'none'; editor.innerHTML = ''; }
+    renderStoryboard();
+}
+
+// --- Init / wiring -----------------------------------------------------------
+
+function initJourney() {
+    const addBtn = document.getElementById('journeyAddBtn');
+    if (addBtn) addBtn.addEventListener('click', () => addCurrentPlace());
+
+    const bpmInput = document.getElementById('journeyBpm');
+    if (bpmInput) {
+        bpmInput.value = journeyState.bpm;
+        bpmInput.addEventListener('change', () => {
+            journeyState.bpm = Math.max(40, Math.min(300, parseInt(bpmInput.value) || 120));
+            bpmInput.value = journeyState.bpm;
+        });
+    }
+
+    const strip = document.getElementById('journeyStrip');
+    if (strip) {
+        strip.addEventListener('click', (e) => {
+            const el = e.target.closest('[data-act]');
+            if (!el) return;
+            const act = el.dataset.act;
+            if (act === 'del') removePlace(el.dataset.id);
+            else if (act === 'left') movePlace(el.dataset.id, -1);
+            else if (act === 'right') movePlace(el.dataset.id, 1);
+            else if (act === 'edit') {
+                const idx = parseInt(el.dataset.leg);
+                if (journeyEditingLeg === idx) closeTransitionEditor();
+                else openTransitionEditor(idx);
+            }
+        });
+        strip.addEventListener('change', (e) => {
+            if (e.target.classList.contains('journey-card-label')) {
+                const p = journeyState.places.find(p => p.id === e.target.dataset.id);
+                if (p) p.label = e.target.value;
+            }
+        });
+    }
+
+    const previewBtn = document.getElementById('journeyPreviewBtn');
+    if (previewBtn) previewBtn.addEventListener('click', playJourney);
+
+    const exportGifBtn = document.getElementById('journeyExportGifBtn');
+    if (exportGifBtn) exportGifBtn.addEventListener('click', exportJourneyGif);
+
+    const exportJsonBtn = document.getElementById('journeyExportJsonBtn');
+    if (exportJsonBtn) exportJsonBtn.addEventListener('click', downloadJourneyFile);
+
+    const importJsonBtn = document.getElementById('journeyImportJsonBtn');
+    const importJsonInput = document.getElementById('journeyImportJsonInput');
+    if (importJsonBtn && importJsonInput) {
+        importJsonBtn.addEventListener('click', () => importJsonInput.click());
+        importJsonInput.addEventListener('change', () => importJourneyFromFileInput(importJsonInput));
+    }
+
+    renderStoryboard();
+}
+
+
 /* === js/ui.js === */
 // UI controls and event listeners
 const gradientSelect = document.getElementById('gradientSelect');
@@ -4969,6 +6573,7 @@ function buildStopEditor() {
             buildGradientPreview();
             recolor();
             if (state.pathExplorerMode) renderPathBackground();
+            refreshJuliaMapIfVisible();
         });
 
         swatch.appendChild(input);
@@ -4982,14 +6587,36 @@ function changeGradient() {
     buildStopEditor();
     recolor();
     if (state.pathExplorerMode) renderPathBackground();
+    refreshJuliaMapIfVisible();
 }
 
-function exportImage() {
+async function exportImage() {
+    const resSelect = document.getElementById('exportResolutionSelect');
+    const [targetW, targetH] = resSelect ? resSelect.value.split('x').map(Number) : [canvas.width, canvas.height];
+    const originalW = canvas.width, originalH = canvas.height;
+    const needsResize = targetW !== originalW || targetH !== originalH;
+
+    if (needsResize) {
+        exportBtn.disabled = true;
+        loadingOverlay.classList.add('active');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        await renderAsync();
+    }
+
     const link = document.createElement('a');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     link.download = `mandelbrot-${timestamp}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
+
+    if (needsResize) {
+        canvas.width = originalW;
+        canvas.height = originalH;
+        await renderAsync();
+        loadingOverlay.classList.remove('active');
+        exportBtn.disabled = false;
+    }
 }
 
 function updateIterations() {
@@ -5026,6 +6653,7 @@ iterationSlider.addEventListener('change', () => {
     updateIterations();
     render();
     if (state.pathExplorerMode) renderPathBackground();
+    refreshJuliaMapIfVisible();
 });
 
 repeatSlider.addEventListener('input', () => {
@@ -5034,6 +6662,7 @@ repeatSlider.addEventListener('input', () => {
     buildGradientPreview();
     recolor();
     if (state.pathExplorerMode) renderPathBackground();
+    refreshJuliaMapIfVisible();
 });
 
 document.getElementById('blendRepeatsCheckbox').addEventListener('change', (e) => {
@@ -5041,6 +6670,7 @@ document.getElementById('blendRepeatsCheckbox').addEventListener('change', (e) =
     buildGradientPreview();
     recolor();
     if (state.pathExplorerMode) renderPathBackground();
+    refreshJuliaMapIfVisible();
 });
 
 pulseBtn.addEventListener('click', enqueuePulse);
@@ -5063,6 +6693,7 @@ document.addEventListener('mousemove', (e) => {
     buildGradientPreview();
     recolor();
     if (state.pathExplorerMode) renderPathBackground();
+    refreshJuliaMapIfVisible();
 });
 
 document.addEventListener('mouseup', () => {
@@ -5079,6 +6710,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.getElementById('tab-' + btn.dataset.tab).style.display = 'flex';
         togglePathExplorerMode(btn.dataset.tab === 'orbit-explorer');
         toggleAutoExplorerTab(btn.dataset.tab === 'auto-explorer');
+        toggleJuliaMapCanvas(btn.dataset.tab === 'equation' && state.juliaMode);
     });
 });
 
@@ -5196,16 +6828,8 @@ samplesSlider.addEventListener('change', () => {
     if (state.renderingMode === 'buddhabrot') render();
 });
 
-// Canvas mouse events — Julia mode, Path Explorer Mode, or Default Mode (zoom box)
+// Canvas mouse events — Path Explorer Mode or Default Mode (zoom box)
 canvas.addEventListener('mousedown', (e) => {
-    if (state.juliaMode) {
-        const { cr, ci } = pixelToComplex(e.offsetX, e.offsetY);
-        state.juliaC = { re: cr, im: ci };
-        updateJuliaCDisplay();
-        render();
-        if (state.pathExplorerMode) renderPathBackground();
-        return;
-    }
     if (e.ctrlKey && !state.pathExplorerMode) {
         e.preventDefault();
         const { cr, ci } = pixelToComplex(e.offsetX, e.offsetY);
@@ -5833,6 +7457,7 @@ document.querySelectorAll('input[name="fractalType"]').forEach(radio => {
         if (juliaSec) juliaSec.style.display    = 'none';
         updateJuliaCDisplay();
         updateEquationDisplay();
+        toggleJuliaMapCanvas(false);
         reset(); // resets viewport and calls render()
         if (state.pathExplorerMode) renderPathBackground();
     });
@@ -5851,6 +7476,7 @@ exponentSlider.addEventListener('input', () => {
 exponentSlider.addEventListener('change', () => {
     render();
     if (state.pathExplorerMode) renderPathBackground();
+    refreshJuliaMapIfVisible();
 });
 
 const juliaModeToggle = document.getElementById('juliaModeToggle');
@@ -5861,6 +7487,7 @@ juliaModeToggle.addEventListener('change', () => {
     const juliaSec = document.getElementById('juliaCSection');
     if (juliaSec) juliaSec.style.display = state.juliaMode ? '' : 'none';
     updateJuliaCDisplay();
+    toggleJuliaMapCanvas(state.juliaMode);
     if (!state.juliaMode) {
         render();
         if (state.pathExplorerMode) renderPathBackground();
@@ -5875,6 +7502,7 @@ render();
 buildGradientPreview();
 buildStopEditor();
 buildSegmentList();
+initJourney();
 tryLoadSnapshotFromURL();
 
     </script>
